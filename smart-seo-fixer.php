@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.3.0');
+define('SSF_VERSION', '1.3.1');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -72,22 +72,33 @@ final class Smart_SEO_Fixer {
      * Load required files
      */
     private function load_dependencies() {
-        // Core classes
-        require_once SSF_PLUGIN_DIR . 'includes/class-openai.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-analyzer.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-meta-manager.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-schema.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-sitemap.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-local-seo.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-migration.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-redirects.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-breadcrumbs.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-woocommerce.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-updater.php';
-        require_once SSF_PLUGIN_DIR . 'includes/class-ajax.php';
+        $includes = [
+            'includes/class-openai.php',
+            'includes/class-analyzer.php',
+            'includes/class-meta-manager.php',
+            'includes/class-schema.php',
+            'includes/class-sitemap.php',
+            'includes/class-local-seo.php',
+            'includes/class-migration.php',
+            'includes/class-redirects.php',
+            'includes/class-breadcrumbs.php',
+            'includes/class-woocommerce.php',
+            'includes/class-updater.php',
+            'includes/class-ajax.php',
+        ];
+        
+        foreach ($includes as $file) {
+            $path = SSF_PLUGIN_DIR . $file;
+            if (file_exists($path)) {
+                require_once $path;
+            }
+        }
         
         if (is_admin()) {
-            require_once SSF_PLUGIN_DIR . 'includes/class-admin.php';
+            $admin_path = SSF_PLUGIN_DIR . 'includes/class-admin.php';
+            if (file_exists($admin_path)) {
+                require_once $admin_path;
+            }
         }
     }
     
@@ -106,17 +117,18 @@ final class Smart_SEO_Fixer {
      * Initialize components
      */
     public function init() {
-        $this->openai = new SSF_OpenAI();
-        $this->analyzer = new SSF_Analyzer();
-        $this->meta_manager = new SSF_Meta_Manager();
-        $this->schema = new SSF_Schema();
-        $this->sitemap = new SSF_Sitemap();
-        $this->local_seo = new SSF_Local_SEO();
-        $this->redirects = new SSF_Redirects();
-        $this->breadcrumbs = new SSF_Breadcrumbs();
-        $this->woocommerce = new SSF_WooCommerce();
-        $this->updater = new SSF_Updater();
-        new SSF_Ajax();
+        // Safely instantiate each class (defensive if a file failed to load)
+        if (class_exists('SSF_OpenAI'))       $this->openai       = new SSF_OpenAI();
+        if (class_exists('SSF_Analyzer'))     $this->analyzer      = new SSF_Analyzer();
+        if (class_exists('SSF_Meta_Manager')) $this->meta_manager  = new SSF_Meta_Manager();
+        if (class_exists('SSF_Schema'))       $this->schema        = new SSF_Schema();
+        if (class_exists('SSF_Sitemap'))      $this->sitemap       = new SSF_Sitemap();
+        if (class_exists('SSF_Local_SEO'))    $this->local_seo     = new SSF_Local_SEO();
+        if (class_exists('SSF_Redirects'))    $this->redirects     = new SSF_Redirects();
+        if (class_exists('SSF_Breadcrumbs'))  $this->breadcrumbs   = new SSF_Breadcrumbs();
+        if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
+        if (class_exists('SSF_Updater'))      $this->updater       = new SSF_Updater();
+        if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
         if (is_admin()) {
             $this->admin = new SSF_Admin();

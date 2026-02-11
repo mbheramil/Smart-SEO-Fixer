@@ -285,7 +285,9 @@ class SSF_Breadcrumbs {
  * Template function for use in themes
  * Usage: <?php if (function_exists('ssf_breadcrumbs')) ssf_breadcrumbs(); ?>
  */
-function ssf_breadcrumbs($args = []) {
-    $breadcrumbs = new SSF_Breadcrumbs();
-    echo $breadcrumbs->render($args);
+if (!function_exists('ssf_breadcrumbs')) {
+    function ssf_breadcrumbs($args = []) {
+        $breadcrumbs = new SSF_Breadcrumbs();
+        echo $breadcrumbs->render($args);
+    }
 }

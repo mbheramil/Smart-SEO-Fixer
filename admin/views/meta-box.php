@@ -111,8 +111,8 @@ if (!defined('ABSPATH')) {
                     <span><?php echo esc_html($preview_domain); ?></span>
                     <span style="color:#70757a;"> › ...</span>
                 </div>
-                <div class="ssf-gp-title" id="gp-title"><?php echo esc_html(mb_strimwidth($preview_title, 0, 60, '...')); ?></div>
-                <div class="ssf-gp-desc" id="gp-desc"><?php echo esc_html(mb_strimwidth($preview_desc, 0, 160, '...')); ?></div>
+                <div class="ssf-gp-title" id="gp-title"><?php echo esc_html(wp_trim_words($preview_title, 10, '...')); ?></div>
+                <div class="ssf-gp-desc" id="gp-desc"><?php echo esc_html(substr($preview_desc, 0, 160) . (strlen($preview_desc) > 160 ? '...' : '')); ?></div>
             </div>
         </div>
         
@@ -126,8 +126,8 @@ if (!defined('ABSPATH')) {
                 <?php endif; ?>
                 <div class="ssf-fb-content">
                     <div class="ssf-fb-domain"><?php echo esc_html(strtoupper($preview_domain)); ?></div>
-                    <div class="ssf-fb-title" id="fb-title"><?php echo esc_html(mb_strimwidth($preview_title, 0, 65, '...')); ?></div>
-                    <div class="ssf-fb-desc" id="fb-desc"><?php echo esc_html(mb_strimwidth($preview_desc, 0, 155, '...')); ?></div>
+                    <div class="ssf-fb-title" id="fb-title"><?php echo esc_html(substr($preview_title, 0, 65) . (strlen($preview_title) > 65 ? '...' : '')); ?></div>
+                    <div class="ssf-fb-desc" id="fb-desc"><?php echo esc_html(substr($preview_desc, 0, 155) . (strlen($preview_desc) > 155 ? '...' : '')); ?></div>
                 </div>
             </div>
         </div>
@@ -141,8 +141,8 @@ if (!defined('ABSPATH')) {
                 <div class="ssf-tw-image ssf-tw-no-image"><span class="dashicons dashicons-format-image"></span></div>
                 <?php endif; ?>
                 <div class="ssf-tw-content">
-                    <div class="ssf-tw-title" id="tw-title"><?php echo esc_html(mb_strimwidth($preview_title, 0, 70, '...')); ?></div>
-                    <div class="ssf-tw-desc" id="tw-desc"><?php echo esc_html(mb_strimwidth($preview_desc, 0, 125, '...')); ?></div>
+                    <div class="ssf-tw-title" id="tw-title"><?php echo esc_html(substr($preview_title, 0, 70) . (strlen($preview_title) > 70 ? '...' : '')); ?></div>
+                    <div class="ssf-tw-desc" id="tw-desc"><?php echo esc_html(substr($preview_desc, 0, 125) . (strlen($preview_desc) > 125 ? '...' : '')); ?></div>
                     <div class="ssf-tw-domain"><?php echo esc_html($preview_domain); ?></div>
                 </div>
             </div>
