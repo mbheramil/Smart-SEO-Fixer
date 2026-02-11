@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.3.2
+ * Version: 1.4.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.3.2');
+define('SSF_VERSION', '1.4.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -109,6 +109,9 @@ final class Smart_SEO_Fixer {
         add_action('init', [$this, 'init']);
         add_action('plugins_loaded', [$this, 'load_textdomain']);
         
+        // Background SEO generation cron
+        add_action('ssf_cron_generate_missing_seo', [$this, 'cron_generate_missing_seo']);
+        
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
@@ -185,6 +188,7 @@ final class Smart_SEO_Fixer {
             'homepage_title' => '',
             'homepage_description' => '',
             'post_types' => ['post', 'page'], // Updated on init to include custom post types
+            'background_seo_cron' => true, // Auto-fill missing SEO in background
         ];
         
         foreach ($defaults as $key => $value) {
@@ -196,6 +200,11 @@ final class Smart_SEO_Fixer {
         // Create database tables if needed
         $this->create_tables();
         
+        // Schedule background SEO generation cron (twice daily)
+        if (!wp_next_scheduled('ssf_cron_generate_missing_seo')) {
+            wp_schedule_event(time(), 'twicedaily', 'ssf_cron_generate_missing_seo');
+        }
+        
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -204,7 +213,106 @@ final class Smart_SEO_Fixer {
      * Deactivation
      */
     public function deactivate() {
+        // Clear scheduled cron
+        $timestamp = wp_next_scheduled('ssf_cron_generate_missing_seo');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'ssf_cron_generate_missing_seo');
+        }
+        
         flush_rewrite_rules();
+    }
+    
+    /**
+     * Background cron: Auto-generate missing SEO titles & descriptions
+     * Runs twice daily — processes up to 10 posts per run to respect API limits
+     */
+    public function cron_generate_missing_seo() {
+        // Check if background cron is enabled
+        if (!self::get_option('background_seo_cron', true)) {
+            return;
+        }
+        
+        // Must have OpenAI configured
+        if (!class_exists('SSF_OpenAI')) {
+            return;
+        }
+        
+        $openai = new SSF_OpenAI();
+        if (!$openai->is_configured()) {
+            return;
+        }
+        
+        global $wpdb;
+        $post_types = self::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        // Find published posts missing SEO title (limit 10 per cron run)
+        $posts_missing_title = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT p.ID 
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_seo_title'
+                WHERE p.post_status = 'publish'
+                AND p.post_type IN ($placeholders)
+                AND (pm.meta_value IS NULL OR pm.meta_value = '')
+                ORDER BY p.post_date DESC
+                LIMIT 10",
+                ...$post_types
+            )
+        );
+        
+        $generated_count = 0;
+        
+        foreach ($posts_missing_title as $post_id) {
+            $post = get_post($post_id);
+            if (!$post || str_word_count(strip_tags($post->post_content)) < 10) {
+                continue;
+            }
+            
+            $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+            
+            // Generate title
+            $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+            if (empty($seo_title)) {
+                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                if (!is_wp_error($title) && !empty(trim($title))) {
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                    $generated_count++;
+                }
+            }
+            
+            // Generate description
+            $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+            if (empty($meta_desc)) {
+                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                if (!is_wp_error($desc) && !empty(trim($desc))) {
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                }
+            }
+            
+            // Generate focus keyword if empty
+            if (empty($focus_keyword)) {
+                $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
+                    update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
+                }
+            }
+            
+            // Run analysis to update score
+            if (class_exists('SSF_Analyzer')) {
+                $analyzer = new SSF_Analyzer();
+                $analyzer->analyze_post($post_id);
+            }
+        }
+        
+        // Log for debugging
+        if ($generated_count > 0) {
+            update_option('ssf_cron_last_run', [
+                'time' => current_time('mysql'),
+                'generated' => $generated_count,
+                'remaining' => max(0, count($posts_missing_title) - $generated_count),
+            ]);
+        }
     }
     
     /**

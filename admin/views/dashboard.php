@@ -79,6 +79,33 @@ if (!defined('ABSPATH')) {
                     <span class="ssf-stat-label"><?php esc_html_e('Not Analyzed', 'smart-seo-fixer'); ?></span>
                 </div>
             </div>
+            
+            <div class="ssf-stat-card ssf-stat-card-missing" id="stat-card-missing" style="display:none;">
+                <div class="ssf-stat-icon ssf-stat-missing">
+                    <span class="dashicons dashicons-editor-help"></span>
+                </div>
+                <div class="ssf-stat-content">
+                    <span class="ssf-stat-value" id="stat-missing-titles">—</span>
+                    <span class="ssf-stat-label"><?php esc_html_e('Missing AI Titles', 'smart-seo-fixer'); ?></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Missing SEO Alert Banner -->
+        <div class="ssf-missing-seo-banner" id="missing-seo-banner" style="display:none;">
+            <div class="ssf-banner-icon">
+                <span class="dashicons dashicons-warning"></span>
+            </div>
+            <div class="ssf-banner-content">
+                <strong id="missing-banner-title"><?php esc_html_e('Posts missing AI-generated SEO', 'smart-seo-fixer'); ?></strong>
+                <p id="missing-banner-desc"></p>
+            </div>
+            <div class="ssf-banner-actions">
+                <button type="button" class="button button-primary" id="quick-generate-all-btn">
+                    <span class="dashicons dashicons-superhero-alt"></span>
+                    <?php esc_html_e('Generate All Missing SEO Now', 'smart-seo-fixer'); ?>
+                </button>
+            </div>
         </div>
         
         <!-- Main Content Grid -->
@@ -358,6 +385,94 @@ if (!defined('ABSPATH')) {
 .ssf-modal-footer .dashicons {
     margin-right: 5px;
 }
+
+/* Missing SEO stat card */
+.ssf-stat-missing {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+}
+
+.ssf-stat-card-missing {
+    border-left: 4px solid #f59e0b;
+}
+
+/* Missing SEO alert banner */
+.ssf-missing-seo-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 1px solid #f59e0b;
+    border-left: 4px solid #d97706;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.ssf-banner-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: #d97706;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ssf-banner-icon .dashicons {
+    color: #fff;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.ssf-banner-content {
+    flex: 1;
+}
+
+.ssf-banner-content strong {
+    display: block;
+    color: #92400e;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.ssf-banner-content p {
+    margin: 0;
+    color: #78350f;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.ssf-banner-actions {
+    flex-shrink: 0;
+}
+
+.ssf-banner-actions .button-primary {
+    background: #d97706;
+    border-color: #b45309;
+    padding: 6px 16px;
+    height: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ssf-banner-actions .button-primary:hover {
+    background: #b45309;
+    border-color: #92400e;
+}
+
+.ssf-banner-actions .button-primary .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+}
 </style>
 
 <script>
@@ -380,6 +495,29 @@ jQuery(document).ready(function($) {
                 $('#stat-ok').text(data.ok_count || 0);
                 $('#stat-poor').text(data.poor_count || 0);
                 $('#stat-unanalyzed').text(data.unanalyzed || 0);
+                
+                // Missing SEO stat card
+                var missingTitles = data.missing_titles || 0;
+                var missingDescs = data.missing_descs || 0;
+                $('#stat-missing-titles').text(missingTitles);
+                
+                if (missingTitles > 0) {
+                    $('#stat-card-missing').show();
+                } else {
+                    $('#stat-card-missing').hide();
+                }
+                
+                // Missing SEO alert banner
+                if (missingTitles > 0 || missingDescs > 0) {
+                    var parts = [];
+                    if (missingTitles > 0) parts.push(missingTitles + ' <?php echo esc_js(__('missing SEO titles', 'smart-seo-fixer')); ?>');
+                    if (missingDescs > 0) parts.push(missingDescs + ' <?php echo esc_js(__('missing meta descriptions', 'smart-seo-fixer')); ?>');
+                    
+                    $('#missing-banner-desc').text(parts.join(', ') + '. <?php echo esc_js(__('Click below to generate AI-optimized SEO for all of them instantly.', 'smart-seo-fixer')); ?>');
+                    $('#missing-seo-banner').slideDown(300);
+                } else {
+                    $('#missing-seo-banner').slideUp(200);
+                }
                 
                 // Render needs attention list
                 renderPostList('#needs-attention-list', data.needs_attention);
@@ -471,7 +609,8 @@ jQuery(document).ready(function($) {
         
         switch(applyTo) {
             case 'missing':
-                estimate = stats.unanalyzed || 0;
+                // Use accurate count of posts missing SEO titles (primary metric)
+                estimate = Math.max(stats.missing_titles || 0, stats.missing_descs || 0, stats.unanalyzed || 0);
                 break;
             case 'poor':
                 estimate = (stats.poor_count || 0) + (stats.unanalyzed || 0);
@@ -499,6 +638,23 @@ jQuery(document).ready(function($) {
         }
         
         $('#bulk-fix-modal').hide();
+        bulkFixPosts(options);
+    });
+    
+    // One-click "Generate All Missing SEO" from the alert banner
+    $('#quick-generate-all-btn').on('click', function() {
+        <?php if (!Smart_SEO_Fixer::get_option('openai_api_key')): ?>
+        alert('<?php echo esc_js(__('Please configure your OpenAI API key in Settings first.', 'smart-seo-fixer')); ?>');
+        return;
+        <?php endif; ?>
+        
+        var options = {
+            generate_title: true,
+            generate_desc: true,
+            generate_keywords: true,
+            apply_to: 'missing'
+        };
+        
         bulkFixPosts(options);
     });
     

@@ -254,11 +254,46 @@ unset($available_post_types['attachment']);
                                        name="auto_meta" 
                                        value="1" 
                                        <?php checked($auto_meta, true); ?>>
-                                <?php esc_html_e('Automatically generate meta descriptions using AI', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('Auto-generate SEO titles, descriptions & keywords on publish/update', 'smart-seo-fixer'); ?>
                             </label>
                             <p class="description">
-                                <?php esc_html_e('When enabled, AI will auto-generate meta descriptions for new posts without one.', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('When enabled, AI will auto-generate missing SEO title, meta description, and focus keyword every time a post is published or updated. Existing values are never overwritten.', 'smart-seo-fixer'); ?>
                             </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Background SEO Generation', 'smart-seo-fixer'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" 
+                                       name="background_seo_cron" 
+                                       value="1" 
+                                       <?php checked(Smart_SEO_Fixer::get_option('background_seo_cron', true), true); ?>>
+                                <?php esc_html_e('Automatically fill missing SEO in the background (twice daily)', 'smart-seo-fixer'); ?>
+                            </label>
+                            <p class="description">
+                                <?php esc_html_e('A background cron runs twice daily to catch any posts that still lack AI-generated titles or descriptions. Processes up to 10 posts per run to respect API rate limits.', 'smart-seo-fixer'); ?>
+                            </p>
+                            <?php
+                            $cron_next = wp_next_scheduled('ssf_cron_generate_missing_seo');
+                            $cron_last = get_option('ssf_cron_last_run', null);
+                            if ($cron_next): ?>
+                                <p class="description" style="margin-top: 6px; color: #059669;">
+                                    <span class="dashicons dashicons-clock" style="font-size: 14px; width: 14px; height: 14px; vertical-align: text-bottom;"></span>
+                                    <?php printf(
+                                        esc_html__('Next run: %s', 'smart-seo-fixer'),
+                                        esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $cron_next))
+                                    ); ?>
+                                    <?php if ($cron_last): ?>
+                                        &nbsp;|&nbsp;
+                                        <?php printf(
+                                            esc_html__('Last run: %s (%d generated)', 'smart-seo-fixer'),
+                                            esc_html($cron_last['time'] ?? '—'),
+                                            intval($cron_last['generated'] ?? 0)
+                                        ); ?>
+                                    <?php endif; ?>
+                                </p>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>

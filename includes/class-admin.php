@@ -428,12 +428,14 @@ class SSF_Admin {
     }
     
     /**
-     * Auto-generate SEO meta when a post is first published
+     * Auto-generate SEO meta when a post is published or updated
      * Triggered by the auto_meta setting in plugin options
+     * 
+     * Layer 1: Fires on every publish/update — if title/desc is still empty, AI generates it
      */
     public function auto_generate_meta($new_status, $old_status, $post) {
-        // Only run when transitioning TO 'publish' for the first time
-        if ($new_status !== 'publish' || $old_status === 'publish') {
+        // Only process published posts
+        if ($new_status !== 'publish') {
             return;
         }
         
@@ -441,6 +443,13 @@ class SSF_Admin {
         if (!Smart_SEO_Fixer::get_option('auto_meta')) {
             return;
         }
+        
+        // Prevent infinite loops (flag so we only run once per request)
+        static $processed = [];
+        if (isset($processed[$post->ID])) {
+            return;
+        }
+        $processed[$post->ID] = true;
         
         // Check if this post type is in our managed types
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
@@ -453,15 +462,26 @@ class SSF_Admin {
             return;
         }
         
+        // Check if any SEO data is actually missing — skip if all filled
+        $seo_title = get_post_meta($post->ID, '_ssf_seo_title', true);
+        $meta_desc = get_post_meta($post->ID, '_ssf_meta_description', true);
+        $focus_keyword = get_post_meta($post->ID, '_ssf_focus_keyword', true);
+        
+        if (!empty($seo_title) && !empty($meta_desc) && !empty($focus_keyword)) {
+            // Everything already filled — just re-analyze for score
+            if (class_exists('SSF_Analyzer')) {
+                $analyzer = new SSF_Analyzer();
+                $analyzer->analyze_post($post->ID);
+            }
+            return;
+        }
+        
         $openai = new SSF_OpenAI();
         if (!$openai->is_configured()) {
             return;
         }
         
-        $focus_keyword = get_post_meta($post->ID, '_ssf_focus_keyword', true);
-        
         // Auto-generate SEO title if empty
-        $seo_title = get_post_meta($post->ID, '_ssf_seo_title', true);
         if (empty($seo_title)) {
             $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
             if (!is_wp_error($title) && !empty(trim($title))) {
@@ -470,7 +490,6 @@ class SSF_Admin {
         }
         
         // Auto-generate meta description if empty
-        $meta_desc = get_post_meta($post->ID, '_ssf_meta_description', true);
         if (empty($meta_desc)) {
             $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
             if (!is_wp_error($desc) && !empty(trim($desc))) {
@@ -487,8 +506,10 @@ class SSF_Admin {
         }
         
         // Run analysis
-        $analyzer = new SSF_Analyzer();
-        $analyzer->analyze_post($post->ID);
+        if (class_exists('SSF_Analyzer')) {
+            $analyzer = new SSF_Analyzer();
+            $analyzer->analyze_post($post->ID);
+        }
     }
     
     /**

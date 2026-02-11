@@ -486,11 +486,22 @@ class SSF_Ajax {
             'enable_schema' => !empty($_POST['enable_schema']) ? 1 : 0,
             'enable_sitemap' => !empty($_POST['enable_sitemap']) ? 1 : 0,
             'disable_other_seo_output' => !empty($_POST['disable_other_seo_output']) ? 1 : 0,
+            'background_seo_cron' => !empty($_POST['background_seo_cron']) ? 1 : 0,
             'github_token' => sanitize_text_field($_POST['github_token'] ?? ''),
             'title_separator' => sanitize_text_field($_POST['title_separator'] ?? '|'),
             'homepage_title' => sanitize_text_field($_POST['homepage_title'] ?? ''),
             'homepage_description' => sanitize_textarea_field($_POST['homepage_description'] ?? ''),
         ];
+        
+        // Schedule or unschedule background cron based on setting
+        $cron_enabled = !empty($_POST['background_seo_cron']);
+        $cron_scheduled = wp_next_scheduled('ssf_cron_generate_missing_seo');
+        
+        if ($cron_enabled && !$cron_scheduled) {
+            wp_schedule_event(time(), 'twicedaily', 'ssf_cron_generate_missing_seo');
+        } elseif (!$cron_enabled && $cron_scheduled) {
+            wp_unschedule_event($cron_scheduled, 'ssf_cron_generate_missing_seo');
+        }
         
         // Handle post types array
         if (isset($_POST['post_types']) && is_array($_POST['post_types'])) {
@@ -755,6 +766,36 @@ class SSF_Ajax {
             );
         }
         
+        // Count posts missing AI-generated SEO title
+        $missing_titles = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) 
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_seo_title'
+                WHERE p.post_status = 'publish'
+                AND p.post_type IN ($placeholders)
+                AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+                ...$post_types
+            )
+        );
+        
+        // Count posts missing meta description
+        $missing_descs = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) 
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_meta_description'
+                WHERE p.post_status = 'publish'
+                AND p.post_type IN ($placeholders)
+                AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+                ...$post_types
+            )
+        );
+        
+        // Cron status
+        $cron_last = get_option('ssf_cron_last_run', null);
+        $cron_next = wp_next_scheduled('ssf_cron_generate_missing_seo');
+        
         wp_send_json_success([
             'total_posts' => intval($stats->total_posts ?? 0),
             'avg_score' => round($stats->avg_score ?? 0),
@@ -762,6 +803,10 @@ class SSF_Ajax {
             'ok_count' => intval($stats->ok_count ?? 0),
             'poor_count' => intval($stats->poor_count ?? 0),
             'unanalyzed' => intval($unanalyzed),
+            'missing_titles' => intval($missing_titles),
+            'missing_descs' => intval($missing_descs),
+            'cron_last_run' => $cron_last,
+            'cron_next_run' => $cron_next ? date('Y-m-d H:i:s', $cron_next) : null,
             'needs_attention' => $needs_attention,
             'recent' => $recent,
         ]);
