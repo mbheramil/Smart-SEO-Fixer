@@ -315,33 +315,142 @@ $locations = $local_seo->get_locations();
             <h2>
                 <span class="dashicons dashicons-location"></span>
                 <?php esc_html_e('Additional Locations', 'smart-seo-fixer'); ?>
+                <span id="loc-count" class="ssf-badge" style="<?php echo empty($locations) ? 'display:none;' : ''; ?>"><?php echo count($locations); ?></span>
             </h2>
-            <button type="button" class="button" id="add-location-btn">
-                <span class="dashicons dashicons-plus-alt2"></span>
+            <button type="button" class="button button-primary" id="add-location-btn">
+                <span class="dashicons dashicons-plus-alt2" style="line-height:1.4;"></span>
                 <?php esc_html_e('Add Location', 'smart-seo-fixer'); ?>
             </button>
         </div>
         <div class="ssf-card-body">
-            <p class="description"><?php esc_html_e('If you have multiple business locations, add them here. Each location will get its own schema markup.', 'smart-seo-fixer'); ?></p>
+            <p class="description"><?php esc_html_e('If you have multiple business locations, add them here. Each location gets its own LocalBusiness schema markup on the frontend.', 'smart-seo-fixer'); ?></p>
             
             <div id="locations-list">
                 <?php if (empty($locations)): ?>
-                <p class="ssf-empty"><?php esc_html_e('No additional locations added yet.', 'smart-seo-fixer'); ?></p>
+                <p class="ssf-empty" id="no-locations-msg"><?php esc_html_e('No additional locations added yet.', 'smart-seo-fixer'); ?></p>
                 <?php else: ?>
                 <?php foreach ($locations as $location): ?>
-                <div class="ssf-location-item" data-id="<?php echo esc_attr($location['id']); ?>">
+                <div class="ssf-location-item" data-id="<?php echo esc_attr($location['id']); ?>" data-location="<?php echo esc_attr(wp_json_encode($location)); ?>">
                     <div class="ssf-location-info">
                         <strong><?php echo esc_html($location['name']); ?></strong>
-                        <span><?php echo esc_html($location['address']['city'] . ', ' . $location['address']['state']); ?></span>
+                        <span><?php echo esc_html(($location['address']['street'] ? $location['address']['street'] . ', ' : '') . $location['address']['city'] . ', ' . $location['address']['state'] . ' ' . $location['address']['zip']); ?></span>
+                        <?php if (!empty($location['phone'])): ?>
+                        <span style="color:#2563eb;"><?php echo esc_html($location['phone']); ?></span>
+                        <?php endif; ?>
                     </div>
                     <div class="ssf-location-actions">
-                        <button type="button" class="button button-small edit-location-btn"><?php esc_html_e('Edit', 'smart-seo-fixer'); ?></button>
-                        <button type="button" class="button button-small delete-location-btn"><?php esc_html_e('Delete', 'smart-seo-fixer'); ?></button>
+                        <button type="button" class="button button-small edit-location-btn" title="<?php esc_attr_e('Edit', 'smart-seo-fixer'); ?>">
+                            <span class="dashicons dashicons-edit" style="font-size:16px;width:16px;height:16px;line-height:1.6;"></span> <?php esc_html_e('Edit', 'smart-seo-fixer'); ?>
+                        </button>
+                        <button type="button" class="button button-small delete-location-btn" style="color:#dc2626;border-color:#dc2626;" title="<?php esc_attr_e('Delete', 'smart-seo-fixer'); ?>">
+                            <span class="dashicons dashicons-trash" style="font-size:16px;width:16px;height:16px;line-height:1.6;"></span> <?php esc_html_e('Delete', 'smart-seo-fixer'); ?>
+                        </button>
                     </div>
                 </div>
                 <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Location Add/Edit Modal -->
+<div id="ssf-location-modal" style="display:none;">
+    <div class="ssf-modal-overlay"></div>
+    <div class="ssf-modal-content">
+        <div class="ssf-modal-header">
+            <h2 id="ssf-modal-title"><?php esc_html_e('Add Location', 'smart-seo-fixer'); ?></h2>
+            <button type="button" class="ssf-modal-close" id="close-location-modal">&times;</button>
+        </div>
+        <div class="ssf-modal-body">
+            <form id="location-form">
+                <input type="hidden" name="id" id="loc-id" value="">
+                
+                <!-- Location Name -->
+                <div class="ssf-loc-field">
+                    <label for="loc-name"><?php esc_html_e('Location Name', 'smart-seo-fixer'); ?> <span style="color:#dc2626;">*</span></label>
+                    <input type="text" id="loc-name" name="name" class="regular-text" style="width:100%;" placeholder="<?php esc_attr_e('e.g., Downtown Office', 'smart-seo-fixer'); ?>" required>
+                </div>
+                
+                <!-- Contact -->
+                <div style="display:flex;gap:12px;">
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-phone"><?php esc_html_e('Phone', 'smart-seo-fixer'); ?></label>
+                        <input type="tel" id="loc-phone" name="phone" class="regular-text" style="width:100%;" placeholder="+1 (555) 123-4567">
+                    </div>
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-email"><?php esc_html_e('Email', 'smart-seo-fixer'); ?></label>
+                        <input type="email" id="loc-email" name="email" class="regular-text" style="width:100%;" placeholder="office@example.com">
+                    </div>
+                </div>
+                
+                <!-- Address -->
+                <h4 style="margin:15px 0 8px;padding-top:10px;border-top:1px solid #e5e7eb;">
+                    <span class="dashicons dashicons-location-alt" style="color:#2563eb;"></span>
+                    <?php esc_html_e('Address', 'smart-seo-fixer'); ?>
+                </h4>
+                
+                <div class="ssf-loc-field">
+                    <label for="loc-street"><?php esc_html_e('Street Address', 'smart-seo-fixer'); ?></label>
+                    <input type="text" id="loc-street" name="address[street]" class="regular-text" style="width:100%;" placeholder="<?php esc_attr_e('123 Main St, Suite 100', 'smart-seo-fixer'); ?>">
+                </div>
+                
+                <div style="display:flex;gap:12px;">
+                    <div class="ssf-loc-field" style="flex:2;">
+                        <label for="loc-city"><?php esc_html_e('City', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-city" name="address[city]" class="regular-text" style="width:100%;">
+                    </div>
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-state"><?php esc_html_e('State', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-state" name="address[state]" class="regular-text" style="width:100%;" placeholder="FL">
+                    </div>
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-zip"><?php esc_html_e('ZIP', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-zip" name="address[zip]" class="regular-text" style="width:100%;">
+                    </div>
+                </div>
+                
+                <div style="display:flex;gap:12px;">
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-country"><?php esc_html_e('Country', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-country" name="address[country]" class="regular-text" style="width:100%;" placeholder="US" value="US">
+                    </div>
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-lat"><?php esc_html_e('Latitude', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-lat" name="geo[latitude]" class="regular-text" style="width:100%;" placeholder="26.3584">
+                    </div>
+                    <div class="ssf-loc-field" style="flex:1;">
+                        <label for="loc-lng"><?php esc_html_e('Longitude', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="loc-lng" name="geo[longitude]" class="regular-text" style="width:100%;" placeholder="-80.0834">
+                    </div>
+                </div>
+                
+                <!-- Business Hours -->
+                <h4 style="margin:15px 0 8px;padding-top:10px;border-top:1px solid #e5e7eb;">
+                    <span class="dashicons dashicons-clock" style="color:#2563eb;"></span>
+                    <?php esc_html_e('Business Hours', 'smart-seo-fixer'); ?>
+                </h4>
+                
+                <table class="ssf-loc-hours-table">
+                    <?php foreach ($days as $key => $label): ?>
+                    <tr>
+                        <td style="width:100px;font-weight:600;"><?php echo esc_html($label); ?></td>
+                        <td style="width:40px;"><input type="checkbox" name="hours[<?php echo esc_attr($key); ?>][open]" value="1" class="loc-day-check" data-day="<?php echo esc_attr($key); ?>"></td>
+                        <td><input type="time" name="hours[<?php echo esc_attr($key); ?>][open_time]" value="09:00" class="loc-time-input" data-day="<?php echo esc_attr($key); ?>"></td>
+                        <td style="padding:0 5px;color:#9ca3af;">–</td>
+                        <td><input type="time" name="hours[<?php echo esc_attr($key); ?>][close_time]" value="17:00" class="loc-time-input" data-day="<?php echo esc_attr($key); ?>"></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </table>
+                <p class="description" style="margin-top:6px;"><?php esc_html_e('Check the days this location is open.', 'smart-seo-fixer'); ?></p>
+            </form>
+        </div>
+        <div class="ssf-modal-footer">
+            <button type="button" class="button" id="cancel-location-modal"><?php esc_html_e('Cancel', 'smart-seo-fixer'); ?></button>
+            <button type="button" class="button button-primary" id="save-location-btn">
+                <span class="dashicons dashicons-saved" style="line-height:1.4;"></span>
+                <?php esc_html_e('Save Location', 'smart-seo-fixer'); ?>
+            </button>
         </div>
     </div>
 </div>
@@ -481,6 +590,31 @@ $locations = $local_seo->get_locations();
 .ssf-card-legal .ssf-card-header h2 {
     color: #1e40af;
 }
+
+/* Location Modal */
+#ssf-location-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100100; display: flex; align-items: center; justify-content: center; }
+.ssf-modal-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); }
+.ssf-modal-content { position: relative; background: #fff; border-radius: 10px; width: 680px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.ssf-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid #e5e7eb; }
+.ssf-modal-header h2 { margin: 0; font-size: 18px; }
+.ssf-modal-close { background: none; border: none; font-size: 28px; cursor: pointer; color: #6b7280; line-height: 1; padding: 0 4px; }
+.ssf-modal-close:hover { color: #dc2626; }
+.ssf-modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.ssf-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 10px 10px; }
+.ssf-loc-field { margin-bottom: 12px; }
+.ssf-loc-field label { display: block; font-weight: 500; margin-bottom: 4px; font-size: 13px; color: #374151; }
+.ssf-loc-hours-table { width: 100%; border-collapse: collapse; }
+.ssf-loc-hours-table td { padding: 5px 4px; }
+.ssf-loc-hours-table input[type="time"] { width: 120px; }
+
+/* Location list items */
+.ssf-location-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; transition: box-shadow 0.2s; }
+.ssf-location-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.ssf-location-info { display: flex; flex-direction: column; gap: 2px; }
+.ssf-location-info strong { font-size: 14px; }
+.ssf-location-info span { font-size: 12px; color: #6b7280; }
+.ssf-location-actions { display: flex; gap: 6px; }
+.ssf-badge { background: #2563eb; color: #fff; font-size: 12px; padding: 1px 8px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
 </style>
 
 <script>
@@ -516,19 +650,175 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // Add location button
+    // =============================================
+    // Location Modal — Add / Edit / Delete
+    // =============================================
+    var $modal = $('#ssf-location-modal');
+    
+    function openModal(title) {
+        $('#ssf-modal-title').text(title || '<?php echo esc_js(__('Add Location', 'smart-seo-fixer')); ?>');
+        $modal.fadeIn(200);
+        $('body').css('overflow','hidden');
+    }
+    
+    function closeModal() {
+        $modal.fadeOut(150);
+        $('body').css('overflow','');
+        resetForm();
+    }
+    
+    function resetForm() {
+        $('#location-form')[0].reset();
+        $('#loc-id').val('');
+        // Reset times to defaults
+        $('.loc-time-input').each(function() {
+            var name = $(this).attr('name');
+            if (name.indexOf('open_time') !== -1) $(this).val('09:00');
+            else $(this).val('17:00');
+        });
+        $('.loc-day-check').prop('checked', false);
+        $('#loc-country').val('US');
+    }
+    
+    function populateForm(loc) {
+        $('#loc-id').val(loc.id || '');
+        $('#loc-name').val(loc.name || '');
+        $('#loc-phone').val(loc.phone || '');
+        $('#loc-email').val(loc.email || '');
+        $('#loc-street').val(loc.address ? loc.address.street : '');
+        $('#loc-city').val(loc.address ? loc.address.city : '');
+        $('#loc-state').val(loc.address ? loc.address.state : '');
+        $('#loc-zip').val(loc.address ? loc.address.zip : '');
+        $('#loc-country').val(loc.address ? (loc.address.country || 'US') : 'US');
+        $('#loc-lat').val(loc.geo ? loc.geo.latitude : '');
+        $('#loc-lng').val(loc.geo ? loc.geo.longitude : '');
+        
+        // Hours
+        $('.loc-day-check').prop('checked', false);
+        if (loc.hours) {
+            $.each(loc.hours, function(day, h) {
+                if (h.open) {
+                    $('input[name="hours['+day+'][open]"]').prop('checked', true);
+                }
+                if (h.open_time) {
+                    $('input[name="hours['+day+'][open_time]"]').val(h.open_time);
+                }
+                if (h.close_time) {
+                    $('input[name="hours['+day+'][close_time]"]').val(h.close_time);
+                }
+            });
+        }
+    }
+    
+    function buildLocationRow(loc) {
+        var addrParts = [];
+        if (loc.address.street) addrParts.push(loc.address.street);
+        if (loc.address.city) addrParts.push(loc.address.city);
+        if (loc.address.state) addrParts.push(loc.address.state);
+        if (loc.address.zip) addrParts.push(loc.address.zip);
+        
+        var html = '<div class="ssf-location-item" data-id="'+esc(loc.id)+'" data-location="'+esc(JSON.stringify(loc))+'">';
+        html += '<div class="ssf-location-info">';
+        html += '<strong>'+esc(loc.name)+'</strong>';
+        html += '<span>'+esc(addrParts.join(', '))+'</span>';
+        if (loc.phone) html += '<span style="color:#2563eb;">'+esc(loc.phone)+'</span>';
+        html += '</div>';
+        html += '<div class="ssf-location-actions">';
+        html += '<button type="button" class="button button-small edit-location-btn"><span class="dashicons dashicons-edit" style="font-size:16px;width:16px;height:16px;line-height:1.6;"></span> <?php echo esc_js(__('Edit', 'smart-seo-fixer')); ?></button>';
+        html += '<button type="button" class="button button-small delete-location-btn" style="color:#dc2626;border-color:#dc2626;"><span class="dashicons dashicons-trash" style="font-size:16px;width:16px;height:16px;line-height:1.6;"></span> <?php echo esc_js(__('Delete', 'smart-seo-fixer')); ?></button>';
+        html += '</div></div>';
+        return html;
+    }
+    
+    function updateCount() {
+        var n = $('.ssf-location-item').length;
+        if (n > 0) {
+            $('#loc-count').text(n).show();
+            $('#no-locations-msg').hide();
+        } else {
+            $('#loc-count').hide();
+            if (!$('#no-locations-msg').length) {
+                $('#locations-list').html('<p class="ssf-empty" id="no-locations-msg"><?php echo esc_js(__('No additional locations added yet.', 'smart-seo-fixer')); ?></p>');
+            }
+            $('#no-locations-msg').show();
+        }
+    }
+    
+    function esc(t) { var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML.replace(/"/g,'&quot;'); }
+    
+    // Open Add modal
     $('#add-location-btn').on('click', function() {
-        alert('<?php esc_html_e('Location editor coming soon! For now, use the main business address.', 'smart-seo-fixer'); ?>');
+        resetForm();
+        openModal('<?php echo esc_js(__('Add Location', 'smart-seo-fixer')); ?>');
+    });
+    
+    // Open Edit modal
+    $(document).on('click', '.edit-location-btn', function() {
+        var $item = $(this).closest('.ssf-location-item');
+        var loc = $item.data('location');
+        if (typeof loc === 'string') loc = JSON.parse(loc);
+        populateForm(loc);
+        openModal('<?php echo esc_js(__('Edit Location', 'smart-seo-fixer')); ?>');
+    });
+    
+    // Close modal
+    $('#close-location-modal, #cancel-location-modal, .ssf-modal-overlay').on('click', closeModal);
+    $(document).on('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+    
+    // Save location
+    $('#save-location-btn').on('click', function() {
+        var name = $('#loc-name').val().trim();
+        if (!name) {
+            $('#loc-name').focus();
+            alert('<?php echo esc_js(__('Location name is required.', 'smart-seo-fixer')); ?>');
+            return;
+        }
+        
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('<?php echo esc_js(__('Saving...', 'smart-seo-fixer')); ?>');
+        
+        var formData = $('#location-form').serializeArray();
+        formData.push({name:'action', value:'ssf_save_location'});
+        formData.push({name:'nonce', value: ssfAdmin.nonce});
+        
+        $.post(ssfAdmin.ajax_url, formData, function(response) {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-saved" style="line-height:1.4;"></span> <?php echo esc_js(__('Save Location', 'smart-seo-fixer')); ?>');
+            
+            if (response.success && response.data.location) {
+                var loc = response.data.location;
+                var existingId = $('#loc-id').val();
+                
+                if (existingId) {
+                    // Update existing row
+                    var $existing = $('.ssf-location-item[data-id="'+existingId+'"]');
+                    $existing.replaceWith(buildLocationRow(loc));
+                } else {
+                    // Add new row
+                    $('#no-locations-msg').remove();
+                    $('#locations-list').append(buildLocationRow(loc));
+                }
+                
+                updateCount();
+                closeModal();
+            } else {
+                alert(response.data ? response.data.message : '<?php echo esc_js(__('Error saving location.', 'smart-seo-fixer')); ?>');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-saved" style="line-height:1.4;"></span> <?php echo esc_js(__('Save Location', 'smart-seo-fixer')); ?>');
+            alert('<?php echo esc_js(__('Network error. Please try again.', 'smart-seo-fixer')); ?>');
+        });
     });
     
     // Delete location
     $(document).on('click', '.delete-location-btn', function() {
-        if (!confirm('<?php esc_html_e('Delete this location?', 'smart-seo-fixer'); ?>')) {
+        if (!confirm('<?php echo esc_js(__('Delete this location? This cannot be undone.', 'smart-seo-fixer')); ?>')) {
             return;
         }
         
         var $item = $(this).closest('.ssf-location-item');
         var locationId = $item.data('id');
+        var $btn = $(this);
+        $btn.prop('disabled', true);
         
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_delete_location',
@@ -536,10 +826,16 @@ jQuery(document).ready(function($) {
             location_id: locationId
         }, function(response) {
             if (response.success) {
-                $item.fadeOut(function() {
+                $item.slideUp(200, function() {
                     $(this).remove();
+                    updateCount();
                 });
+            } else {
+                $btn.prop('disabled', false);
+                alert(response.data ? response.data.message : 'Error');
             }
+        }).fail(function() {
+            $btn.prop('disabled', false);
         });
     });
     
