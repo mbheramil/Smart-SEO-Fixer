@@ -15,10 +15,18 @@ class SSF_Meta_Manager {
      * Constructor
      */
     public function __construct() {
+        // CRITICAL: Force title-tag support for themes that don't declare it.
+        // Without this, WordPress won't output a <title> tag at all,
+        // and our pre_get_document_title filter never fires.
+        add_action('after_setup_theme', [$this, 'force_title_tag_support'], 99);
+        
         // Filter document title (high priority to override other plugins)
         add_filter('pre_get_document_title', [$this, 'filter_title'], 9999);
         add_filter('document_title_parts', [$this, 'filter_title_parts'], 9999);
         add_filter('wp_title', [$this, 'filter_title'], 9999);
+        
+        // Fallback: directly output <title> tag if theme still doesn't render one
+        add_action('wp_head', [$this, 'ensure_title_tag'], 0);
         
         // Add meta tags to head
         add_action('wp_head', [$this, 'output_meta_tags'], 1);
@@ -36,6 +44,101 @@ class SSF_Meta_Manager {
         if (Smart_SEO_Fixer::get_option('disable_other_seo_output', false)) {
             $this->disable_conflicting_plugins();
         }
+    }
+    
+    /**
+     * Force title-tag theme support
+     * 
+     * Many custom themes (especially Elementor-based) don't declare title-tag support.
+     * Without it, WordPress never outputs a <title> tag and our filters never fire.
+     * This ensures every theme gets a proper <title> tag via wp_head().
+     */
+    public function force_title_tag_support() {
+        if (!current_theme_supports('title-tag')) {
+            add_theme_support('title-tag');
+        }
+    }
+    
+    /**
+     * Fallback: ensure a <title> tag exists even if title-tag support fails
+     * 
+     * Some themes hardcode their header.php in a way that prevents title-tag
+     * from working. This hooks into wp_head at priority 0 and uses output
+     * buffering to check if a <title> tag was rendered. If not, we inject one.
+     */
+    public function ensure_title_tag() {
+        // Start buffering wp_head output to check for <title> tag later
+        ob_start();
+        // We'll check the buffer at the end of wp_head
+        add_action('wp_head', [$this, 'check_title_tag_buffer'], 9999);
+    }
+    
+    /**
+     * Check if <title> tag exists in wp_head output, inject if missing
+     */
+    public function check_title_tag_buffer() {
+        $head_output = ob_get_clean();
+        
+        // Check if a <title> tag was rendered
+        if (stripos($head_output, '<title') === false) {
+            // No <title> tag found — inject one
+            $title = $this->get_current_page_title();
+            echo '<title>' . esc_html($title) . '</title>' . "\n";
+        }
+        
+        // Output the buffered content
+        echo $head_output;
+    }
+    
+    /**
+     * Get the SEO title for the current page (used by title tag and social tags)
+     */
+    public function get_current_page_title() {
+        if (is_singular()) {
+            $post_id = get_the_ID();
+            $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+            
+            if (!empty($seo_title)) {
+                return $seo_title;
+            }
+            
+            $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+            return get_the_title($post_id) . ' ' . $separator . ' ' . get_bloginfo('name');
+        }
+        
+        if (is_front_page() || is_home()) {
+            $homepage_title = Smart_SEO_Fixer::get_option('homepage_title');
+            if (!empty($homepage_title)) {
+                return $homepage_title;
+            }
+            $site_name = get_bloginfo('name');
+            $tagline = get_bloginfo('description');
+            return !empty($tagline) ? $site_name . ' - ' . $tagline : $site_name;
+        }
+        
+        if (is_category() || is_tag() || is_tax()) {
+            $term = get_queried_object();
+            $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+            return ($term ? $term->name : '') . ' ' . $separator . ' ' . get_bloginfo('name');
+        }
+        
+        if (is_author()) {
+            $author = get_queried_object();
+            $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+            return ($author ? $author->display_name : '') . ' ' . $separator . ' ' . get_bloginfo('name');
+        }
+        
+        if (is_search()) {
+            $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+            return __('Search Results', 'smart-seo-fixer') . ' ' . $separator . ' ' . get_bloginfo('name');
+        }
+        
+        if (is_404()) {
+            $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+            return __('Page Not Found', 'smart-seo-fixer') . ' ' . $separator . ' ' . get_bloginfo('name');
+        }
+        
+        return get_bloginfo('name');
     }
     
     /**
