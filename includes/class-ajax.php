@@ -486,6 +486,7 @@ class SSF_Ajax {
             'enable_schema' => !empty($_POST['enable_schema']) ? 1 : 0,
             'enable_sitemap' => !empty($_POST['enable_sitemap']) ? 1 : 0,
             'disable_other_seo_output' => !empty($_POST['disable_other_seo_output']) ? 1 : 0,
+            'github_token' => sanitize_text_field($_POST['github_token'] ?? ''),
             'title_separator' => sanitize_text_field($_POST['title_separator'] ?? '|'),
             'homepage_title' => sanitize_text_field($_POST['homepage_title'] ?? ''),
             'homepage_description' => sanitize_textarea_field($_POST['homepage_description'] ?? ''),

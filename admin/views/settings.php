@@ -9,6 +9,7 @@ if (!defined('ABSPATH')) {
 
 $openai_api_key = Smart_SEO_Fixer::get_option('openai_api_key');
 $openai_model = Smart_SEO_Fixer::get_option('openai_model', 'gpt-4o-mini');
+$github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $auto_meta = Smart_SEO_Fixer::get_option('auto_meta');
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
@@ -304,6 +305,33 @@ unset($available_post_types['attachment']);
                             <?php endif; ?>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="github_token"><?php esc_html_e('GitHub Token (Auto-Updates)', 'smart-seo-fixer'); ?></label>
+                        </th>
+                        <td>
+                            <input type="password" 
+                                   name="github_token" 
+                                   id="github_token" 
+                                   value="<?php echo esc_attr($github_token); ?>" 
+                                   class="regular-text"
+                                   autocomplete="off"
+                                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+                            <button type="button" class="button" id="toggle-gh-token">
+                                <?php esc_html_e('Show', 'smart-seo-fixer'); ?>
+                            </button>
+                            <p class="description">
+                                <?php esc_html_e('Required for auto-updates from a private GitHub repository.', 'smart-seo-fixer'); ?>
+                                <a href="https://github.com/settings/tokens/new?scopes=repo&description=Smart+SEO+Fixer+Updater" target="_blank"><?php esc_html_e('Generate a token here', 'smart-seo-fixer'); ?></a>
+                                <?php esc_html_e('(select "repo" scope).', 'smart-seo-fixer'); ?>
+                            </p>
+                            <?php if (!empty($github_token)): ?>
+                            <div style="margin-top:6px;">
+                                <span style="color:#059669;font-size:13px;">&#10003; <?php esc_html_e('Token saved', 'smart-seo-fixer'); ?></span>
+                            </div>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                 </table>
             </div>
         </div>
@@ -323,6 +351,20 @@ jQuery(document).ready(function($) {
     // Toggle API key visibility
     $('#toggle-api-key').on('click', function() {
         var $input = $('#openai_api_key');
+        var $btn = $(this);
+        
+        if ($input.attr('type') === 'password') {
+            $input.attr('type', 'text');
+            $btn.text('<?php esc_html_e('Hide', 'smart-seo-fixer'); ?>');
+        } else {
+            $input.attr('type', 'password');
+            $btn.text('<?php esc_html_e('Show', 'smart-seo-fixer'); ?>');
+        }
+    });
+    
+    // Toggle GitHub token visibility
+    $('#toggle-gh-token').on('click', function() {
+        var $input = $('#github_token');
         var $btn = $(this);
         
         if ($input.attr('type') === 'password') {

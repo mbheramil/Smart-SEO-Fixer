@@ -2,9 +2,10 @@
 /**
  * GitHub Plugin Updater
  * 
- * Checks a GitHub repository for new releases and integrates with
- * the WordPress plugin update system so users can click "Update" 
- * in the admin dashboard.
+ * Checks a GitHub repository (public or private) for new releases 
+ * and integrates with the WordPress plugin update system.
+ * 
+ * For private repos, a GitHub Personal Access Token is required.
  */
 
 if (!defined('ABSPATH')) {
@@ -13,42 +14,19 @@ if (!defined('ABSPATH')) {
 
 class SSF_Updater {
     
-    /**
-     * GitHub username/org
-     */
     private $github_user = 'mbheramil';
-    
-    /**
-     * GitHub repository name
-     */
     private $github_repo = 'Smart-SEO-Fixer';
-    
-    /**
-     * Plugin slug (basename)
-     */
     private $plugin_slug;
-    
-    /**
-     * Plugin file relative to plugins dir
-     */
     private $plugin_file;
-    
-    /**
-     * Current plugin version
-     */
     private $current_version;
-    
-    /**
-     * Cached GitHub release data
-     */
     private $github_response = null;
     
     /**
      * Constructor
      */
     public function __construct() {
-        $this->plugin_file    = SSF_PLUGIN_BASENAME;
-        $this->plugin_slug    = dirname($this->plugin_file);
+        $this->plugin_file     = SSF_PLUGIN_BASENAME;
+        $this->plugin_slug     = dirname($this->plugin_file);
         $this->current_version = SSF_VERSION;
         
         // Hook into the WordPress update system
@@ -58,21 +36,53 @@ class SSF_Updater {
         
         // Add "Check for updates" link on plugins page
         add_filter('plugin_action_links_' . $this->plugin_file, [$this, 'action_links']);
+        
+        // Show admin notice after manual check
+        add_action('admin_notices', [$this, 'update_check_notice']);
+        
+        // Allow WordPress to download from GitHub (private repo auth)
+        add_filter('http_request_args', [$this, 'authorize_download'], 10, 2);
     }
     
     /**
-     * Fetch the latest release info from GitHub
+     * Get the stored GitHub PAT token
      */
-    private function get_github_release() {
-        if ($this->github_response !== null) {
+    private function get_token() {
+        return Smart_SEO_Fixer::get_option('github_token', '');
+    }
+    
+    /**
+     * Build request headers (with auth if token exists)
+     */
+    private function get_headers() {
+        $headers = [
+            'Accept'     => 'application/vnd.github.v3+json',
+            'User-Agent' => 'Smart-SEO-Fixer-Updater/' . $this->current_version,
+        ];
+        
+        $token = $this->get_token();
+        if (!empty($token)) {
+            $headers['Authorization'] = 'token ' . $token;
+        }
+        
+        return $headers;
+    }
+    
+    /**
+     * Fetch the latest release info from GitHub API
+     */
+    private function get_github_release($force = false) {
+        if (!$force && $this->github_response !== null) {
             return $this->github_response;
         }
         
-        // Check transient first (cache for 6 hours)
-        $cached = get_transient('ssf_github_release');
-        if ($cached !== false) {
-            $this->github_response = $cached;
-            return $cached;
+        // Check transient cache (6 hours) unless forced
+        if (!$force) {
+            $cached = get_transient('ssf_github_release');
+            if ($cached !== false) {
+                $this->github_response = $cached;
+                return $cached;
+            }
         }
         
         $url = sprintf(
@@ -82,14 +92,32 @@ class SSF_Updater {
         );
         
         $response = wp_remote_get($url, [
-            'headers' => [
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => 'Smart-SEO-Fixer-Updater',
-            ],
-            'timeout' => 10,
+            'headers' => $this->get_headers(),
+            'timeout' => 15,
         ]);
         
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        if (is_wp_error($response)) {
+            $this->github_response = false;
+            return false;
+        }
+        
+        $code = wp_remote_retrieve_response_code($response);
+        
+        if ($code === 401 || $code === 403) {
+            // Token is invalid or missing for private repo
+            $this->github_response = false;
+            set_transient('ssf_update_error', 'auth', HOUR_IN_SECONDS);
+            return false;
+        }
+        
+        if ($code === 404) {
+            // No releases found, or repo not accessible
+            $this->github_response = false;
+            set_transient('ssf_update_error', 'no_release', HOUR_IN_SECONDS);
+            return false;
+        }
+        
+        if ($code !== 200) {
             $this->github_response = false;
             return false;
         }
@@ -98,10 +126,12 @@ class SSF_Updater {
         
         if (empty($body) || !isset($body->tag_name)) {
             $this->github_response = false;
+            set_transient('ssf_update_error', 'no_release', HOUR_IN_SECONDS);
             return false;
         }
         
         $this->github_response = $body;
+        delete_transient('ssf_update_error');
         set_transient('ssf_github_release', $body, 6 * HOUR_IN_SECONDS);
         
         return $body;
@@ -109,7 +139,6 @@ class SSF_Updater {
     
     /**
      * Check for plugin updates
-     * Hooks into: pre_set_site_transient_update_plugins
      */
     public function check_update($transient) {
         if (empty($transient->checked)) {
@@ -122,7 +151,6 @@ class SSF_Updater {
             return $transient;
         }
         
-        // Normalize version — strip leading "v" from tag (e.g. "v1.1.0" → "1.1.0")
         $remote_version = ltrim($release->tag_name, 'v');
         
         if (version_compare($remote_version, $this->current_version, '>')) {
@@ -130,14 +158,14 @@ class SSF_Updater {
             
             if ($download_url) {
                 $plugin_data = new stdClass();
-                $plugin_data->slug        = $this->plugin_slug;
-                $plugin_data->plugin      = $this->plugin_file;
-                $plugin_data->new_version = $remote_version;
-                $plugin_data->url         = $release->html_url;
-                $plugin_data->package     = $download_url;
-                $plugin_data->icons       = [];
-                $plugin_data->banners     = [];
-                $plugin_data->tested      = '';
+                $plugin_data->slug         = $this->plugin_slug;
+                $plugin_data->plugin       = $this->plugin_file;
+                $plugin_data->new_version  = $remote_version;
+                $plugin_data->url          = $release->html_url ?? '';
+                $plugin_data->package      = $download_url;
+                $plugin_data->icons        = [];
+                $plugin_data->banners      = [];
+                $plugin_data->tested       = '';
                 $plugin_data->requires_php = '7.4';
                 
                 $transient->response[$this->plugin_file] = $plugin_data;
@@ -149,7 +177,6 @@ class SSF_Updater {
     
     /**
      * Provide plugin info for the "View Details" popup
-     * Hooks into: plugins_api
      */
     public function plugin_info($result, $action, $args) {
         if ($action !== 'plugin_information') {
@@ -181,7 +208,6 @@ class SSF_Updater {
         $info->last_updated  = $release->published_at ?? '';
         $info->download_link = $this->get_download_url($release);
         
-        // Convert markdown body to HTML for the "Changelog" tab
         $info->sections = [
             'description' => 'AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.',
             'changelog'   => nl2br(esc_html($release->body ?? 'See GitHub for changelog.')),
@@ -194,11 +220,8 @@ class SSF_Updater {
     
     /**
      * Fix directory name after install
-     * GitHub zips are named "Repo-main" or "Repo-v1.0.0"; WordPress needs the original folder name.
-     * Hooks into: upgrader_post_install
      */
     public function after_install($response, $hook_extra, $result) {
-        // Only act on our plugin
         if (!isset($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->plugin_file) {
             return $result;
         }
@@ -208,14 +231,13 @@ class SSF_Updater {
         $install_dir = $result['destination'];
         $proper_dir  = WP_PLUGIN_DIR . '/' . $this->plugin_slug;
         
-        // If the extracted folder name doesn't match, rename it
         if ($install_dir !== $proper_dir) {
             $wp_filesystem->move($install_dir, $proper_dir);
-            $result['destination'] = $proper_dir;
+            $result['destination']      = $proper_dir;
             $result['destination_name'] = $this->plugin_slug;
         }
         
-        // Re-activate plugin if it was active
+        // Re-activate if it was active
         if (is_plugin_active($this->plugin_file)) {
             activate_plugin($this->plugin_file);
         }
@@ -224,11 +246,34 @@ class SSF_Updater {
     }
     
     /**
+     * Inject auth header into GitHub download requests (for private repos)
+     */
+    public function authorize_download($args, $url) {
+        // Only inject on GitHub API / GitHub download URLs for our repo
+        if (strpos($url, 'github.com') === false && strpos($url, 'api.github.com') === false) {
+            return $args;
+        }
+        
+        if (strpos($url, $this->github_repo) === false) {
+            return $args;
+        }
+        
+        $token = $this->get_token();
+        if (!empty($token)) {
+            $args['headers']['Authorization'] = 'token ' . $token;
+        }
+        
+        // GitHub API sometimes redirects — follow them
+        $args['reject_unsafe_urls'] = false;
+        
+        return $args;
+    }
+    
+    /**
      * Get the best download URL from a release
-     * Prefers a .zip asset; falls back to the GitHub source zipball.
      */
     private function get_download_url($release) {
-        // Check for uploaded .zip asset first
+        // Prefer uploaded .zip asset
         if (!empty($release->assets) && is_array($release->assets)) {
             foreach ($release->assets as $asset) {
                 if (isset($asset->browser_download_url) && substr($asset->name, -4) === '.zip') {
@@ -237,7 +282,7 @@ class SSF_Updater {
             }
         }
         
-        // Fall back to GitHub's auto-generated source zip
+        // Fall back to source zipball
         if (!empty($release->zipball_url)) {
             return $release->zipball_url;
         }
@@ -259,15 +304,104 @@ class SSF_Updater {
     }
     
     /**
-     * Force clear the update transient cache
+     * Handle force update check + show admin notice with result
      */
     public static function force_check() {
-        if (isset($_GET['ssf_force_update_check']) && wp_verify_nonce($_GET['_wpnonce'], 'ssf_force_check')) {
-            delete_transient('ssf_github_release');
-            delete_site_transient('update_plugins');
-            
-            wp_redirect(admin_url('plugins.php?ssf_checked=1'));
-            exit;
+        if (!isset($_GET['ssf_force_update_check'])) {
+            return;
         }
+        
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ssf_force_check')) {
+            return;
+        }
+        
+        // Clear all caches
+        delete_transient('ssf_github_release');
+        delete_transient('ssf_update_error');
+        delete_site_transient('update_plugins');
+        
+        // Force a fresh check right now
+        $updater = new self();
+        $release = $updater->get_github_release(true);
+        
+        if ($release) {
+            $remote_version = ltrim($release->tag_name, 'v');
+            if (version_compare($remote_version, SSF_VERSION, '>')) {
+                set_transient('ssf_update_notice', 'update_available|' . $remote_version, 60);
+            } else {
+                set_transient('ssf_update_notice', 'up_to_date|' . SSF_VERSION, 60);
+            }
+        } else {
+            $error = get_transient('ssf_update_error');
+            if ($error === 'auth') {
+                set_transient('ssf_update_notice', 'auth_error', 60);
+            } elseif ($error === 'no_release') {
+                set_transient('ssf_update_notice', 'no_release', 60);
+            } else {
+                set_transient('ssf_update_notice', 'connection_error', 60);
+            }
+        }
+        
+        wp_redirect(admin_url('plugins.php?ssf_checked=1'));
+        exit;
+    }
+    
+    /**
+     * Display admin notice after update check
+     */
+    public function update_check_notice() {
+        if (!isset($_GET['ssf_checked'])) {
+            return;
+        }
+        
+        $notice = get_transient('ssf_update_notice');
+        if (!$notice) {
+            return;
+        }
+        
+        delete_transient('ssf_update_notice');
+        
+        $parts = explode('|', $notice);
+        $type = $parts[0];
+        $version = $parts[1] ?? '';
+        
+        switch ($type) {
+            case 'update_available':
+                $class = 'notice-info';
+                $msg = sprintf(
+                    __('Smart SEO Fixer: Update available! Version %s is ready. You can update it below.', 'smart-seo-fixer'),
+                    '<strong>' . esc_html($version) . '</strong>'
+                );
+                break;
+                
+            case 'up_to_date':
+                $class = 'notice-success';
+                $msg = sprintf(
+                    __('Smart SEO Fixer: You are running the latest version (%s). No update needed.', 'smart-seo-fixer'),
+                    '<strong>' . esc_html($version) . '</strong>'
+                );
+                break;
+                
+            case 'auth_error':
+                $class = 'notice-error';
+                $msg = sprintf(
+                    __('Smart SEO Fixer: Could not check for updates — GitHub authentication failed. The repository is private. Please add your GitHub Personal Access Token in %sSettings%s.', 'smart-seo-fixer'),
+                    '<a href="' . admin_url('admin.php?page=smart-seo-fixer-settings') . '">',
+                    '</a>'
+                );
+                break;
+                
+            case 'no_release':
+                $class = 'notice-warning';
+                $msg = __('Smart SEO Fixer: No GitHub releases found. Create a Release on GitHub for auto-updates to work.', 'smart-seo-fixer');
+                break;
+                
+            default:
+                $class = 'notice-error';
+                $msg = __('Smart SEO Fixer: Could not connect to GitHub. Check your internet connection and try again.', 'smart-seo-fixer');
+                break;
+        }
+        
+        echo '<div class="notice ' . $class . ' is-dismissible"><p>' . $msg . '</p></div>';
     }
 }
