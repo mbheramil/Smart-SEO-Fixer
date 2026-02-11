@@ -15,9 +15,10 @@ class SSF_Meta_Manager {
      * Constructor
      */
     public function __construct() {
-        // Filter document title
-        add_filter('pre_get_document_title', [$this, 'filter_title'], 15);
-        add_filter('document_title_parts', [$this, 'filter_title_parts'], 15);
+        // Filter document title (high priority to override other plugins)
+        add_filter('pre_get_document_title', [$this, 'filter_title'], 9999);
+        add_filter('document_title_parts', [$this, 'filter_title_parts'], 9999);
+        add_filter('wp_title', [$this, 'filter_title'], 9999);
         
         // Add meta tags to head
         add_action('wp_head', [$this, 'output_meta_tags'], 1);
@@ -150,6 +151,14 @@ class SSF_Meta_Manager {
             if (!empty($seo_title)) {
                 return $seo_title;
             }
+            
+            // If no SSF title is set, always return something meaningful
+            if (empty($title)) {
+                $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
+                $post_title = get_the_title($post_id);
+                $site_name = get_bloginfo('name');
+                return $post_title . ' ' . $separator . ' ' . $site_name;
+            }
         }
         
         // Homepage
@@ -157,6 +166,13 @@ class SSF_Meta_Manager {
             $homepage_title = Smart_SEO_Fixer::get_option('homepage_title');
             if (!empty($homepage_title)) {
                 return $homepage_title;
+            }
+            
+            // Fallback for homepage
+            if (empty($title)) {
+                $site_name = get_bloginfo('name');
+                $tagline = get_bloginfo('description');
+                return !empty($tagline) ? $site_name . ' - ' . $tagline : $site_name;
             }
         }
         
@@ -278,13 +294,31 @@ class SSF_Meta_Manager {
         $description = get_post_meta($post_id, '_ssf_meta_description', true) ?: $this->get_meta_description();
         $url = get_permalink($post_id);
         
-        // Get image
+        // Get image — featured image → first content image → site logo fallback
         $image = '';
         $image_id = get_post_thumbnail_id($post_id);
         if ($image_id) {
             $image_data = wp_get_attachment_image_src($image_id, 'large');
             if ($image_data) {
                 $image = $image_data[0];
+            }
+        }
+        
+        // Fallback: first image in content
+        if (empty($image) && !empty($post->post_content)) {
+            if (preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $post->post_content, $img_match)) {
+                $image = $img_match[1];
+            }
+        }
+        
+        // Fallback: site logo (from Customizer)
+        if (empty($image)) {
+            $custom_logo_id = get_theme_mod('custom_logo');
+            if ($custom_logo_id) {
+                $logo_data = wp_get_attachment_image_src($custom_logo_id, 'full');
+                if ($logo_data) {
+                    $image = $logo_data[0];
+                }
             }
         }
         
@@ -298,11 +332,21 @@ class SSF_Meta_Manager {
         
         if (!empty($image)) {
             echo '<meta property="og:image" content="' . esc_url($image) . '" />' . "\n";
+            echo '<meta property="og:image:width" content="1200" />' . "\n";
+            echo '<meta property="og:image:height" content="630" />' . "\n";
+        }
+        
+        // Allow extensions (e.g., WooCommerce) to add OG tags
+        $extra_tags = apply_filters('ssf_og_tags', [], $post_id);
+        if (!empty($extra_tags) && is_array($extra_tags)) {
+            foreach ($extra_tags as $property => $content) {
+                echo '<meta property="' . esc_attr($property) . '" content="' . esc_attr($content) . '" />' . "\n";
+            }
         }
         
         // Twitter Card
         echo '<!-- Smart SEO Fixer - Twitter Card -->' . "\n";
-        echo '<meta name="twitter:card" content="summary_large_image" />' . "\n";
+        echo '<meta name="twitter:card" content="' . (!empty($image) ? 'summary_large_image' : 'summary') . '" />' . "\n";
         echo '<meta name="twitter:title" content="' . esc_attr($title) . '" />' . "\n";
         echo '<meta name="twitter:description" content="' . esc_attr($description) . '" />' . "\n";
         
