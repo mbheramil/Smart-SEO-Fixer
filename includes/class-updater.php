@@ -293,13 +293,28 @@ class SSF_Updater {
         
         global $wp_filesystem;
         
-        $install_dir = $result['destination'];
+        $install_dir = rtrim($result['destination'], '/\\');
         $proper_dir  = WP_PLUGIN_DIR . '/' . $this->plugin_slug;
         
         if ($install_dir !== $proper_dir) {
+            // Remove target if it somehow still exists
+            if ($wp_filesystem->is_dir($proper_dir)) {
+                $wp_filesystem->delete($proper_dir, true);
+            }
             $wp_filesystem->move($install_dir, $proper_dir);
             $result['destination']      = $proper_dir;
             $result['destination_name'] = $this->plugin_slug;
+        }
+        
+        // Verify critical files exist after installation
+        $critical_file = $proper_dir . '/smart-seo-fixer.php';
+        if (!$wp_filesystem->exists($critical_file)) {
+            // Log for debugging
+            error_log('Smart SEO Fixer: Critical file missing after update: ' . $critical_file);
+            error_log('Smart SEO Fixer: Install dir was: ' . $install_dir);
+            if (isset($result['source']) && $result['source']) {
+                error_log('Smart SEO Fixer: Source dir was: ' . $result['source']);
+            }
         }
         
         // Re-activate if it was active
