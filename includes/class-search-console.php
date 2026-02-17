@@ -33,10 +33,11 @@ class SSF_Search_Console {
         // Wait for init to detect trailing slash (needs permalink_structure option)
         add_action('init', [$this, 'init_settings'], 1);
         
-        // Lightweight frontend hooks only — no permalink filters (WordPress handles trailing slashes natively)
+        // Lightweight frontend hooks only
         if (!is_admin()) {
-            // Redirect inconsistent URLs (lightweight: runs once per request, exits early for most)
-            add_action('template_redirect', [$this, 'redirect_inconsistent_urls'], 1);
+            // Let WordPress handle trailing slash redirects natively via redirect_canonical().
+            // We only hook in to strip tracking parameters from the redirect target.
+            add_filter('redirect_canonical', [$this, 'filter_canonical_redirect'], 10, 2);
             
             // Strip UTM parameters from our canonical output only
             add_filter('ssf_canonical_url', [$this, 'strip_tracking_params']);
@@ -144,77 +145,33 @@ class SSF_Search_Console {
     }
     
     /**
-     * Redirect requests with inconsistent trailing slashes or tracking params
+     * Filter WordPress's native redirect_canonical to strip tracking params
+     * 
+     * WordPress already handles trailing slash normalization, www vs non-www,
+     * and other URL canonicalization. We only need to strip UTM/tracking
+     * parameters from the redirect target. This avoids redirect loops that
+     * occur when a custom redirect function conflicts with WordPress's own.
+     *
+     * @param string $redirect_url The URL WordPress wants to redirect to
+     * @param string $requested_url The originally requested URL
+     * @return string|false Modified redirect URL or false to cancel redirect
      */
-    public function redirect_inconsistent_urls() {
-        // Don't redirect in admin or AJAX
-        if (is_admin() || wp_doing_ajax()) {
-            return;
+    public function filter_canonical_redirect($redirect_url, $requested_url) {
+        if (empty($redirect_url)) {
+            return $redirect_url;
         }
         
-        // Don't redirect POST requests
-        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-            return;
-        }
-        
-        $request_uri = $_SERVER['REQUEST_URI'];
-        $parsed = wp_parse_url($request_uri);
-        $path = $parsed['path'] ?? '/';
-        $query = $parsed['query'] ?? '';
-        
-        // Skip files
-        if (preg_match('/\.[a-zA-Z0-9]+$/', $path)) {
-            return;
-        }
-        
-        // Skip WordPress special paths and feeds
-        $skip_paths = ['/wp-admin', '/wp-login', '/wp-json', '/xmlrpc', '/wp-cron', '/feed', '/sitemap'];
-        foreach ($skip_paths as $skip) {
-            if (strpos($path, $skip) === 0) {
-                return;
+        // Strip tracking parameters from the redirect target
+        $parsed = wp_parse_url($redirect_url);
+        if (!empty($parsed['query'])) {
+            $clean_query = $this->strip_tracking_params_from_query($parsed['query']);
+            if ($clean_query !== $parsed['query']) {
+                $base = strtok($redirect_url, '?');
+                $redirect_url = !empty($clean_query) ? $base . '?' . $clean_query : $base;
             }
         }
         
-        // Prevent redirect loops — only redirect once per request
-        if (!empty($_SERVER['HTTP_X_REDIRECT_BY']) || headers_sent()) {
-            return;
-        }
-        
-        $needs_redirect = false;
-        $new_path = $path;
-        $new_query = $query;
-        
-        // Check trailing slash
-        if ($path !== '/') {
-            $has_trailing = substr($path, -1) === '/';
-            
-            if ($this->use_trailing_slash && !$has_trailing) {
-                $new_path = $path . '/';
-                $needs_redirect = true;
-            } elseif (!$this->use_trailing_slash && $has_trailing) {
-                $new_path = rtrim($path, '/');
-                $needs_redirect = true;
-            }
-        }
-        
-        // Check for tracking parameters that shouldn't be indexed
-        if (!empty($query)) {
-            $clean_query = $this->strip_tracking_params_from_query($query);
-            if ($clean_query !== $query) {
-                $new_query = $clean_query;
-                $needs_redirect = true;
-            }
-        }
-        
-        if ($needs_redirect) {
-            $redirect_url = home_url($new_path);
-            if (!empty($new_query)) {
-                $redirect_url .= '?' . $new_query;
-            }
-            
-            wp_safe_redirect($redirect_url, 301, 'Smart SEO Fixer');
-            exit;
-        }
+        return $redirect_url;
     }
     
     /**
