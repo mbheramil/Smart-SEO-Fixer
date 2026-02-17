@@ -388,7 +388,7 @@ class SSF_Meta_Manager {
         // Get SEO data
         $title = get_post_meta($post_id, '_ssf_seo_title', true) ?: get_the_title($post_id);
         $description = get_post_meta($post_id, '_ssf_meta_description', true) ?: $this->get_meta_description();
-        $url = get_permalink($post_id);
+        $url = $this->normalize_url_slashes(get_permalink($post_id));
         
         // Get image — featured image → first content image → site logo fallback
         $image = '';
@@ -516,7 +516,37 @@ class SSF_Meta_Manager {
         // Apply canonical URL filter (handles UTM stripping via search console class)
         if (!empty($canonical) && !is_wp_error($canonical)) {
             $canonical = apply_filters('ssf_canonical_url', $canonical);
+            
+            // Enforce trailing slash consistency to match WordPress permalink structure
+            $canonical = $this->normalize_url_slashes($canonical);
+            
             echo '<link rel="canonical" href="' . esc_url($canonical) . '" />' . "\n";
+        }
+    }
+    
+    /**
+     * Normalize trailing slashes on a URL to match WordPress permalink settings
+     * Prevents "Google chose different canonical" errors from slash inconsistencies
+     */
+    private function normalize_url_slashes($url) {
+        if (empty($url)) return $url;
+        
+        $parsed = wp_parse_url($url);
+        $path = $parsed['path'] ?? '/';
+        
+        // Don't modify URLs with file extensions (e.g., /sitemap.xml, /feed)
+        if (preg_match('/\.\w{2,5}$/', $path)) {
+            return $url;
+        }
+        
+        // Check WordPress permalink structure for trailing slash preference
+        $permalink_structure = get_option('permalink_structure', '');
+        $uses_trailing_slash = !empty($permalink_structure) && substr($permalink_structure, -1) === '/';
+        
+        if ($uses_trailing_slash) {
+            return trailingslashit($url);
+        } else {
+            return untrailingslashit($url);
         }
     }
     

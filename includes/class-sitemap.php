@@ -317,6 +317,9 @@ class SSF_Sitemap {
         // Normalize URL for consistency (trailing slashes, etc.)
         $loc = apply_filters('ssf_sitemap_url', $loc);
         
+        // Enforce trailing slash consistency to match WordPress permalink structure
+        $loc = $this->normalize_url_slash($loc);
+        
         $output = "  <url>\n";
         $output .= "    <loc>" . esc_url($loc) . "</loc>\n";
         
@@ -353,6 +356,30 @@ class SSF_Sitemap {
      */
     public function get_sitemap_url() {
         return home_url('/sitemap.xml');
+    }
+    
+    /**
+     * Normalize trailing slashes on a URL to match WordPress permalink settings
+     */
+    private function normalize_url_slash($url) {
+        if (empty($url)) return $url;
+        
+        $parsed = wp_parse_url($url);
+        $path = $parsed['path'] ?? '/';
+        
+        // Don't modify URLs with file extensions (e.g., /sitemap.xml)
+        if (preg_match('/\.\w{2,5}$/', $path)) {
+            return $url;
+        }
+        
+        $permalink_structure = get_option('permalink_structure', '');
+        $uses_trailing_slash = !empty($permalink_structure) && substr($permalink_structure, -1) === '/';
+        
+        if ($uses_trailing_slash) {
+            return trailingslashit($url);
+        } else {
+            return untrailingslashit($url);
+        }
     }
     
     /**

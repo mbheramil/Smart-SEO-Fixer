@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.1
+Stable tag: 1.8.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.8.2 =
+* FIX: Enforce trailing slash consistency in canonical tags, OG URLs, and sitemap URLs
+* Prevents "Google chose different canonical" errors from slash mismatches
+* Canonical and sitemap URLs now match WordPress permalink structure automatically
 
 = 1.8.1 =
 * FIX: SEO title not rendering in <title> tag on Elementor/custom themes
