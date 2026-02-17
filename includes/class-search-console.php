@@ -50,6 +50,7 @@ class SSF_Search_Console {
         add_action('wp_ajax_ssf_scan_url_issues', [$this, 'ajax_scan_url_issues']);
         add_action('wp_ajax_ssf_fix_url_issues', [$this, 'ajax_fix_url_issues']);
         add_action('wp_ajax_ssf_get_gsc_summary', [$this, 'ajax_get_gsc_summary']);
+        add_action('wp_ajax_ssf_fix_indexability_issue', [$this, 'ajax_fix_indexability_issue']);
     }
     
     /**
@@ -279,27 +280,44 @@ class SSF_Search_Console {
     }
     
     /**
-     * Scan site for URL consistency issues
+     * Comprehensive indexability audit — maps to all Google Search Console issue types
+     * 
+     * GSC Issue Types Covered:
+     * 1. Page with redirect
+     * 2. Excluded by 'noindex' tag
+     * 3. Alternate page with proper canonical tag
+     * 4. Duplicate without user-selected canonical
+     * 5. Not found (404)
+     * 6. Crawled - currently not indexed (thin content)
+     * 7. Duplicate, Google chose different canonical than user
+     * 8. Blocked by robots.txt
+     * 9. Discovered - currently not indexed (missing SEO / orphaned)
      */
     public function scan_url_issues() {
         global $wpdb;
         
         $issues = [
-            'trailing_slash' => [],
-            'duplicate_canonical' => [],
-            'noindex_in_sitemap' => [],
-            'redirect_chains' => [],
-            'missing_canonical' => [],
-            'parameter_urls' => [],
+            'trailing_slash'       => [],
+            'noindex_conflict'     => [],
+            'custom_canonical'     => [],
+            'redirect_chains'      => [],
+            'redirected_pages'     => [],
+            'thin_content'         => [],
+            'missing_seo'         => [],
+            'duplicate_titles'     => [],
+            'duplicate_descs'      => [],
+            'blocked_by_robots'    => [],
+            'orphaned_pages'       => [],
+            'not_found_404'        => [],
         ];
         
-        // Get all published posts
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
         
+        // Get all published posts with content
         $posts = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT ID, post_name, post_type, post_title 
+                "SELECT ID, post_name, post_type, post_title, post_content 
                 FROM {$wpdb->posts} 
                 WHERE post_status = 'publish' 
                 AND post_type IN ($placeholders)
@@ -308,12 +326,63 @@ class SSF_Search_Console {
             )
         );
         
+        // Pre-load meta for all posts in one query (performance)
+        $post_ids = wp_list_pluck($posts, 'ID');
+        $meta_cache = [];
+        if (!empty($post_ids)) {
+            $ids_str = implode(',', array_map('intval', $post_ids));
+            $all_meta = $wpdb->get_results(
+                "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} 
+                WHERE post_id IN ($ids_str) 
+                AND meta_key IN ('_ssf_seo_title','_ssf_meta_description','_ssf_focus_keyword','_ssf_noindex','_ssf_canonical_url')"
+            );
+            foreach ($all_meta as $m) {
+                $meta_cache[$m->post_id][$m->meta_key] = $m->meta_value;
+            }
+        }
+        
+        // Track titles and descriptions for duplicate detection
+        $title_map = [];
+        $desc_map = [];
+        
+        // Build internal link map for orphaned page detection
+        $linked_ids = [];
+        foreach ($posts as $post) {
+            if (preg_match_all('/href=["\']([^"\']+)["\']/', $post->post_content, $matches)) {
+                foreach ($matches[1] as $link) {
+                    $link_post_id = url_to_postid($link);
+                    if ($link_post_id > 0) {
+                        $linked_ids[$link_post_id] = true;
+                    }
+                }
+            }
+        }
+        
+        // Parse robots.txt rules
+        $robots_rules = $this->parse_robots_txt();
+        
+        // Get active redirects
+        $redirects = get_option('ssf_redirects', []);
+        $redirect_froms = [];
+        foreach ($redirects as $r) {
+            if (!empty($r['enabled'])) {
+                $redirect_froms[trim($r['from'], '/')] = $r;
+            }
+        }
+        
         foreach ($posts as $post) {
             $permalink = get_permalink($post->ID);
             $parsed = wp_parse_url($permalink);
             $path = $parsed['path'] ?? '';
+            $meta = $meta_cache[$post->ID] ?? [];
             
-            // Check trailing slash consistency
+            $seo_title = $meta['_ssf_seo_title'] ?? '';
+            $meta_desc = $meta['_ssf_meta_description'] ?? '';
+            $noindex = $meta['_ssf_noindex'] ?? '';
+            $canonical = $meta['_ssf_canonical_url'] ?? '';
+            $word_count = str_word_count(strip_tags($post->post_content));
+            
+            // --- 1. Trailing slash consistency ---
             if (!empty($path) && $path !== '/') {
                 $has_trailing = substr($path, -1) === '/';
                 if ($this->use_trailing_slash !== $has_trailing) {
@@ -326,37 +395,130 @@ class SSF_Search_Console {
                 }
             }
             
-            // Check for noindex but in sitemap (conflict)
-            $noindex = get_post_meta($post->ID, '_ssf_noindex', true);
+            // --- 2. Noindex conflict (noindex but should be indexed) ---
             if ($noindex) {
-                $issues['noindex_in_sitemap'][] = [
+                $issues['noindex_conflict'][] = [
                     'post_id' => $post->ID,
                     'title' => $post->post_title,
                     'url' => $permalink,
-                    'issue' => 'Page is noindexed but may be in sitemap',
+                    'issue' => __('Page has noindex tag — excluded from Google index', 'smart-seo-fixer'),
+                    'fixable' => true,
                 ];
             }
             
-            // Check for custom canonical pointing elsewhere (potential duplicate)
-            $custom_canonical = get_post_meta($post->ID, '_ssf_canonical_url', true);
-            if (!empty($custom_canonical) && $custom_canonical !== $permalink) {
-                $issues['duplicate_canonical'][] = [
+            // --- 3. Custom canonical (alternate page) ---
+            if (!empty($canonical) && $canonical !== $permalink) {
+                $issues['custom_canonical'][] = [
                     'post_id' => $post->ID,
                     'title' => $post->post_title,
                     'url' => $permalink,
-                    'canonical' => $custom_canonical,
-                    'issue' => 'Custom canonical points to different URL',
+                    'canonical' => $canonical,
+                    'issue' => __('Custom canonical points to different URL', 'smart-seo-fixer'),
+                ];
+            }
+            
+            // --- 4 & 7. Duplicate titles (causes "Duplicate without canonical" / "Google chose different canonical") ---
+            $effective_title = !empty($seo_title) ? $seo_title : $post->post_title;
+            if (!empty($effective_title)) {
+                $title_key = strtolower(trim($effective_title));
+                if (isset($title_map[$title_key])) {
+                    $issues['duplicate_titles'][] = [
+                        'post_id' => $post->ID,
+                        'title' => $post->post_title,
+                        'seo_title' => $effective_title,
+                        'url' => $permalink,
+                        'duplicate_of' => $title_map[$title_key]['post_id'],
+                        'duplicate_title' => $title_map[$title_key]['title'],
+                        'issue' => sprintf(__('Same title as "%s"', 'smart-seo-fixer'), $title_map[$title_key]['title']),
+                        'fixable' => true,
+                    ];
+                } else {
+                    $title_map[$title_key] = ['post_id' => $post->ID, 'title' => $post->post_title];
+                }
+            }
+            
+            // --- 4. Duplicate descriptions ---
+            if (!empty($meta_desc)) {
+                $desc_key = strtolower(trim($meta_desc));
+                if (isset($desc_map[$desc_key])) {
+                    $issues['duplicate_descs'][] = [
+                        'post_id' => $post->ID,
+                        'title' => $post->post_title,
+                        'url' => $permalink,
+                        'duplicate_of' => $desc_map[$desc_key]['post_id'],
+                        'issue' => sprintf(__('Same description as "%s"', 'smart-seo-fixer'), $desc_map[$desc_key]['title']),
+                        'fixable' => true,
+                    ];
+                } else {
+                    $desc_map[$desc_key] = ['post_id' => $post->ID, 'title' => $post->post_title];
+                }
+            }
+            
+            // --- 6. Thin content (causes "Crawled - currently not indexed") ---
+            if ($word_count < 300 && $post->post_type !== 'page') {
+                $issues['thin_content'][] = [
+                    'post_id' => $post->ID,
+                    'title' => $post->post_title,
+                    'url' => $permalink,
+                    'word_count' => $word_count,
+                    'issue' => sprintf(__('%d words (Google prefers 300+)', 'smart-seo-fixer'), $word_count),
+                ];
+            }
+            
+            // --- 9. Missing SEO data (causes "Discovered - currently not indexed") ---
+            if (empty($seo_title) || empty($meta_desc)) {
+                $missing = [];
+                if (empty($seo_title)) $missing[] = __('SEO title', 'smart-seo-fixer');
+                if (empty($meta_desc)) $missing[] = __('meta description', 'smart-seo-fixer');
+                
+                $issues['missing_seo'][] = [
+                    'post_id' => $post->ID,
+                    'title' => $post->post_title,
+                    'url' => $permalink,
+                    'missing' => $missing,
+                    'issue' => sprintf(__('Missing: %s', 'smart-seo-fixer'), implode(', ', $missing)),
+                    'fixable' => true,
+                ];
+            }
+            
+            // --- 8. Blocked by robots.txt ---
+            if (!empty($path) && $this->is_blocked_by_robots($path, $robots_rules)) {
+                $issues['blocked_by_robots'][] = [
+                    'post_id' => $post->ID,
+                    'title' => $post->post_title,
+                    'url' => $permalink,
+                    'path' => $path,
+                    'issue' => __('URL matches a Disallow rule in robots.txt', 'smart-seo-fixer'),
+                ];
+            }
+            
+            // --- 9. Orphaned pages (no internal links = hard for Google to discover) ---
+            if (!isset($linked_ids[$post->ID]) && $post->post_type !== 'page') {
+                $issues['orphaned_pages'][] = [
+                    'post_id' => $post->ID,
+                    'title' => $post->post_title,
+                    'url' => $permalink,
+                    'issue' => __('No internal links point to this page', 'smart-seo-fixer'),
+                ];
+            }
+            
+            // --- 1. Check if published page has a redirect FROM it ---
+            $post_path = trim($path, '/');
+            if (isset($redirect_froms[$post_path])) {
+                $issues['redirected_pages'][] = [
+                    'post_id' => $post->ID,
+                    'title' => $post->post_title,
+                    'url' => $permalink,
+                    'redirect_to' => $redirect_froms[$post_path]['to'],
+                    'issue' => sprintf(__('Published page has active redirect to %s', 'smart-seo-fixer'), $redirect_froms[$post_path]['to']),
                 ];
             }
         }
         
-        // Check redirects for chains
-        $redirects = get_option('ssf_redirects', []);
+        // --- Redirect chains ---
         foreach ($redirects as $redirect) {
             if (empty($redirect['enabled'])) continue;
-            
-            // Check if 'to' URL also has a redirect (chain)
-            $to_path = trim(wp_parse_url($redirect['to'], PHP_URL_PATH), '/');
+            $to_path = trim(wp_parse_url($redirect['to'], PHP_URL_PATH) ?? '', '/');
             foreach ($redirects as $r2) {
                 if (empty($r2['enabled'])) continue;
                 if (trim($r2['from'], '/') === $to_path) {
@@ -364,13 +526,88 @@ class SSF_Search_Console {
                         'from' => $redirect['from'],
                         'to' => $redirect['to'],
                         'chain_to' => $r2['to'],
-                        'issue' => 'Redirect chain detected',
+                        'issue' => __('Redirect chain detected', 'smart-seo-fixer'),
                     ];
                 }
             }
         }
         
+        // --- 5. Not found (404) log ---
+        $log_404 = get_option('ssf_404_log', []);
+        $top_404s = array_slice($log_404, 0, 20);
+        foreach ($top_404s as $entry) {
+            $issues['not_found_404'][] = [
+                'url' => $entry['url'] ?? '',
+                'hits' => $entry['hits'] ?? 1,
+                'last_hit' => $entry['last_hit'] ?? '',
+                'referrer' => $entry['referrer'] ?? '',
+                'issue' => sprintf(__('404 error — %d hits', 'smart-seo-fixer'), $entry['hits'] ?? 1),
+                'fixable' => true,
+            ];
+        }
+        
         return $issues;
+    }
+    
+    /**
+     * Parse robots.txt and extract Disallow rules for all user-agents
+     */
+    private function parse_robots_txt() {
+        $robots_url = home_url('/robots.txt');
+        $response = wp_remote_get($robots_url, ['timeout' => 5, 'sslverify' => false]);
+        
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return [];
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $rules = [];
+        $current_agent = '*';
+        
+        foreach (explode("\n", $body) as $line) {
+            $line = trim($line);
+            if (empty($line) || $line[0] === '#') continue;
+            
+            if (preg_match('/^User-agent:\s*(.+)/i', $line, $m)) {
+                $current_agent = trim($m[1]);
+            } elseif (preg_match('/^Disallow:\s*(.+)/i', $line, $m)) {
+                $path = trim($m[1]);
+                if (!empty($path)) {
+                    $rules[] = [
+                        'agent' => $current_agent,
+                        'path' => $path,
+                    ];
+                }
+            }
+        }
+        
+        return $rules;
+    }
+    
+    /**
+     * Check if a URL path is blocked by any robots.txt Disallow rule
+     */
+    private function is_blocked_by_robots($path, $rules) {
+        foreach ($rules as $rule) {
+            // Only check rules for all agents or Googlebot
+            if ($rule['agent'] !== '*' && stripos($rule['agent'], 'googlebot') === false) {
+                continue;
+            }
+            
+            $disallow = $rule['path'];
+            
+            // Wildcard matching
+            if (strpos($disallow, '*') !== false) {
+                $pattern = str_replace('*', '.*', preg_quote($disallow, '/'));
+                if (preg_match('/^' . $pattern . '/', $path)) {
+                    return true;
+                }
+            } elseif (strpos($path, $disallow) === 0) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -492,8 +729,30 @@ class SSF_Search_Console {
         $log_404 = get_option('ssf_404_log', []);
         $count_404 = count($log_404);
         
-        // Scan for issues
-        $issues = $this->scan_url_issues();
+        // Count missing SEO
+        $missing_seo = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) 
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_seo_title'
+                WHERE p.post_status = 'publish'
+                AND p.post_type IN ($placeholders)
+                AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+                ...$post_types
+            )
+        );
+        
+        // Count thin content (< 300 words is approximate via char count)
+        $thin_content = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) 
+                FROM {$wpdb->posts}
+                WHERE post_status = 'publish'
+                AND post_type IN ($placeholders)
+                AND LENGTH(TRIM(post_content)) < 1500",
+                ...$post_types
+            )
+        );
         
         return [
             'trailing_slash_mode' => $this->use_trailing_slash ? 'with slash' : 'without slash',
@@ -501,18 +760,8 @@ class SSF_Search_Console {
             'noindex_pages' => intval($noindex_count),
             'custom_canonicals' => intval($custom_canonical_count),
             'tracked_404s' => $count_404,
-            'issues' => [
-                'trailing_slash' => count($issues['trailing_slash']),
-                'duplicate_canonical' => count($issues['duplicate_canonical']),
-                'noindex_conflicts' => count($issues['noindex_in_sitemap']),
-                'redirect_chains' => count($issues['redirect_chains']),
-            ],
-            'total_issues' => array_sum([
-                count($issues['trailing_slash']),
-                count($issues['duplicate_canonical']),
-                count($issues['noindex_in_sitemap']),
-                count($issues['redirect_chains']),
-            ]),
+            'missing_seo' => intval($missing_seo),
+            'thin_content' => intval($thin_content),
         ];
     }
     
@@ -556,5 +805,106 @@ class SSF_Search_Console {
         $summary = $this->get_gsc_summary();
         
         wp_send_json_success($summary);
+    }
+    
+    /**
+     * Fix a specific indexability issue
+     */
+    public function ajax_fix_indexability_issue() {
+        $this->verify();
+        
+        $fix_type = sanitize_text_field($_POST['fix_type'] ?? '');
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $fixed = [];
+        
+        switch ($fix_type) {
+            case 'remove_noindex':
+                if ($post_id > 0) {
+                    delete_post_meta($post_id, '_ssf_noindex');
+                    $fixed[] = sprintf(__('Removed noindex from "%s"', 'smart-seo-fixer'), get_the_title($post_id));
+                }
+                break;
+                
+            case 'generate_seo':
+                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
+                    $openai = new SSF_OpenAI();
+                    if ($openai->is_configured()) {
+                        $post = get_post($post_id);
+                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                        
+                        $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                        if (empty($seo_title)) {
+                            $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                            if (!is_wp_error($title) && !empty(trim($title))) {
+                                update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                                $fixed[] = __('Generated SEO title', 'smart-seo-fixer');
+                            }
+                        }
+                        
+                        $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                        if (empty($meta_desc)) {
+                            $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                            if (!is_wp_error($desc) && !empty(trim($desc))) {
+                                update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                                $fixed[] = __('Generated meta description', 'smart-seo-fixer');
+                            }
+                        }
+                        
+                        if (empty($focus_keyword)) {
+                            $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                            if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
+                                update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
+                                $fixed[] = __('Generated focus keyword', 'smart-seo-fixer');
+                            }
+                        }
+                    } else {
+                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+                    }
+                }
+                break;
+                
+            case 'generate_unique_title':
+                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
+                    $openai = new SSF_OpenAI();
+                    if ($openai->is_configured()) {
+                        $post = get_post($post_id);
+                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                        $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                        if (!is_wp_error($title) && !empty(trim($title))) {
+                            update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                            $fixed[] = sprintf(__('Generated unique title: "%s"', 'smart-seo-fixer'), trim($title));
+                        }
+                    }
+                }
+                break;
+                
+            case 'generate_unique_desc':
+                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
+                    $openai = new SSF_OpenAI();
+                    if ($openai->is_configured()) {
+                        $post = get_post($post_id);
+                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                        $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                        if (!is_wp_error($desc) && !empty(trim($desc))) {
+                            update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                            $fixed[] = sprintf(__('Generated unique description', 'smart-seo-fixer'));
+                        }
+                    }
+                }
+                break;
+                
+            case 'fix_redirect_chains':
+                $result = $this->fix_url_issues('redirect_chains');
+                $fixed = $result;
+                break;
+                
+            default:
+                wp_send_json_error(['message' => __('Unknown fix type.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success([
+            'fixed' => $fixed,
+            'message' => !empty($fixed) ? implode('. ', $fixed) : __('No changes needed.', 'smart-seo-fixer'),
+        ]);
     }
 }

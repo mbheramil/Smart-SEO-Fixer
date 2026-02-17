@@ -11,53 +11,77 @@ if (!defined('ABSPATH')) {
 ?>
 <div class="wrap ssf-wrap">
     <h1 class="ssf-page-title">
-        <span class="dashicons dashicons-google"></span>
-        <?php esc_html_e('Search Console Fixer', 'smart-seo-fixer'); ?>
+        <span class="dashicons dashicons-shield"></span>
+        <?php esc_html_e('Indexability Auditor', 'smart-seo-fixer'); ?>
     </h1>
     
     <p class="ssf-page-description">
-        <?php esc_html_e('Automatically detect and fix common issues that cause Google Search Console problems like duplicate canonicals, trailing slash inconsistencies, and redirect chains.', 'smart-seo-fixer'); ?>
+        <?php esc_html_e('Detects and fixes all 9 Google Search Console indexing issue types. Run a full audit to find every reason Google might not index your pages — then fix them with one click.', 'smart-seo-fixer'); ?>
     </p>
     
-    <!-- Issue Type Guide -->
+    <!-- Issue Type Guide — maps to exact GSC issue types -->
     <div class="ssf-card ssf-gsc-guide">
         <div class="ssf-card-header">
             <h2>
                 <span class="dashicons dashicons-info-outline"></span>
-                <?php esc_html_e('What This Plugin Fixes', 'smart-seo-fixer'); ?>
+                <?php esc_html_e('Google Search Console Issues — Detection & Auto-Fix', 'smart-seo-fixer'); ?>
             </h2>
         </div>
         <div class="ssf-card-body">
             <div class="ssf-gsc-issues-grid">
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-migrate" style="color: #10b981;"></span>
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
                     <strong><?php esc_html_e('Page with redirect', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('URLs with redirects are automatically managed. Use the Redirects page to manage them.', 'smart-seo-fixer'); ?></p>
+                    <p><?php esc_html_e('Detects published pages that have an active redirect. Fixes redirect chains (A→B→C to A→C).', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
                 </div>
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-hidden" style="color: #f59e0b;"></span>
-                    <strong><?php esc_html_e('Excluded by noindex tag', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Pages intentionally set to noindex. Review in All Posts if unintended.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
+                    <strong><?php esc_html_e("Excluded by 'noindex' tag", 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Finds pages with noindex that should be indexed. One-click remove noindex.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
                 </div>
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-admin-page" style="color: #3b82f6;"></span>
-                    <strong><?php esc_html_e('Alternate page with proper canonical', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Expected behavior for duplicate content with canonical tags.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-status ssf-status-info"></span>
+                    <strong><?php esc_html_e('Alternate page with proper canonical tag', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Lists pages with custom canonicals pointing elsewhere. Review to confirm they are intentional.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Review', 'smart-seo-fixer'); ?></span>
                 </div>
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-warning" style="color: #ef4444;"></span>
-                    <strong><?php esc_html_e('Duplicate, Google chose different canonical', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Fixed by: Consistent trailing slashes, UTM parameter stripping, and normalized canonicals.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
+                    <strong><?php esc_html_e('Duplicate without user-selected canonical', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Detects duplicate titles and descriptions that cause Google to see pages as duplicates. AI generates unique versions.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-ai"><?php esc_html_e('AI Fix', 'smart-seo-fixer'); ?></span>
                 </div>
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-dismiss" style="color: #ef4444;"></span>
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
                     <strong><?php esc_html_e('Not found (404)', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Tracked in 404 Log. Create redirects for important broken URLs.', 'smart-seo-fixer'); ?></p>
+                    <p><?php esc_html_e('Tracks 404 errors with hit count. Create redirects to fix broken URLs.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
                 </div>
                 <div class="ssf-gsc-issue-type">
-                    <span class="dashicons dashicons-clock" style="color: #8b5cf6;"></span>
-                    <strong><?php esc_html_e('Crawled/Discovered - not indexed', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Improve content quality and internal linking. Use SEO Analyzer.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-status ssf-status-warning"></span>
+                    <strong><?php esc_html_e('Crawled - currently not indexed', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Detects thin content (< 300 words) and orphaned pages with no internal links — top reasons Google skips indexing.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Action Required', 'smart-seo-fixer'); ?></span>
+                </div>
+                <div class="ssf-gsc-issue-type">
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
+                    <strong><?php esc_html_e('Duplicate, Google chose different canonical', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Prevented by consistent trailing slashes, UTM stripping, and normalized canonical URLs across all pages.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Prevent', 'smart-seo-fixer'); ?></span>
+                </div>
+                <div class="ssf-gsc-issue-type">
+                    <span class="ssf-gsc-status ssf-status-warning"></span>
+                    <strong><?php esc_html_e('Blocked by robots.txt', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Parses your robots.txt and checks if any published pages are blocked from crawling.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Review', 'smart-seo-fixer'); ?></span>
+                </div>
+                <div class="ssf-gsc-issue-type">
+                    <span class="ssf-gsc-status ssf-status-fixable"></span>
+                    <strong><?php esc_html_e('Discovered - currently not indexed', 'smart-seo-fixer'); ?></strong>
+                    <p><?php esc_html_e('Finds pages missing SEO title, description, or focus keyword. AI generates all missing data.', 'smart-seo-fixer'); ?></p>
+                    <span class="ssf-gsc-tag ssf-tag-ai"><?php esc_html_e('AI Fix', 'smart-seo-fixer'); ?></span>
                 </div>
             </div>
         </div>
@@ -104,31 +128,54 @@ if (!defined('ABSPATH')) {
                 <span class="ssf-stat-label"><?php esc_html_e('Tracked 404s', 'smart-seo-fixer'); ?></span>
             </div>
         </div>
+        
+        <div class="ssf-stat-card">
+            <div class="ssf-stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff;">
+                <span class="dashicons dashicons-editor-help"></span>
+            </div>
+            <div class="ssf-stat-content">
+                <span class="ssf-stat-value" id="stat-missing-seo">—</span>
+                <span class="ssf-stat-label"><?php esc_html_e('Missing SEO Data', 'smart-seo-fixer'); ?></span>
+            </div>
+        </div>
+        
+        <div class="ssf-stat-card">
+            <div class="ssf-stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff;">
+                <span class="dashicons dashicons-media-text"></span>
+            </div>
+            <div class="ssf-stat-content">
+                <span class="ssf-stat-value" id="stat-thin-content">—</span>
+                <span class="ssf-stat-label"><?php esc_html_e('Thin Content', 'smart-seo-fixer'); ?></span>
+            </div>
+        </div>
     </div>
     
     <!-- Scan & Fix Actions -->
     <div class="ssf-card">
         <div class="ssf-card-header">
             <h2>
-                <span class="dashicons dashicons-search"></span>
-                <?php esc_html_e('Scan & Fix URL Issues', 'smart-seo-fixer'); ?>
+                <span class="dashicons dashicons-shield"></span>
+                <?php esc_html_e('Indexability Audit', 'smart-seo-fixer'); ?>
             </h2>
         </div>
         <div class="ssf-card-body">
+            <p class="ssf-audit-description">
+                <?php esc_html_e('Scans every published page against all 9 Google Search Console issue types. Detects problems and provides one-click fixes.', 'smart-seo-fixer'); ?>
+            </p>
             <div class="ssf-actions-grid">
-                <button type="button" class="ssf-action-btn" id="scan-url-issues-btn">
-                    <span class="dashicons dashicons-search"></span>
+                <button type="button" class="ssf-action-btn ssf-action-primary" id="scan-url-issues-btn">
+                    <span class="dashicons dashicons-shield"></span>
                     <span class="ssf-action-text">
-                        <strong><?php esc_html_e('Scan for URL Issues', 'smart-seo-fixer'); ?></strong>
-                        <small><?php esc_html_e('Check for trailing slash, canonical, and redirect problems', 'smart-seo-fixer'); ?></small>
+                        <strong><?php esc_html_e('Run Indexability Audit', 'smart-seo-fixer'); ?></strong>
+                        <small><?php esc_html_e('Check all 9 GSC issue types at once', 'smart-seo-fixer'); ?></small>
                     </span>
                 </button>
                 
                 <button type="button" class="ssf-action-btn" id="fix-all-issues-btn" disabled>
                     <span class="dashicons dashicons-admin-generic"></span>
                     <span class="ssf-action-text">
-                        <strong><?php esc_html_e('Fix All Issues', 'smart-seo-fixer'); ?></strong>
-                        <small><?php esc_html_e('Automatically resolve detected problems', 'smart-seo-fixer'); ?></small>
+                        <strong><?php esc_html_e('Fix All Auto-Fixable', 'smart-seo-fixer'); ?></strong>
+                        <small><?php esc_html_e('Redirect chains, trailing slashes', 'smart-seo-fixer'); ?></small>
                     </span>
                 </button>
                 
@@ -144,7 +191,7 @@ if (!defined('ABSPATH')) {
                     <span class="dashicons dashicons-admin-post"></span>
                     <span class="ssf-action-text">
                         <strong><?php esc_html_e('Review All Posts', 'smart-seo-fixer'); ?></strong>
-                        <small><?php esc_html_e('Check noindex settings and canonical URLs', 'smart-seo-fixer'); ?></small>
+                        <small><?php esc_html_e('SEO scores, noindex, canonicals', 'smart-seo-fixer'); ?></small>
                     </span>
                 </a>
             </div>
@@ -172,7 +219,7 @@ if (!defined('ABSPATH')) {
         <div class="ssf-card-header">
             <h2>
                 <span class="dashicons dashicons-lightbulb"></span>
-                <?php esc_html_e('How This Plugin Prevents GSC Issues', 'smart-seo-fixer'); ?>
+                <?php esc_html_e('Always-On Protection (Runs Automatically)', 'smart-seo-fixer'); ?>
             </h2>
         </div>
         <div class="ssf-card-body">
@@ -226,6 +273,10 @@ if (!defined('ABSPATH')) {
 
 <script>
 jQuery(document).ready(function($) {
+    
+    var editUrl = '<?php echo esc_url(admin_url('post.php?action=edit&post=')); ?>';
+    var scanData = null;
+    
     // Load summary stats
     function loadGSCSummary() {
         $.post(ssfAdmin.ajax_url, {
@@ -233,173 +284,732 @@ jQuery(document).ready(function($) {
             nonce: ssfAdmin.nonce
         }, function(response) {
             if (response.success) {
-                var data = response.data;
-                $('#stat-trailing-slash').text(data.trailing_slash_mode);
-                $('#stat-redirects').text(data.active_redirects);
-                $('#stat-noindex').text(data.noindex_pages);
-                $('#stat-404s').text(data.tracked_404s);
+                var d = response.data;
+                $('#stat-trailing-slash').text(d.trailing_slash_mode);
+                $('#stat-redirects').text(d.active_redirects);
+                $('#stat-noindex').text(d.noindex_pages);
+                $('#stat-404s').text(d.tracked_404s);
+                $('#stat-missing-seo').text(d.missing_seo);
+                $('#stat-thin-content').text(d.thin_content);
             }
         });
     }
     
     loadGSCSummary();
     
-    // Scan for URL issues
+    // Scan for all indexability issues
     $('#scan-url-issues-btn').on('click', function() {
         var $btn = $(this);
-        var originalHtml = $btn.find('strong').text();
-        
-        $btn.prop('disabled', true);
-        $btn.find('strong').text('<?php echo esc_js(__('Scanning...', 'smart-seo-fixer')); ?>');
+        $btn.prop('disabled', true).find('strong').text('<?php echo esc_js(__('Running full audit...', 'smart-seo-fixer')); ?>');
         
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_scan_url_issues',
             nonce: ssfAdmin.nonce
         }, function(response) {
-            $btn.prop('disabled', false);
-            $btn.find('strong').text(originalHtml);
-            
+            $btn.prop('disabled', false).find('strong').text('<?php echo esc_js(__('Run Indexability Audit', 'smart-seo-fixer')); ?>');
             if (response.success) {
-                displayScanResults(response.data);
+                scanData = response.data;
+                displayFullResults(response.data);
             } else {
-                alert(response.data.message || '<?php echo esc_js(__('Scan failed.', 'smart-seo-fixer')); ?>');
+                alert(response.data.message || '<?php echo esc_js(__('Audit failed.', 'smart-seo-fixer')); ?>');
             }
         }).fail(function() {
-            $btn.prop('disabled', false);
-            $btn.find('strong').text(originalHtml);
-            alert('<?php echo esc_js(__('Request failed.', 'smart-seo-fixer')); ?>');
+            $btn.prop('disabled', false).find('strong').text('<?php echo esc_js(__('Run Indexability Audit', 'smart-seo-fixer')); ?>');
         });
     });
     
-    // Display scan results
-    function displayScanResults(data) {
+    // Display comprehensive results
+    function displayFullResults(data) {
         var $card = $('#scan-results-card');
         var $content = $('#scan-results-content');
-        var $badge = $('#total-issues-badge');
         var total = data.total || 0;
         
-        $badge.text(total + ' <?php echo esc_js(__('issues', 'smart-seo-fixer')); ?>');
+        $('#total-issues-badge').text(total + ' <?php echo esc_js(__('issues found', 'smart-seo-fixer')); ?>');
         
         if (total === 0) {
-            $content.html('<div class="ssf-notice ssf-notice-success"><p><span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('No URL issues detected! Your site is properly configured.', 'smart-seo-fixer')); ?></p></div>');
+            $content.html('<div class="ssf-audit-clean"><span class="dashicons dashicons-yes-alt"></span><h3><?php echo esc_js(__('Your site is fully optimized for Google indexing!', 'smart-seo-fixer')); ?></h3><p><?php echo esc_js(__('No issues detected. All published pages should be indexable.', 'smart-seo-fixer')); ?></p></div>');
             $('#fix-all-issues-btn').prop('disabled', true);
-        } else {
-            var html = '';
-            
-            if (data.issues.trailing_slash && data.issues.trailing_slash.length > 0) {
-                html += '<div class="ssf-issue-group">';
-                html += '<h3><span class="dashicons dashicons-randomize"></span> <?php echo esc_js(__('Trailing Slash Inconsistencies', 'smart-seo-fixer')); ?> (' + data.issues.trailing_slash.length + ')</h3>';
-                html += '<ul class="ssf-issue-list">';
-                data.issues.trailing_slash.slice(0, 10).forEach(function(issue) {
-                    html += '<li><a href="' + issue.url + '" target="_blank">' + issue.title + '</a> - ' + issue.expected + '</li>';
-                });
-                if (data.issues.trailing_slash.length > 10) {
-                    html += '<li><em>... and ' + (data.issues.trailing_slash.length - 10) + ' more</em></li>';
-                }
-                html += '</ul></div>';
-            }
-            
-            if (data.issues.duplicate_canonical && data.issues.duplicate_canonical.length > 0) {
-                html += '<div class="ssf-issue-group">';
-                html += '<h3><span class="dashicons dashicons-admin-page"></span> <?php echo esc_js(__('Custom Canonical URLs', 'smart-seo-fixer')); ?> (' + data.issues.duplicate_canonical.length + ')</h3>';
-                html += '<ul class="ssf-issue-list">';
-                data.issues.duplicate_canonical.forEach(function(issue) {
-                    html += '<li><a href="<?php echo esc_url(admin_url('post.php?action=edit&post=')); ?>' + issue.post_id + '">' + issue.title + '</a> → ' + issue.canonical + '</li>';
-                });
-                html += '</ul></div>';
-            }
-            
-            if (data.issues.redirect_chains && data.issues.redirect_chains.length > 0) {
-                html += '<div class="ssf-issue-group">';
-                html += '<h3><span class="dashicons dashicons-warning"></span> <?php echo esc_js(__('Redirect Chains', 'smart-seo-fixer')); ?> (' + data.issues.redirect_chains.length + ')</h3>';
-                html += '<ul class="ssf-issue-list">';
-                data.issues.redirect_chains.forEach(function(issue) {
-                    html += '<li>' + issue.from + ' → ' + issue.to + ' → ' + issue.chain_to + '</li>';
-                });
-                html += '</ul></div>';
-            }
-            
-            if (data.issues.noindex_in_sitemap && data.issues.noindex_in_sitemap.length > 0) {
-                html += '<div class="ssf-issue-group">';
-                html += '<h3><span class="dashicons dashicons-hidden"></span> <?php echo esc_js(__('Noindex Pages (Check Sitemap)', 'smart-seo-fixer')); ?> (' + data.issues.noindex_in_sitemap.length + ')</h3>';
-                html += '<ul class="ssf-issue-list">';
-                data.issues.noindex_in_sitemap.forEach(function(issue) {
-                    html += '<li><a href="<?php echo esc_url(admin_url('post.php?action=edit&post=')); ?>' + issue.post_id + '">' + issue.title + '</a></li>';
-                });
-                html += '</ul></div>';
-            }
-            
-            $content.html(html);
-            $('#fix-all-issues-btn').prop('disabled', false);
+            $card.show();
+            return;
         }
         
+        var html = '';
+        var issues = data.issues;
+        
+        // === CRITICAL ISSUES (Red) ===
+        
+        // Blocked by robots.txt
+        if (issues.blocked_by_robots && issues.blocked_by_robots.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-lock',
+                color: '#ef4444',
+                gscLabel: '<?php echo esc_js(__('Blocked by robots.txt', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Published pages blocked from crawling', 'smart-seo-fixer')); ?>',
+                items: issues.blocked_by_robots,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-critical">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<code>' + escHtml(item.path) + '</code>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<span class="ssf-audit-tag ssf-tag-manual"><?php echo esc_js(__('Edit robots.txt', 'smart-seo-fixer')); ?></span>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Noindex conflicts
+        if (issues.noindex_conflict && issues.noindex_conflict.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-hidden',
+                color: '#ef4444',
+                gscLabel: '<?php echo esc_js(__("Excluded by 'noindex' tag", 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Pages excluded from Google index', 'smart-seo-fixer')); ?>',
+                items: issues.noindex_conflict,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-critical">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<button class="button ssf-fix-btn" data-fix="remove_noindex" data-post-id="' + item.post_id + '">' +
+                            '<span class="dashicons dashicons-yes"></span> <?php echo esc_js(__('Remove Noindex', 'smart-seo-fixer')); ?>' +
+                        '</button>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Redirect chains
+        if (issues.redirect_chains && issues.redirect_chains.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-migrate',
+                color: '#ef4444',
+                gscLabel: '<?php echo esc_js(__('Page with redirect (chains)', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Redirect chains slow down crawling', 'smart-seo-fixer')); ?>',
+                items: issues.redirect_chains,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-critical">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<code>' + escHtml(item.from) + '</code> → <code>' + escHtml(item.to) + '</code> → <code>' + escHtml(item.chain_to) + '</code>' +
+                        '</div>' +
+                        '<button class="button ssf-fix-btn" data-fix="fix_redirect_chains">' +
+                            '<span class="dashicons dashicons-admin-generic"></span> <?php echo esc_js(__('Flatten Chain', 'smart-seo-fixer')); ?>' +
+                        '</button>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // === HIGH PRIORITY (Orange) ===
+        
+        // Missing SEO data
+        if (issues.missing_seo && issues.missing_seo.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-editor-help',
+                color: '#f59e0b',
+                gscLabel: '<?php echo esc_js(__('Discovered - currently not indexed', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Pages missing SEO title or description', 'smart-seo-fixer')); ?>',
+                items: issues.missing_seo,
+                bulkFix: {type: 'generate_seo', label: '<?php echo esc_js(__('AI Generate All Missing', 'smart-seo-fixer')); ?>'},
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-warning">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<button class="button button-primary ssf-fix-btn" data-fix="generate_seo" data-post-id="' + item.post_id + '">' +
+                            '<span class="dashicons dashicons-superhero-alt"></span> <?php echo esc_js(__('AI Generate', 'smart-seo-fixer')); ?>' +
+                        '</button>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Duplicate titles
+        if (issues.duplicate_titles && issues.duplicate_titles.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-admin-page',
+                color: '#f59e0b',
+                gscLabel: '<?php echo esc_js(__('Duplicate without user-selected canonical', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Pages with identical SEO titles', 'smart-seo-fixer')); ?>',
+                items: issues.duplicate_titles,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-warning">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<button class="button button-primary ssf-fix-btn" data-fix="generate_unique_title" data-post-id="' + item.post_id + '">' +
+                            '<span class="dashicons dashicons-superhero-alt"></span> <?php echo esc_js(__('AI Unique Title', 'smart-seo-fixer')); ?>' +
+                        '</button>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Duplicate descriptions
+        if (issues.duplicate_descs && issues.duplicate_descs.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-media-text',
+                color: '#f59e0b',
+                gscLabel: '<?php echo esc_js(__('Duplicate, Google chose different canonical', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Pages with identical meta descriptions', 'smart-seo-fixer')); ?>',
+                items: issues.duplicate_descs,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-warning">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<button class="button button-primary ssf-fix-btn" data-fix="generate_unique_desc" data-post-id="' + item.post_id + '">' +
+                            '<span class="dashicons dashicons-superhero-alt"></span> <?php echo esc_js(__('AI Unique Desc', 'smart-seo-fixer')); ?>' +
+                        '</button>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Not found 404
+        if (issues.not_found_404 && issues.not_found_404.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-dismiss',
+                color: '#f59e0b',
+                gscLabel: '<?php echo esc_js(__('Not found (404)', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Broken URLs returning 404 errors', 'smart-seo-fixer')); ?>',
+                items: issues.not_found_404,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-warning">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<code>' + escHtml(item.url) + '</code>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + (item.referrer ? ' | Referrer: ' + escHtml(item.referrer) : '') + '</span>' +
+                        '</div>' +
+                        '<a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-redirects')); ?>" class="button">' +
+                            '<span class="dashicons dashicons-migrate"></span> <?php echo esc_js(__('Add Redirect', 'smart-seo-fixer')); ?>' +
+                        '</a>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // === MEDIUM PRIORITY (Blue/Purple) ===
+        
+        // Trailing slash issues
+        if (issues.trailing_slash && issues.trailing_slash.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-randomize',
+                color: '#3b82f6',
+                gscLabel: '<?php echo esc_js(__('Duplicate, Google chose different canonical', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Trailing slash inconsistencies', 'smart-seo-fixer')); ?>',
+                items: issues.trailing_slash,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-medium">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + escHtml(item.url) + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail"><?php echo esc_js(__('Expected', 'smart-seo-fixer')); ?>: ' + escHtml(item.expected) + '</span>' +
+                        '</div>' +
+                        '<span class="ssf-audit-tag ssf-tag-auto-handled"><?php echo esc_js(__('Auto-Redirected', 'smart-seo-fixer')); ?></span>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Redirected published pages
+        if (issues.redirected_pages && issues.redirected_pages.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-migrate',
+                color: '#3b82f6',
+                gscLabel: '<?php echo esc_js(__('Page with redirect', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Published pages with active redirects', 'smart-seo-fixer')); ?>',
+                items: issues.redirected_pages,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-medium">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<span class="ssf-audit-tag ssf-tag-review"><?php echo esc_js(__('Review', 'smart-seo-fixer')); ?></span>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Custom canonicals
+        if (issues.custom_canonical && issues.custom_canonical.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-admin-links',
+                color: '#3b82f6',
+                gscLabel: '<?php echo esc_js(__('Alternate page with proper canonical tag', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Pages with custom canonical pointing elsewhere', 'smart-seo-fixer')); ?>',
+                items: issues.custom_canonical,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-medium">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">→ ' + escHtml(item.canonical) + '</span>' +
+                        '</div>' +
+                        '<span class="ssf-audit-tag ssf-tag-info"><?php echo esc_js(__('Intentional?', 'smart-seo-fixer')); ?></span>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // === LOW PRIORITY (Gray/Purple) ===
+        
+        // Thin content
+        if (issues.thin_content && issues.thin_content.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-editor-paragraph',
+                color: '#8b5cf6',
+                gscLabel: '<?php echo esc_js(__('Crawled - currently not indexed', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Thin content pages (< 300 words)', 'smart-seo-fixer')); ?>',
+                items: issues.thin_content,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-info">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<a href="' + editUrl + item.post_id + '" class="button" target="_blank">' +
+                            '<span class="dashicons dashicons-edit"></span> <?php echo esc_js(__('Edit Post', 'smart-seo-fixer')); ?>' +
+                        '</a>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        // Orphaned pages
+        if (issues.orphaned_pages && issues.orphaned_pages.length > 0) {
+            html += renderIssueGroup({
+                icon: 'dashicons-networking',
+                color: '#8b5cf6',
+                gscLabel: '<?php echo esc_js(__('Discovered - currently not indexed', 'smart-seo-fixer')); ?>',
+                title: '<?php echo esc_js(__('Orphaned pages (no internal links)', 'smart-seo-fixer')); ?>',
+                items: issues.orphaned_pages,
+                renderItem: function(item) {
+                    return '<div class="ssf-audit-item ssf-audit-info">' +
+                        '<div class="ssf-audit-item-info">' +
+                            '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
+                            '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                        '</div>' +
+                        '<a href="' + escHtml(item.url) + '" class="button" target="_blank">' +
+                            '<span class="dashicons dashicons-external"></span> <?php echo esc_js(__('View Page', 'smart-seo-fixer')); ?>' +
+                        '</a>' +
+                    '</div>';
+                }
+            });
+        }
+        
+        $content.html(html);
+        $('#fix-all-issues-btn').prop('disabled', total === 0);
         $card.show();
+        
+        // Scroll to results
+        $('html, body').animate({scrollTop: $card.offset().top - 50}, 400);
     }
     
-    // Fix all issues
-    $('#fix-all-issues-btn').on('click', function() {
+    // Render a grouped issue section
+    function renderIssueGroup(opts) {
+        var count = opts.items.length;
+        var maxShow = 10;
+        var html = '<div class="ssf-audit-group">';
+        html += '<div class="ssf-audit-group-header">';
+        html += '<div class="ssf-audit-group-title">';
+        html += '<span class="dashicons ' + opts.icon + '" style="color:' + opts.color + ';"></span>';
+        html += '<div>';
+        html += '<span class="ssf-gsc-label" style="color:' + opts.color + ';">' + opts.gscLabel + '</span>';
+        html += '<strong>' + opts.title + '</strong>';
+        html += '</div>';
+        html += '<span class="ssf-audit-count" style="background:' + opts.color + ';">' + count + '</span>';
+        html += '</div>';
+        if (opts.bulkFix) {
+            html += '<button class="button button-primary ssf-bulk-fix-btn" data-fix="' + opts.bulkFix.type + '" data-items=\'' + JSON.stringify(opts.items.map(function(i){return i.post_id;})) + '\'>';
+            html += '<span class="dashicons dashicons-superhero-alt"></span> ' + opts.bulkFix.label;
+            html += '</button>';
+        }
+        html += '</div>';
+        html += '<div class="ssf-audit-items">';
+        opts.items.slice(0, maxShow).forEach(function(item) {
+            html += opts.renderItem(item);
+        });
+        if (count > maxShow) {
+            html += '<div class="ssf-audit-more"><?php echo esc_js(__('... and', 'smart-seo-fixer')); ?> ' + (count - maxShow) + ' <?php echo esc_js(__('more items', 'smart-seo-fixer')); ?></div>';
+        }
+        html += '</div></div>';
+        return html;
+    }
+    
+    function escHtml(str) {
+        if (!str) return '';
+        return $('<div>').text(str).html();
+    }
+    
+    // Individual fix button handler
+    $(document).on('click', '.ssf-fix-btn', function() {
         var $btn = $(this);
-        var originalHtml = $btn.find('strong').text();
+        var fixType = $btn.data('fix');
+        var postId = $btn.data('post-id') || 0;
+        var originalHtml = $btn.html();
         
-        if (!confirm('<?php echo esc_js(__('This will attempt to fix all detected URL issues. Continue?', 'smart-seo-fixer')); ?>')) {
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update ssf-spin"></span> <?php echo esc_js(__('Fixing...', 'smart-seo-fixer')); ?>');
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_fix_indexability_issue',
+            nonce: ssfAdmin.nonce,
+            fix_type: fixType,
+            post_id: postId
+        }, function(response) {
+            if (response.success) {
+                $btn.closest('.ssf-audit-item').addClass('ssf-audit-fixed');
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Fixed!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+            } else {
+                $btn.prop('disabled', false).html(originalHtml);
+                alert(response.data.message || '<?php echo esc_js(__('Fix failed.', 'smart-seo-fixer')); ?>');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(originalHtml);
+        });
+    });
+    
+    // Bulk fix button handler
+    $(document).on('click', '.ssf-bulk-fix-btn', function() {
+        var $btn = $(this);
+        var fixType = $btn.data('fix');
+        var items = $btn.data('items') || [];
+        var originalHtml = $btn.html();
+        var index = 0;
+        
+        if (!confirm('<?php echo esc_js(__('This will AI-generate missing SEO data for all listed pages. Continue?', 'smart-seo-fixer')); ?>')) {
             return;
         }
         
         $btn.prop('disabled', true);
-        $btn.find('strong').text('<?php echo esc_js(__('Fixing...', 'smart-seo-fixer')); ?>');
         
+        function fixNext() {
+            if (index >= items.length) {
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('All Done!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+                loadGSCSummary();
+                return;
+            }
+            
+            $btn.html('<span class="dashicons dashicons-update ssf-spin"></span> <?php echo esc_js(__('Fixing', 'smart-seo-fixer')); ?> ' + (index + 1) + '/' + items.length + '...');
+            
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_fix_indexability_issue',
+                nonce: ssfAdmin.nonce,
+                fix_type: fixType,
+                post_id: items[index]
+            }, function(response) {
+                if (response.success) {
+                    var $item = $btn.closest('.ssf-audit-group').find('.ssf-fix-btn[data-post-id="' + items[index] + '"]').closest('.ssf-audit-item');
+                    $item.addClass('ssf-audit-fixed');
+                }
+                index++;
+                fixNext();
+            }).fail(function() {
+                index++;
+                fixNext();
+            });
+        }
+        
+        fixNext();
+    });
+    
+    // Fix all issues (legacy + new)
+    $('#fix-all-issues-btn').on('click', function() {
+        var $btn = $(this);
+        if (!confirm('<?php echo esc_js(__('This will fix all auto-fixable issues (redirect chains, trailing slashes). For AI-generated content, use the individual buttons. Continue?', 'smart-seo-fixer')); ?>')) {
+            return;
+        }
+        $btn.prop('disabled', true).find('strong').text('<?php echo esc_js(__('Fixing...', 'smart-seo-fixer')); ?>');
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_fix_url_issues',
             nonce: ssfAdmin.nonce,
             issue_type: 'all'
         }, function(response) {
-            $btn.prop('disabled', false);
-            $btn.find('strong').text(originalHtml);
-            
+            $btn.prop('disabled', false).find('strong').text('<?php echo esc_js(__('Fix All Auto-Fixable', 'smart-seo-fixer')); ?>');
             if (response.success) {
-                alert('<?php echo esc_js(__('Issues fixed! Re-scanning...', 'smart-seo-fixer')); ?>');
+                alert('<?php echo esc_js(__('Auto-fixable issues resolved! Re-scanning...', 'smart-seo-fixer')); ?>');
                 $('#scan-url-issues-btn').click();
                 loadGSCSummary();
-            } else {
-                alert(response.data.message || '<?php echo esc_js(__('Fix failed.', 'smart-seo-fixer')); ?>');
             }
-        }).fail(function() {
-            $btn.prop('disabled', false);
-            $btn.find('strong').text(originalHtml);
-            alert('<?php echo esc_js(__('Request failed.', 'smart-seo-fixer')); ?>');
         });
     });
 });
 </script>
 
 <style>
+/* Issue type guide grid */
 .ssf-gsc-issues-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
+    gap: 16px;
 }
 .ssf-gsc-issue-type {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 15px;
+    gap: 6px;
+    padding: 16px;
     background: #f9fafb;
-    border-radius: 8px;
+    border-radius: 10px;
     border: 1px solid #e5e7eb;
-}
-.ssf-gsc-issue-type .dashicons {
-    font-size: 24px;
-    width: 24px;
-    height: 24px;
+    position: relative;
 }
 .ssf-gsc-issue-type strong {
-    font-size: 14px;
+    font-size: 13.5px;
 }
 .ssf-gsc-issue-type p {
     margin: 0;
     color: #6b7280;
-    font-size: 13px;
+    font-size: 12.5px;
+    line-height: 1.5;
 }
+.ssf-gsc-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.ssf-status-fixable { background: #10b981; }
+.ssf-status-info { background: #3b82f6; }
+.ssf-status-warning { background: #f59e0b; }
+
+.ssf-gsc-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    width: fit-content;
+}
+.ssf-tag-auto { background: #d1fae5; color: #065f46; }
+.ssf-tag-ai { background: #ede9fe; color: #5b21b6; }
+.ssf-tag-review { background: #fef3c7; color: #92400e; }
+.ssf-tag-manual { background: #fee2e2; color: #991b1b; }
+
+/* Audit description */
+.ssf-audit-description {
+    margin: 0 0 16px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Action button primary variant */
+.ssf-action-btn.ssf-action-primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    border-color: #1d4ed8 !important;
+    color: #fff !important;
+}
+.ssf-action-btn.ssf-action-primary .dashicons,
+.ssf-action-btn.ssf-action-primary strong,
+.ssf-action-btn.ssf-action-primary small {
+    color: #fff !important;
+}
+.ssf-action-btn.ssf-action-primary:hover {
+    background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+}
+
+/* Badge */
+.ssf-badge {
+    background: #ef4444;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Audit clean state */
+.ssf-audit-clean {
+    text-align: center;
+    padding: 40px 20px;
+    color: #10b981;
+}
+.ssf-audit-clean .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 10px;
+}
+.ssf-audit-clean h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+}
+.ssf-audit-clean p {
+    margin: 0;
+    color: #6b7280;
+}
+
+/* Audit groups */
+.ssf-audit-group {
+    margin-bottom: 20px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+.ssf-audit-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+}
+.ssf-audit-group-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ssf-audit-group-title .dashicons {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+}
+.ssf-audit-group-title > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ssf-gsc-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.ssf-audit-group-title strong {
+    font-size: 14px;
+    color: #1f2937;
+}
+.ssf-audit-count {
+    color: #fff;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 28px;
+    text-align: center;
+}
+.ssf-audit-items {
+    padding: 0;
+}
+.ssf-audit-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid #f3f4f6;
+    gap: 12px;
+    transition: all 0.3s ease;
+}
+.ssf-audit-item:last-child {
+    border-bottom: none;
+}
+.ssf-audit-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+.ssf-audit-item-info a {
+    text-decoration: none;
+}
+.ssf-audit-item-info strong {
+    font-size: 13px;
+    color: #1f2937;
+}
+.ssf-audit-item-info code {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 1px 6px;
+    border-radius: 4px;
+    word-break: break-all;
+}
+.ssf-audit-detail {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+/* Severity colors */
+.ssf-audit-critical { border-left: 3px solid #ef4444; }
+.ssf-audit-warning { border-left: 3px solid #f59e0b; }
+.ssf-audit-medium { border-left: 3px solid #3b82f6; }
+.ssf-audit-info { border-left: 3px solid #8b5cf6; }
+
+/* Fixed state */
+.ssf-audit-fixed {
+    background: #f0fdf4 !important;
+    opacity: 0.7;
+}
+.ssf-btn-fixed {
+    background: #10b981 !important;
+    border-color: #10b981 !important;
+    color: #fff !important;
+    cursor: default !important;
+}
+
+/* Fix buttons */
+.ssf-fix-btn {
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px !important;
+    padding: 4px 12px !important;
+}
+.ssf-fix-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+.ssf-bulk-fix-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ssf-bulk-fix-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Audit tags */
+.ssf-audit-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.ssf-tag-auto-handled { background: #d1fae5; color: #065f46; }
+.ssf-tag-info { background: #dbeafe; color: #1e40af; }
+
+/* More items */
+.ssf-audit-more {
+    padding: 10px 18px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+    font-style: italic;
+    background: #f9fafb;
+}
+
+/* Spinner */
+@keyframes ssf-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.ssf-spin {
+    animation: ssf-spin 1s linear infinite;
+}
+
+/* Feature list (How it works section) */
 .ssf-feature-list {
     display: flex;
     flex-direction: column;
@@ -425,34 +1035,16 @@ jQuery(document).ready(function($) {
     color: #6b7280;
     font-size: 13px;
 }
-.ssf-issue-group {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #fef3c7;
-    border-radius: 8px;
-    border: 1px solid #fcd34d;
-}
-.ssf-issue-group h3 {
-    margin: 0 0 10px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.ssf-issue-list {
-    margin: 0;
-    padding-left: 20px;
-}
-.ssf-issue-list li {
-    margin-bottom: 5px;
-    font-size: 13px;
-}
-.ssf-badge {
-    background: #ef4444;
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
+
+/* Responsive */
+@media (max-width: 782px) {
+    .ssf-audit-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .ssf-audit-group-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>

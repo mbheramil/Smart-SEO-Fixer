@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,20 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.6.0 =
+* NEW: Comprehensive Indexability Auditor — detects all 9 Google Search Console issue types
+* NEW: Blocked by robots.txt detection — parses robots.txt and flags published pages blocked from crawling
+* NEW: Thin content detection — finds pages under 300 words (common "Crawled not indexed" cause)
+* NEW: Duplicate title and description detection — prevents "Duplicate without canonical" issues
+* NEW: Orphaned page detection — finds pages with no internal links pointing to them
+* NEW: Missing SEO data detection — pages without title/description that Google may skip indexing
+* NEW: Published pages with redirect detection — flags conflicting redirect/publish states
+* NEW: One-click AI fix for missing SEO, duplicate titles, and duplicate descriptions
+* NEW: Bulk AI fix — generate all missing SEO data across the site with one button
+* NEW: Individual fix buttons for noindex removal, redirect chain flattening, and more
+* Enhanced stat dashboard with missing SEO data and thin content counts
+* Renamed "Search Console Fixer" to "Indexability Auditor" for clarity
 
 = 1.5.0 =
 * Added Search Console Fixer (trailing slashes, redirect chains, canonical conflicts)

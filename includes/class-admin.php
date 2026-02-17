@@ -162,11 +162,11 @@ class SSF_Admin {
             [$this, 'render_redirects_page']
         );
         
-        // Search Console submenu
+        // Indexability Auditor submenu
         add_submenu_page(
             'smart-seo-fixer',
-            __('Search Console Fixer', 'smart-seo-fixer'),
-            __('Search Console', 'smart-seo-fixer'),
+            __('Indexability Auditor', 'smart-seo-fixer'),
+            __('Indexability Audit', 'smart-seo-fixer'),
             'manage_options',
             'smart-seo-fixer-gsc',
             [$this, 'render_gsc_page']
