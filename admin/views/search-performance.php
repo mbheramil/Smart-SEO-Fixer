@@ -470,17 +470,22 @@ jQuery(document).ready(function($) {
     // Submit Sitemap
     $('#ssf-gsc-submit-sitemap').on('click', function() {
         var $btn = $(this);
-        $btn.prop('disabled', true);
+        var origHtml = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> <?php esc_html_e('Submitting...', 'smart-seo-fixer'); ?>');
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_gsc_submit_sitemap',
             nonce: ssfAdmin.nonce
         }, function(response) {
-            $btn.prop('disabled', false);
             if (response.success) {
-                alert(response.data.message);
+                $btn.html('<span class="dashicons dashicons-yes" style="vertical-align:text-bottom;color:#16a34a;"></span> <?php esc_html_e('Sitemap Submitted!', 'smart-seo-fixer'); ?>');
+                setTimeout(function() { $btn.prop('disabled', false).html(origHtml); }, 3000);
             } else {
+                $btn.prop('disabled', false).html(origHtml);
                 alert(response.data?.message || 'Error submitting sitemap');
             }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(origHtml);
+            alert('Request failed. Please try again.');
         });
     });
     

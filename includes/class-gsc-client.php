@@ -257,10 +257,10 @@ class SSF_GSC_Client {
         }
         
         $code = wp_remote_retrieve_response_code($response);
-        $data = json_decode(wp_remote_retrieve_body($response), true);
+        $raw_body = wp_remote_retrieve_body($response);
+        $data = json_decode($raw_body, true);
         
         if ($code === 401) {
-            // Token might have been revoked — try refresh once
             $new_token = $this->refresh_access_token();
             if (is_wp_error($new_token)) {
                 return $new_token;
@@ -271,15 +271,28 @@ class SSF_GSC_Client {
                 return $response;
             }
             $code = wp_remote_retrieve_response_code($response);
-            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $raw_body = wp_remote_retrieve_body($response);
+            $data = json_decode($raw_body, true);
         }
         
-        if ($code >= 400) {
-            $error_msg = $data['error']['message'] ?? __('API request failed.', 'smart-seo-fixer');
-            return new WP_Error('gsc_api_error', $error_msg);
+        // 2xx = success (200 OK, 204 No Content, etc.)
+        if ($code >= 200 && $code < 300) {
+            return $data ?: ['success' => true];
         }
         
-        return $data;
+        // Extract the most useful error message
+        $error_msg = '';
+        if (!empty($data['error']['message'])) {
+            $error_msg = $data['error']['message'];
+        } elseif (!empty($data['error']['status'])) {
+            $error_msg = $data['error']['status'];
+        } elseif (!empty($raw_body)) {
+            $error_msg = substr($raw_body, 0, 200);
+        } else {
+            $error_msg = sprintf(__('HTTP %d error from Google API.', 'smart-seo-fixer'), $code);
+        }
+        
+        return new WP_Error('gsc_api_error', $error_msg);
     }
     
     // ========================================================
