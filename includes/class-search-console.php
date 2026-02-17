@@ -1217,7 +1217,129 @@ class SSF_Search_Console {
             }
         }
         
-        if ($link_added) {
+        // === STEP 2: Add outgoing internal links WITHIN the orphaned page's content ===
+        // This ensures the page links TO other relevant pages (fixes "No internal links found" analysis)
+        $outgoing_messages = [];
+        $orphan_post = get_post($orphan_id); // Re-fetch in case it was modified
+        $orphan_content = $orphan_post->post_content;
+        
+        // Check if the page already has internal links
+        $has_internal_links = false;
+        if (preg_match_all('/href=["\']([^"\']+)["\']/', $orphan_content, $link_matches)) {
+            $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+            foreach ($link_matches[1] as $href) {
+                $link_host = wp_parse_url($href, PHP_URL_HOST);
+                if ($link_host === $site_host || (empty($link_host) && strpos($href, '/') === 0)) {
+                    $has_internal_links = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!$has_internal_links) {
+            // Find related pages to link TO from this orphaned page
+            $related = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT ID, post_title, post_content, post_type
+                    FROM {$wpdb->posts}
+                    WHERE post_status = 'publish'
+                    AND post_type IN ($placeholders)
+                    AND ID != %d
+                    AND LENGTH(post_content) > 500
+                    ORDER BY post_date DESC
+                    LIMIT 30",
+                    ...array_merge($post_types, [$orphan_id])
+                )
+            );
+            
+            // Score by relevance
+            $related_scored = [];
+            foreach ($related as $r) {
+                $r_text = strtolower($r->post_title . ' ' . wp_trim_words(wp_strip_all_tags($r->post_content), 100));
+                $score = 0;
+                foreach ($orphan_words as $word) {
+                    if (stripos($r_text, $word) !== false) {
+                        $score++;
+                    }
+                }
+                if ($score > 0) {
+                    $related_scored[] = ['post' => $r, 'score' => $score];
+                }
+            }
+            usort($related_scored, function($a, $b) { return $b['score'] - $a['score']; });
+            
+            // Try to add up to 3 outgoing links
+            $outgoing_added = 0;
+            $max_outgoing = 3;
+            $out_attempts = 0;
+            
+            foreach ($related_scored as $rel_item) {
+                if ($outgoing_added >= $max_outgoing || $out_attempts >= 8) break;
+                $out_attempts++;
+                
+                $target = $rel_item['post'];
+                $target_url = get_permalink($target->ID);
+                
+                // Skip if orphan page already links to this target
+                if (stripos($orphan_content, $target_url) !== false) continue;
+                $target_path = wp_parse_url($target_url, PHP_URL_PATH);
+                if ($target_path && stripos($orphan_content, $target_path) !== false) continue;
+                
+                $target_summary = wp_trim_words(wp_strip_all_tags(strip_shortcodes($target->post_content)), 50);
+                
+                $ai_result = $openai->find_internal_link_placement(
+                    $orphan_content,
+                    $target->post_title,
+                    $target_url,
+                    $target_summary
+                );
+                
+                if (is_wp_error($ai_result) || empty($ai_result['found']) || empty($ai_result['anchor_text'])) {
+                    continue;
+                }
+                
+                $anchor = $ai_result['anchor_text'];
+                $pos = strpos($orphan_content, $anchor);
+                if ($pos === false) {
+                    $pos = stripos($orphan_content, $anchor);
+                    if ($pos !== false) {
+                        $anchor = substr($orphan_content, $pos, strlen($anchor));
+                    }
+                }
+                if ($pos === false) continue;
+                
+                // Verify not inside an existing <a> tag
+                $before = substr($orphan_content, 0, $pos);
+                $last_a_open = strrpos($before, '<a ');
+                $last_a_close = strrpos($before, '</a>');
+                if ($last_a_open !== false && ($last_a_close === false || $last_a_close < $last_a_open)) {
+                    continue;
+                }
+                
+                $out_link = '<a href="' . esc_url($target_url) . '">' . $anchor . '</a>';
+                $orphan_content = substr_replace($orphan_content, $out_link, $pos, strlen($anchor));
+                $outgoing_added++;
+                $outgoing_messages[] = sprintf('"%s"', $anchor);
+            }
+            
+            if ($outgoing_added > 0) {
+                $update_result = wp_update_post([
+                    'ID' => $orphan_id,
+                    'post_content' => $orphan_content,
+                ], true);
+                
+                if (!is_wp_error($update_result)) {
+                    $out_msg = sprintf(
+                        __(' + Added %d outgoing link(s) within page content: %s', 'smart-seo-fixer'),
+                        $outgoing_added,
+                        implode(', ', $outgoing_messages)
+                    );
+                    $result_message .= $out_msg;
+                }
+            }
+        }
+        
+        if ($link_added || !empty($outgoing_messages)) {
             wp_send_json_success([
                 'message' => $result_message,
                 'linked' => true,

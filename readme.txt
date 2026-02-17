@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.5
+Stable tag: 1.8.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.8.6 =
+* Orphan fix now adds outgoing internal links within the page's own content (up to 3 relevant links)
+* Fixes "No internal links found" SEO analysis warning on orphaned pages
+* AI finds natural anchor text phrases and converts them to contextual links to related pages
 
 = 1.8.5 =
 * FIX: Critical error from incorrect zip packaging in v1.8.3/v1.8.4
