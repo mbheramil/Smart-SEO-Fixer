@@ -132,22 +132,22 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Redirects'))    $this->redirects     = new SSF_Redirects();
         if (class_exists('SSF_Breadcrumbs'))  $this->breadcrumbs   = new SSF_Breadcrumbs();
         if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
-        if (class_exists('SSF_Updater'))      $this->updater       = new SSF_Updater();
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
         if (is_admin()) {
             $this->admin = new SSF_Admin();
+            // Updater only needed in admin (update checks, plugin info, download auth)
+            if (class_exists('SSF_Updater')) $this->updater = new SSF_Updater();
             // Ensure DB table exists (self-healing if plugin was updated without reactivation)
             add_action('admin_init', [$this, 'maybe_create_tables']);
             // Ensure cron is scheduled (self-healing if cron was lost)
             add_action('admin_init', [$this, 'maybe_schedule_cron']);
             // Handle force update check from plugins page
             add_action('admin_init', ['SSF_Updater', 'force_check']);
+            // Auto-detect custom post types (no need on every frontend request)
+            add_action('init', [$this, 'auto_detect_post_types'], 999);
         }
-        
-        // Auto-detect custom post types and merge into settings (runs late so CPTs are registered)
-        add_action('init', [$this, 'auto_detect_post_types'], 999);
     }
     
     /**

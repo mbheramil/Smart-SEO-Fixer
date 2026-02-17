@@ -24,33 +24,37 @@ class SSF_Search_Console {
     /**
      * Constructor
      */
+    /**
+     * Cached home URL to avoid repeated option lookups
+     */
+    private $home_url_host = '';
+    
     public function __construct() {
         // Wait for init to detect trailing slash (needs permalink_structure option)
         add_action('init', [$this, 'init_settings'], 1);
         
-        // Fix canonical URLs to be consistent
-        add_filter('get_permalink', [$this, 'normalize_permalink'], 9999, 2);
-        add_filter('post_link', [$this, 'normalize_permalink'], 9999, 2);
-        add_filter('page_link', [$this, 'normalize_page_link'], 9999, 2);
-        add_filter('post_type_link', [$this, 'normalize_permalink'], 9999, 2);
+        // Lightweight frontend hooks only — no permalink filters (WordPress handles trailing slashes natively)
+        if (!is_admin()) {
+            // Redirect inconsistent URLs (lightweight: runs once per request, exits early for most)
+            add_action('template_redirect', [$this, 'redirect_inconsistent_urls'], 1);
+            
+            // Strip UTM parameters from our canonical output only
+            add_filter('ssf_canonical_url', [$this, 'strip_tracking_params']);
+            
+            // Remove default WordPress canonical (let meta-manager handle it)
+            add_action('wp', [$this, 'remove_default_canonical']);
+            
+            // Fix sitemap URLs to match canonical format
+            add_filter('ssf_sitemap_url', [$this, 'normalize_sitemap_url']);
+        }
         
-        // Redirect inconsistent URLs
-        add_action('template_redirect', [$this, 'redirect_inconsistent_urls'], 1);
-        
-        // Strip UTM parameters from canonical
-        add_filter('ssf_canonical_url', [$this, 'strip_tracking_params']);
-        
-        // Remove default WordPress canonical (let meta-manager handle it)
-        add_action('wp', [$this, 'remove_default_canonical']);
-        
-        // Fix sitemap URLs to match canonical format
-        add_filter('ssf_sitemap_url', [$this, 'normalize_sitemap_url']);
-        
-        // Admin AJAX handlers
-        add_action('wp_ajax_ssf_scan_url_issues', [$this, 'ajax_scan_url_issues']);
-        add_action('wp_ajax_ssf_fix_url_issues', [$this, 'ajax_fix_url_issues']);
-        add_action('wp_ajax_ssf_get_gsc_summary', [$this, 'ajax_get_gsc_summary']);
-        add_action('wp_ajax_ssf_fix_indexability_issue', [$this, 'ajax_fix_indexability_issue']);
+        // Admin AJAX handlers — only register in admin context
+        if (is_admin()) {
+            add_action('wp_ajax_ssf_scan_url_issues', [$this, 'ajax_scan_url_issues']);
+            add_action('wp_ajax_ssf_fix_url_issues', [$this, 'ajax_fix_url_issues']);
+            add_action('wp_ajax_ssf_get_gsc_summary', [$this, 'ajax_get_gsc_summary']);
+            add_action('wp_ajax_ssf_fix_indexability_issue', [$this, 'ajax_fix_indexability_issue']);
+        }
     }
     
     /**
@@ -58,6 +62,7 @@ class SSF_Search_Console {
      */
     public function init_settings() {
         $this->use_trailing_slash = $this->detect_trailing_slash_preference();
+        $this->home_url_host = wp_parse_url(home_url(), PHP_URL_HOST);
     }
     
     /**

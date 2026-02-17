@@ -19,10 +19,18 @@ class SSF_Meta_Manager {
     /**
      * Constructor
      */
+    /**
+     * Whether the output buffer fallback is needed
+     */
+    private $needs_title_buffer = false;
+    
     public function __construct() {
-        // CRITICAL: Force title-tag support for themes that don't declare it.
-        // Without this, WordPress won't output a <title> tag at all,
-        // and our pre_get_document_title filter never fires.
+        // Skip all frontend hooks if this is an admin or AJAX request
+        if (is_admin() && !wp_doing_ajax()) {
+            return;
+        }
+        
+        // CRITICAL: Force title-tag support for themes that don't declare it
         add_action('after_setup_theme', [$this, 'force_title_tag_support'], 99);
         
         // Filter document title (high priority to override other plugins)
@@ -30,8 +38,9 @@ class SSF_Meta_Manager {
         add_filter('document_title_parts', [$this, 'filter_title_parts'], 9999);
         add_filter('wp_title', [$this, 'filter_title'], 9999);
         
-        // Fallback: directly output <title> tag if theme still doesn't render one
-        add_action('wp_head', [$this, 'ensure_title_tag'], 0);
+        // Only use output buffer fallback if theme doesn't support title-tag
+        // Checked late so theme has time to register support
+        add_action('wp', [$this, 'maybe_enable_title_buffer']);
         
         // Add meta tags to head
         add_action('wp_head', [$this, 'output_meta_tags'], 1);
@@ -52,6 +61,19 @@ class SSF_Meta_Manager {
     }
     
     /**
+     * Only enable the output buffer fallback when the theme didn't natively support title-tag
+     * 
+     * If force_title_tag_support() had to add it, the theme may still not render
+     * the <title> tag properly. In that case, we buffer wp_head to inject it.
+     * For themes that already support title-tag natively (the majority), no buffer overhead.
+     */
+    public function maybe_enable_title_buffer() {
+        if ($this->needs_title_buffer) {
+            add_action('wp_head', [$this, 'ensure_title_tag'], 0);
+        }
+    }
+    
+    /**
      * Force title-tag theme support
      * 
      * Many custom themes (especially Elementor-based) don't declare title-tag support.
@@ -60,6 +82,8 @@ class SSF_Meta_Manager {
      */
     public function force_title_tag_support() {
         if (!current_theme_supports('title-tag')) {
+            // Theme doesn't natively support it — we'll need the buffer fallback
+            $this->needs_title_buffer = true;
             add_theme_support('title-tag');
         }
     }
