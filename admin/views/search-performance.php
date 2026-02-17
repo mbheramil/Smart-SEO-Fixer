@@ -92,8 +92,8 @@ if (class_exists('SSF_GSC_Client')) {
                 </h2>
             </div>
             <div class="ssf-card-body">
-                <div id="ssf-gsc-chart" style="position: relative; min-height: 300px;">
-                    <canvas id="ssf-gsc-canvas" style="width: 100%; height: 300px;"></canvas>
+                <div id="ssf-gsc-chart" style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="ssf-gsc-canvas"></canvas>
                 </div>
                 <div id="ssf-gsc-chart-loading" style="text-align: center; padding: 80px 20px; color: #9ca3af;">
                     <span class="spinner is-active" style="float: none;"></span>
