@@ -248,6 +248,9 @@ class SSF_GSC_Client {
         
         if ($body !== null) {
             $args['body'] = wp_json_encode($body);
+        } elseif ($method === 'PUT') {
+            $args['body'] = '';
+            $args['headers']['Content-Length'] = '0';
         }
         
         $response = wp_remote_request($url, $args);
