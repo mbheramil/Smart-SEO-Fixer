@@ -12,17 +12,8 @@ if (!defined('ABSPATH')) {
 class SSF_Meta_Manager {
     
     /**
-     * Track output buffer level to avoid conflicts with caching plugins
-     */
-    private $ob_level_before = 0;
-    
-    /**
      * Constructor
      */
-    /**
-     * Whether the output buffer fallback is needed
-     */
-    private $needs_title_buffer = false;
     
     public function __construct() {
         // Skip all frontend hooks if this is an admin or AJAX request
@@ -30,17 +21,17 @@ class SSF_Meta_Manager {
             return;
         }
         
-        // CRITICAL: Force title-tag support for themes that don't declare it
-        add_action('after_setup_theme', [$this, 'force_title_tag_support'], 99);
+        // Remove WordPress's default title tag rendering — we'll handle it ourselves
+        // This fires early to ensure we remove the core handler before it runs
+        add_action('after_setup_theme', [$this, 'take_over_title_tag'], 99);
         
-        // Filter document title (high priority to override other plugins)
+        // Also keep filters as backup for plugins that call wp_get_document_title() directly
         add_filter('pre_get_document_title', [$this, 'filter_title'], 9999);
         add_filter('document_title_parts', [$this, 'filter_title_parts'], 9999);
         add_filter('wp_title', [$this, 'filter_title'], 9999);
         
-        // Only use output buffer fallback if theme doesn't support title-tag
-        // Checked late so theme has time to register support
-        add_action('wp', [$this, 'maybe_enable_title_buffer']);
+        // Output our own <title> tag directly — most reliable approach
+        add_action('wp_head', [$this, 'output_title_tag'], 0);
         
         // Add meta tags to head
         add_action('wp_head', [$this, 'output_meta_tags'], 1);
@@ -61,69 +52,35 @@ class SSF_Meta_Manager {
     }
     
     /**
-     * Only enable the output buffer fallback when the theme didn't natively support title-tag
+     * Take over title tag rendering from WordPress core
      * 
-     * If force_title_tag_support() had to add it, the theme may still not render
-     * the <title> tag properly. In that case, we buffer wp_head to inject it.
-     * For themes that already support title-tag natively (the majority), no buffer overhead.
+     * Removes WordPress's _wp_render_title_tag (which depends on title-tag theme support
+     * and filter chains that can fail with Elementor/custom themes). We output the <title>
+     * tag ourselves directly in wp_head for maximum reliability.
      */
-    public function maybe_enable_title_buffer() {
-        if ($this->needs_title_buffer) {
-            add_action('wp_head', [$this, 'ensure_title_tag'], 0);
-        }
-    }
-    
-    /**
-     * Force title-tag theme support
-     * 
-     * Many custom themes (especially Elementor-based) don't declare title-tag support.
-     * Without it, WordPress never outputs a <title> tag and our filters never fire.
-     * This ensures every theme gets a proper <title> tag via wp_head().
-     */
-    public function force_title_tag_support() {
+    public function take_over_title_tag() {
+        // Ensure title-tag support exists (prevents warnings)
         if (!current_theme_supports('title-tag')) {
-            // Theme doesn't natively support it — we'll need the buffer fallback
-            $this->needs_title_buffer = true;
             add_theme_support('title-tag');
         }
+        
+        // Remove WordPress core's title tag rendering — we'll do it ourselves
+        remove_action('wp_head', '_wp_render_title_tag', 1);
     }
     
     /**
-     * Fallback: ensure a <title> tag exists even if title-tag support fails
+     * Output our own <title> tag directly in wp_head
      * 
-     * Some themes hardcode their header.php in a way that prevents title-tag
-     * from working. We use a safe output buffer scoped only to wp_head to
-     * detect if a <title> tag was rendered. If not, we inject one.
-     * 
-     * Safety: Uses ob_get_level() to avoid conflicts with caching plugins
-     * (WP Rocket, W3 Total Cache, etc.) that also use output buffering.
+     * This is the most reliable approach — used by Yoast, Rank Math, etc.
+     * No dependency on title-tag theme support, no filter chain issues,
+     * no output buffer hacks. Just a direct, guaranteed <title> tag.
      */
-    public function ensure_title_tag() {
-        $this->ob_level_before = ob_get_level();
-        ob_start();
-        add_action('wp_head', [$this, 'check_title_tag_buffer'], 9998);
-    }
-    
-    /**
-     * Check if <title> tag exists in wp_head output, inject if missing
-     */
-    public function check_title_tag_buffer() {
-        // Only clean the buffer we started — don't touch other plugins' buffers
-        if (ob_get_level() <= ($this->ob_level_before ?? 0)) {
-            return;
+    public function output_title_tag() {
+        $title = $this->get_current_page_title();
+        
+        if (!empty($title)) {
+            echo '<title>' . esc_html($title) . '</title>' . "\n";
         }
-        
-        $head_output = ob_get_clean();
-        
-        // Check if a <title> tag was rendered
-        if (stripos($head_output, '<title') === false) {
-            $title = $this->get_current_page_title();
-            if (!empty($title)) {
-                echo '<title>' . esc_html($title) . '</title>' . "\n";
-            }
-        }
-        
-        echo $head_output;
     }
     
     /**

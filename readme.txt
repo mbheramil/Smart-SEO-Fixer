@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.8.1 =
+* FIX: SEO title not rendering in <title> tag on Elementor/custom themes
+* Replaced fragile filter-chain approach with direct <title> tag output in wp_head (same approach as Yoast/Rank Math)
+* Removed output buffer fallback — no longer needed with direct output
+* Removed dependency on title-tag theme support for title rendering
 
 = 1.8.0 =
 * NEW: Each tool now has its own dedicated admin page instead of quick action buttons on the dashboard
