@@ -377,6 +377,61 @@ class SSF_OpenAI {
     }
     
     /**
+     * Find a natural place in existing content to insert an internal link to a target page.
+     * Returns JSON with the exact text to find and replace.
+     */
+    public function find_internal_link_placement($source_content, $target_title, $target_url, $target_summary = '') {
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($source_content)), 800);
+        
+        $prompt = "You are an SEO expert specializing in internal linking strategy.\n\n";
+        $prompt .= "I need to add an internal link to a TARGET PAGE from within the SOURCE CONTENT below.\n\n";
+        $prompt .= "TARGET PAGE TO LINK TO:\n";
+        $prompt .= "- Title: {$target_title}\n";
+        $prompt .= "- URL: {$target_url}\n";
+        if (!empty($target_summary)) {
+            $prompt .= "- Topic: {$target_summary}\n";
+        }
+        $prompt .= "\nSOURCE CONTENT (find a natural anchor text phrase in here):\n";
+        $prompt .= $clean_content . "\n\n";
+        
+        $prompt .= "CRITICAL RULES:\n";
+        $prompt .= "1. Find an existing phrase (2-6 words) in the SOURCE CONTENT that naturally relates to the target page topic\n";
+        $prompt .= "2. The phrase MUST exist EXACTLY as-is in the source content — copy it character-for-character\n";
+        $prompt .= "3. The phrase must make sense as a link — a reader clicking it should expect to land on the target page\n";
+        $prompt .= "4. Do NOT choose phrases that are already inside <a> tags or HTML attributes\n";
+        $prompt .= "5. Prefer phrases in the middle or body of the content, not in headings\n";
+        $prompt .= "6. The anchor text should be descriptive, not generic (avoid 'click here', 'read more', etc.)\n\n";
+        
+        $prompt .= "Respond with ONLY valid JSON in this exact format:\n";
+        $prompt .= '{"found": true, "anchor_text": "the exact phrase from content", "context": "...surrounding sentence for verification..."}' . "\n";
+        $prompt .= "If no natural fit exists, respond with: {\"found\": false}\n";
+        $prompt .= "Do NOT wrap in code blocks. Just raw JSON.";
+        
+        $messages = [
+            ['role' => 'system', 'content' => 'You are an internal linking expert. Respond only with valid JSON. Never wrap in code blocks.'],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+        
+        $response = $this->request($messages, 300, 0.3);
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $response = preg_replace('/```json\s*/', '', $response);
+        $response = preg_replace('/```\s*/', '', $response);
+        $response = trim($response);
+        
+        $data = json_decode($response, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return new WP_Error('json_error', __('Failed to parse AI response for internal link.', 'smart-seo-fixer'));
+        }
+        
+        return $data;
+    }
+    
+    /**
      * Improve readability of content
      */
     public function improve_readability($content) {

@@ -91,11 +91,11 @@ if (!defined('ABSPATH')) {
     <div class="ssf-stats-grid" id="gsc-stats-grid">
         <div class="ssf-stat-card">
             <div class="ssf-stat-icon ssf-stat-good">
-                <span class="dashicons dashicons-randomize"></span>
+                <span class="dashicons dashicons-yes-alt"></span>
             </div>
             <div class="ssf-stat-content">
                 <span class="ssf-stat-value" id="stat-trailing-slash">—</span>
-                <span class="ssf-stat-label"><?php esc_html_e('Trailing Slash Mode', 'smart-seo-fixer'); ?></span>
+                <span class="ssf-stat-label"><?php esc_html_e('Trailing Slash — Auto-Enforced', 'smart-seo-fixer'); ?></span>
             </div>
         </div>
         
@@ -495,25 +495,22 @@ jQuery(document).ready(function($) {
         
         // === MEDIUM PRIORITY (Blue/Purple) ===
         
-        // Trailing slash issues
-        if (issues.trailing_slash && issues.trailing_slash.length > 0) {
-            html += renderIssueGroup({
-                icon: 'dashicons-randomize',
-                color: '#3b82f6',
-                gscLabel: '<?php echo esc_js(__('Duplicate, Google chose different canonical', 'smart-seo-fixer')); ?>',
-                title: '<?php echo esc_js(__('Trailing slash inconsistencies', 'smart-seo-fixer')); ?>',
-                items: issues.trailing_slash,
-                renderItem: function(item) {
-                    return '<div class="ssf-audit-item ssf-audit-medium">' +
-                        '<div class="ssf-audit-item-info">' +
-                            '<a href="' + escHtml(item.url) + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
-                            '<span class="ssf-audit-detail"><?php echo esc_js(__('Expected', 'smart-seo-fixer')); ?>: ' + escHtml(item.expected) + '</span>' +
-                        '</div>' +
-                        '<span class="ssf-audit-tag ssf-tag-auto-handled"><?php echo esc_js(__('Auto-Redirected', 'smart-seo-fixer')); ?></span>' +
-                    '</div>';
-                }
-            });
-        }
+        // Trailing slash — always show as handled since canonical/sitemap enforce correct slashes
+        html += '<div class="ssf-audit-group">' +
+            '<div class="ssf-audit-group-header" style="background: #f0fdf4; border-color: #bbf7d0;">' +
+                '<div class="ssf-audit-group-left">' +
+                    '<span class="dashicons dashicons-yes-alt" style="color: #059669;"></span>' +
+                    '<div>' +
+                        '<span class="ssf-audit-gsc-label" style="color: #059669;"><?php echo esc_js(__('Trailing Slash Consistency', 'smart-seo-fixer')); ?></span>' +
+                        '<strong style="color: #065f46;"><?php echo esc_js(__('Automatically handled', 'smart-seo-fixer')); ?></strong>' +
+                    '</div>' +
+                '</div>' +
+                '<span class="ssf-audit-count" style="background: #059669;">✓</span>' +
+            '</div>' +
+            '<div style="padding: 12px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-top: 0; border-radius: 0 0 8px 8px; font-size: 13px; color: #065f46;">' +
+                '<?php echo esc_js(__('Canonical tags, sitemap URLs, and Open Graph URLs all enforce correct trailing slashes automatically. WordPress also auto-redirects non-slash URLs. No action needed.', 'smart-seo-fixer')); ?>' +
+            '</div>' +
+        '</div>';
         
         // Redirected published pages
         if (issues.redirected_pages && issues.redirected_pages.length > 0) {
@@ -587,15 +584,25 @@ jQuery(document).ready(function($) {
                 gscLabel: '<?php echo esc_js(__('Discovered - currently not indexed', 'smart-seo-fixer')); ?>',
                 title: '<?php echo esc_js(__('Orphaned pages (no internal links)', 'smart-seo-fixer')); ?>',
                 items: issues.orphaned_pages,
+                bulkFix: {
+                    type: 'orphaned_pages',
+                    label: '<?php echo esc_js(__('Fix All with AI', 'smart-seo-fixer')); ?>'
+                },
                 renderItem: function(item) {
-                    return '<div class="ssf-audit-item ssf-audit-info">' +
+                    return '<div class="ssf-audit-item ssf-audit-info" id="orphan-item-' + item.post_id + '">' +
                         '<div class="ssf-audit-item-info">' +
                             '<a href="' + editUrl + item.post_id + '" target="_blank"><strong>' + escHtml(item.title) + '</strong></a>' +
                             '<span class="ssf-audit-detail">' + escHtml(item.issue) + '</span>' +
+                            '<span class="ssf-orphan-status" id="orphan-status-' + item.post_id + '"></span>' +
                         '</div>' +
-                        '<a href="' + escHtml(item.url) + '" class="button" target="_blank">' +
-                            '<span class="dashicons dashicons-external"></span> <?php echo esc_js(__('View Page', 'smart-seo-fixer')); ?>' +
-                        '</a>' +
+                        '<div class="ssf-audit-item-actions">' +
+                            '<button class="button ssf-fix-orphan-btn" data-post-id="' + item.post_id + '" data-title="' + escHtml(item.title) + '">' +
+                                '<span class="dashicons dashicons-admin-links"></span> <?php echo esc_js(__('Add Link with AI', 'smart-seo-fixer')); ?>' +
+                            '</button>' +
+                            '<a href="' + escHtml(item.url) + '" class="button" target="_blank">' +
+                                '<span class="dashicons dashicons-external"></span>' +
+                            '</a>' +
+                        '</div>' +
                     '</div>';
                 }
             });
@@ -630,11 +637,21 @@ jQuery(document).ready(function($) {
         }
         html += '</div>';
         html += '<div class="ssf-audit-items">';
+        var groupId = 'ssf-group-' + (opts.bulkFix ? opts.bulkFix.type : Math.random().toString(36).substr(2, 6));
         opts.items.slice(0, maxShow).forEach(function(item) {
             html += opts.renderItem(item);
         });
         if (count > maxShow) {
-            html += '<div class="ssf-audit-more"><?php echo esc_js(__('... and', 'smart-seo-fixer')); ?> ' + (count - maxShow) + ' <?php echo esc_js(__('more items', 'smart-seo-fixer')); ?></div>';
+            html += '<div class="ssf-audit-hidden-items" id="' + groupId + '-hidden" style="display:none;">';
+            opts.items.slice(maxShow).forEach(function(item) {
+                html += opts.renderItem(item);
+            });
+            html += '</div>';
+            html += '<div class="ssf-audit-more">';
+            html += '<button class="button ssf-show-all-btn" data-target="' + groupId + '-hidden">';
+            html += '<?php echo esc_js(__('Show all', 'smart-seo-fixer')); ?> ' + count + ' <?php echo esc_js(__('items', 'smart-seo-fixer')); ?>';
+            html += '</button>';
+            html += '</div>';
         }
         html += '</div></div>';
         return html;
@@ -719,10 +736,100 @@ jQuery(document).ready(function($) {
         fixNext();
     });
     
+    // Show all hidden items in an issue group
+    $(document).on('click', '.ssf-show-all-btn', function() {
+        var target = $(this).data('target');
+        $('#' + target).slideDown(200);
+        $(this).closest('.ssf-audit-more').remove();
+    });
+    
+    // Fix single orphaned page with AI internal linking
+    $(document).on('click', '.ssf-fix-orphan-btn', function() {
+        var $btn = $(this);
+        var postId = $btn.data('post-id');
+        var postTitle = $btn.data('title');
+        var originalHtml = $btn.html();
+        
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update ssf-spin"></span> <?php echo esc_js(__('Finding link...', 'smart-seo-fixer')); ?>');
+        $('#orphan-status-' + postId).text('').removeClass('ssf-orphan-success ssf-orphan-error');
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_fix_orphaned_page',
+            nonce: ssfAdmin.nonce,
+            post_id: postId
+        }, function(response) {
+            if (response.success && response.data.linked) {
+                $btn.closest('.ssf-audit-item').addClass('ssf-audit-fixed');
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Linked!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+                $('#orphan-status-' + postId).text(response.data.message).addClass('ssf-orphan-success');
+            } else {
+                $btn.prop('disabled', false).html(originalHtml);
+                var msg = (response.data && response.data.message) ? response.data.message : '<?php echo esc_js(__('Could not find a natural link placement.', 'smart-seo-fixer')); ?>';
+                $('#orphan-status-' + postId).text(msg).addClass('ssf-orphan-error');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(originalHtml);
+            $('#orphan-status-' + postId).text('<?php echo esc_js(__('Request failed. Check connection.', 'smart-seo-fixer')); ?>').addClass('ssf-orphan-error');
+        });
+    });
+    
+    // Bulk fix orphaned pages — override the default bulk handler for this type
+    $(document).on('click', '.ssf-bulk-fix-btn[data-fix="orphaned_pages"]', function(e) {
+        e.stopImmediatePropagation();
+        var $btn = $(this);
+        var items = $btn.data('items') || [];
+        var index = 0;
+        var successCount = 0;
+        var failCount = 0;
+        
+        if (!confirm('<?php echo esc_js(__('AI will find natural internal link placements for all orphaned pages. This makes one AI call per page. Continue?', 'smart-seo-fixer')); ?>')) {
+            return;
+        }
+        
+        $btn.prop('disabled', true);
+        
+        function fixNextOrphan() {
+            if (index >= items.length) {
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Done!', 'smart-seo-fixer')); ?> ' + successCount + '/' + items.length + ' <?php echo esc_js(__('linked', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+                loadGSCSummary();
+                return;
+            }
+            
+            var postId = items[index];
+            $btn.html('<span class="dashicons dashicons-update ssf-spin"></span> <?php echo esc_js(__('Linking', 'smart-seo-fixer')); ?> ' + (index + 1) + '/' + items.length + '...');
+            
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_fix_orphaned_page',
+                nonce: ssfAdmin.nonce,
+                post_id: postId
+            }, function(response) {
+                var $item = $('#orphan-item-' + postId);
+                if (response.success && response.data.linked) {
+                    successCount++;
+                    $item.addClass('ssf-audit-fixed');
+                    $item.find('.ssf-fix-orphan-btn').html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Linked!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed').prop('disabled', true);
+                    $('#orphan-status-' + postId).text(response.data.message).addClass('ssf-orphan-success');
+                } else {
+                    failCount++;
+                    var msg = (response.data && response.data.message) ? response.data.message : '';
+                    $('#orphan-status-' + postId).text(msg).addClass('ssf-orphan-error');
+                }
+                index++;
+                fixNextOrphan();
+            }).fail(function() {
+                failCount++;
+                index++;
+                fixNextOrphan();
+            });
+        }
+        
+        fixNextOrphan();
+    });
+    
     // Fix all issues (legacy + new)
     $('#fix-all-issues-btn').on('click', function() {
         var $btn = $(this);
-        if (!confirm('<?php echo esc_js(__('This will fix all auto-fixable issues (redirect chains, trailing slashes). For AI-generated content, use the individual buttons. Continue?', 'smart-seo-fixer')); ?>')) {
+        if (!confirm('<?php echo esc_js(__('This will fix all auto-fixable issues (redirect chains). For AI-generated content, use the individual buttons. Continue?', 'smart-seo-fixer')); ?>')) {
             return;
         }
         $btn.prop('disabled', true).find('strong').text('<?php echo esc_js(__('Fixing...', 'smart-seo-fixer')); ?>');
@@ -1001,6 +1108,40 @@ jQuery(document).ready(function($) {
     font-size: 13px;
     font-style: italic;
     background: #f9fafb;
+}
+
+/* Orphan fix status */
+.ssf-orphan-status {
+    display: block;
+    font-size: 12px;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+.ssf-orphan-success {
+    color: #059669;
+    font-weight: 500;
+}
+.ssf-orphan-error {
+    color: #dc2626;
+}
+.ssf-audit-item-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.ssf-fix-orphan-btn {
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px !important;
+    padding: 4px 12px !important;
+}
+.ssf-fix-orphan-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
 }
 
 /* Spinner */

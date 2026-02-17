@@ -55,6 +55,7 @@ class SSF_Search_Console {
             add_action('wp_ajax_ssf_fix_url_issues', [$this, 'ajax_fix_url_issues']);
             add_action('wp_ajax_ssf_get_gsc_summary', [$this, 'ajax_get_gsc_summary']);
             add_action('wp_ajax_ssf_fix_indexability_issue', [$this, 'ajax_fix_indexability_issue']);
+            add_action('wp_ajax_ssf_fix_orphaned_page', [$this, 'ajax_fix_orphaned_page']);
         }
     }
     
@@ -259,7 +260,6 @@ class SSF_Search_Console {
         global $wpdb;
         
         $issues = [
-            'trailing_slash'       => [],
             'noindex_conflict'     => [],
             'custom_canonical'     => [],
             'redirect_chains'      => [],
@@ -345,17 +345,8 @@ class SSF_Search_Console {
             $word_count = str_word_count(strip_tags($post->post_content));
             
             // --- 1. Trailing slash consistency ---
-            if (!empty($path) && $path !== '/') {
-                $has_trailing = substr($path, -1) === '/';
-                if ($this->use_trailing_slash !== $has_trailing) {
-                    $issues['trailing_slash'][] = [
-                        'post_id' => $post->ID,
-                        'title' => $post->post_title,
-                        'url' => $permalink,
-                        'expected' => $this->use_trailing_slash ? 'with trailing slash' : 'without trailing slash',
-                    ];
-                }
-            }
+            // Note: Our canonical tag and sitemap already enforce correct trailing slashes (v1.8.2+)
+            // WordPress also auto-redirects. So these are informational only.
             
             // --- 2. Noindex conflict (noindex but should be indexed) ---
             if ($noindex) {
@@ -581,10 +572,9 @@ class SSF_Search_Console {
         switch ($issue_type) {
             case 'trailing_slash':
             case 'all':
-                // Trailing slash issues are fixed by the redirect handler
-                // Just flush rewrite rules to ensure consistency
-                flush_rewrite_rules();
-                $fixed[] = 'Rewrite rules flushed for trailing slash consistency';
+                // Trailing slashes are auto-enforced by canonical tags, sitemap, and OG URLs (v1.8.2+)
+                // WordPress also auto-redirects. No manual fix needed.
+                $fixed[] = 'Trailing slashes are automatically enforced via canonical tags, sitemap URLs, and Open Graph tags. WordPress auto-redirects as well.';
                 
                 if ($issue_type !== 'all') break;
                 // Fall through
@@ -976,5 +966,308 @@ class SSF_Search_Console {
             'fixed' => $fixed,
             'message' => !empty($fixed) ? implode('. ', $fixed) : __('No changes needed.', 'smart-seo-fixer'),
         ]);
+    }
+    
+    /**
+     * Fix an orphaned page by adding an internal link from a relevant post.
+     * AI finds a natural anchor text phrase in existing content and converts it to a link.
+     */
+    public function ajax_fix_orphaned_page() {
+        $this->verify();
+        
+        $orphan_id = intval($_POST['post_id'] ?? 0);
+        if ($orphan_id <= 0) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_OpenAI')) {
+            wp_send_json_error(['message' => __('OpenAI module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $openai = new SSF_OpenAI();
+        if (!$openai->is_configured()) {
+            wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings.', 'smart-seo-fixer')]);
+        }
+        
+        $orphan_post = get_post($orphan_id);
+        if (!$orphan_post || $orphan_post->post_status !== 'publish') {
+            wp_send_json_error(['message' => __('Post not found or not published.', 'smart-seo-fixer')]);
+        }
+        
+        $orphan_url = get_permalink($orphan_id);
+        $orphan_title = $orphan_post->post_title;
+        $orphan_summary = wp_trim_words(wp_strip_all_tags(strip_shortcodes($orphan_post->post_content)), 50);
+        
+        global $wpdb;
+        
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        // Find candidate posts to link FROM (exclude the orphan itself)
+        // Prefer posts with similar content (shared words in title/content)
+        $candidates = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, post_title, post_content, post_type
+                FROM {$wpdb->posts}
+                WHERE post_status = 'publish'
+                AND post_type IN ($placeholders)
+                AND ID != %d
+                AND LENGTH(post_content) > 500
+                ORDER BY post_date DESC
+                LIMIT 50",
+                ...array_merge($post_types, [$orphan_id])
+            )
+        );
+        
+        if (empty($candidates)) {
+            wp_send_json_error(['message' => __('No candidate posts found for internal linking.', 'smart-seo-fixer')]);
+        }
+        
+        // Score candidates by keyword relevance to the orphaned page
+        $orphan_words = array_unique(array_filter(
+            str_word_count(strtolower($orphan_title), 1),
+            function($w) { return strlen($w) > 3; }
+        ));
+        
+        $scored = [];
+        foreach ($candidates as $c) {
+            // Skip if already links to the orphan
+            if (stripos($c->post_content, $orphan_url) !== false) {
+                continue;
+            }
+            
+            // Also check for the relative path
+            $orphan_path = wp_parse_url($orphan_url, PHP_URL_PATH);
+            if ($orphan_path && stripos($c->post_content, $orphan_path) !== false) {
+                continue;
+            }
+            
+            $c_text = strtolower($c->post_title . ' ' . wp_trim_words(wp_strip_all_tags($c->post_content), 200));
+            $score = 0;
+            foreach ($orphan_words as $word) {
+                if (stripos($c_text, $word) !== false) {
+                    $score++;
+                }
+            }
+            $scored[] = ['post' => $c, 'score' => $score];
+        }
+        
+        // Sort by relevance score descending
+        usort($scored, function($a, $b) { return $b['score'] - $a['score']; });
+        
+        // Try top candidates with AI until we find a good placement
+        $max_attempts = 5;
+        $attempts = 0;
+        $link_added = false;
+        $result_message = '';
+        
+        foreach ($scored as $item) {
+            if ($attempts >= $max_attempts) break;
+            $attempts++;
+            
+            $candidate = $item['post'];
+            
+            $ai_result = $openai->find_internal_link_placement(
+                $candidate->post_content,
+                $orphan_title,
+                $orphan_url,
+                $orphan_summary
+            );
+            
+            if (is_wp_error($ai_result)) {
+                continue;
+            }
+            
+            if (empty($ai_result['found']) || empty($ai_result['anchor_text'])) {
+                continue;
+            }
+            
+            $anchor = $ai_result['anchor_text'];
+            
+            // Verify the anchor text exists in the raw content (not inside an existing link)
+            $content = $candidate->post_content;
+            
+            // Check if anchor text exists in content
+            $pos = strpos($content, $anchor);
+            if ($pos === false) {
+                // Try case-insensitive
+                $pos = stripos($content, $anchor);
+                if ($pos !== false) {
+                    // Use the actual case from the content
+                    $anchor = substr($content, $pos, strlen($anchor));
+                }
+            }
+            
+            if ($pos === false) {
+                continue;
+            }
+            
+            // Ensure anchor text is NOT already inside an <a> tag
+            // Check if there's an unclosed <a> tag before this position
+            $before = substr($content, 0, $pos);
+            $last_a_open = strrpos($before, '<a ');
+            $last_a_close = strrpos($before, '</a>');
+            
+            if ($last_a_open !== false && ($last_a_close === false || $last_a_close < $last_a_open)) {
+                // Anchor text is inside an existing link — skip
+                continue;
+            }
+            
+            // Build the replacement link
+            $link_html = '<a href="' . esc_url($orphan_url) . '">' . $anchor . '</a>';
+            
+            // Replace only the FIRST occurrence of the anchor text
+            $new_content = substr_replace($content, $link_html, $pos, strlen($anchor));
+            
+            // Save the updated content
+            $update_result = wp_update_post([
+                'ID' => $candidate->ID,
+                'post_content' => $new_content,
+            ], true);
+            
+            if (is_wp_error($update_result)) {
+                continue;
+            }
+            
+            $link_added = true;
+            $result_message = sprintf(
+                __('Added internal link from "%1$s" → "%2$s" (anchor: "%3$s")', 'smart-seo-fixer'),
+                $candidate->post_title,
+                $orphan_title,
+                $anchor
+            );
+            break;
+        }
+        
+        // Fallback: if AI couldn't find a natural placement, link from blog or contact page
+        if (!$link_added) {
+            $fallback_post = $this->find_fallback_page();
+            
+            if ($fallback_post) {
+                $content = $fallback_post->post_content;
+                
+                // Check if already linked
+                if (stripos($content, $orphan_url) === false) {
+                    // Find a natural phrase in the fallback page, or append a related links section
+                    $ai_result = $openai->find_internal_link_placement(
+                        $content,
+                        $orphan_title,
+                        $orphan_url,
+                        $orphan_summary
+                    );
+                    
+                    $fallback_linked = false;
+                    
+                    if (!is_wp_error($ai_result) && !empty($ai_result['found']) && !empty($ai_result['anchor_text'])) {
+                        $anchor = $ai_result['anchor_text'];
+                        $pos = strpos($content, $anchor);
+                        if ($pos === false) {
+                            $pos = stripos($content, $anchor);
+                            if ($pos !== false) {
+                                $anchor = substr($content, $pos, strlen($anchor));
+                            }
+                        }
+                        
+                        if ($pos !== false) {
+                            // Verify not inside existing link
+                            $before = substr($content, 0, $pos);
+                            $last_a_open = strrpos($before, '<a ');
+                            $last_a_close = strrpos($before, '</a>');
+                            
+                            if ($last_a_open === false || ($last_a_close !== false && $last_a_close > $last_a_open)) {
+                                $link_html = '<a href="' . esc_url($orphan_url) . '">' . $anchor . '</a>';
+                                $new_content = substr_replace($content, $link_html, $pos, strlen($anchor));
+                                
+                                $update_result = wp_update_post([
+                                    'ID' => $fallback_post->ID,
+                                    'post_content' => $new_content,
+                                ], true);
+                                
+                                if (!is_wp_error($update_result)) {
+                                    $fallback_linked = true;
+                                    $link_added = true;
+                                    $result_message = sprintf(
+                                        __('Added internal link from fallback page "%1$s" → "%2$s" (anchor: "%3$s")', 'smart-seo-fixer'),
+                                        $fallback_post->post_title,
+                                        $orphan_title,
+                                        $anchor
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!$fallback_linked) {
+                        $result_message = sprintf(
+                            __('Could not find a natural placement for a link to "%s". Consider adding a manual internal link.', 'smart-seo-fixer'),
+                            $orphan_title
+                        );
+                    }
+                } else {
+                    $result_message = sprintf(
+                        __('Fallback page "%s" already links to this post.', 'smart-seo-fixer'),
+                        $fallback_post->post_title
+                    );
+                }
+            } else {
+                $result_message = sprintf(
+                    __('Could not find a natural placement for a link to "%s". No fallback page available.', 'smart-seo-fixer'),
+                    $orphan_title
+                );
+            }
+        }
+        
+        if ($link_added) {
+            wp_send_json_success([
+                'message' => $result_message,
+                'linked' => true,
+            ]);
+        } else {
+            wp_send_json_error([
+                'message' => $result_message,
+                'linked' => false,
+            ]);
+        }
+    }
+    
+    /**
+     * Find a fallback page (blog index or contact page) for orphan linking
+     */
+    private function find_fallback_page() {
+        // Try the blog/posts page
+        $blog_page_id = get_option('page_for_posts');
+        if ($blog_page_id) {
+            $page = get_post($blog_page_id);
+            if ($page && $page->post_status === 'publish' && strlen($page->post_content) > 100) {
+                return $page;
+            }
+        }
+        
+        // Try to find a "Contact" or "About" page
+        global $wpdb;
+        $fallback = $wpdb->get_row(
+            "SELECT ID, post_title, post_content, post_type
+            FROM {$wpdb->posts}
+            WHERE post_status = 'publish'
+            AND post_type = 'page'
+            AND (
+                LOWER(post_name) LIKE '%contact%'
+                OR LOWER(post_name) LIKE '%about%'
+                OR LOWER(post_name) LIKE '%blog%'
+                OR LOWER(post_name) LIKE '%resources%'
+            )
+            AND LENGTH(post_content) > 100
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(post_name) LIKE '%blog%' THEN 1
+                    WHEN LOWER(post_name) LIKE '%resources%' THEN 2
+                    WHEN LOWER(post_name) LIKE '%about%' THEN 3
+                    WHEN LOWER(post_name) LIKE '%contact%' THEN 4
+                    ELSE 5
+                END
+            LIMIT 1"
+        );
+        
+        return $fallback;
     }
 }

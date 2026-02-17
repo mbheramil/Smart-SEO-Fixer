@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.2
+Stable tag: 1.8.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,16 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.8.3 =
+* NEW: AI-powered internal linking for orphaned pages — automatically adds contextual links from relevant posts
+* AI finds natural anchor text phrases in existing content and converts them into internal links
+* Fallback to blog/contact page when no relevant content is found
+* "Fix All with AI" bulk action processes all orphaned pages sequentially
+* "Show All" button to view all items in any issue group (previously capped at 10)
+* Removed trailing slash false positives from Indexability Auditor scan
+* Trailing slashes are now auto-enforced by canonical/sitemap/OG — scan no longer flags them as issues
+* Scan now displays a green "Automatically handled" status for trailing slash consistency
 
 = 1.8.2 =
 * FIX: Enforce trailing slash consistency in canonical tags, OG URLs, and sitemap URLs
