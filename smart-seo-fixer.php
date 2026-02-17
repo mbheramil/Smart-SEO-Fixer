@@ -135,7 +135,7 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
-        if (is_admin()) {
+        if (is_admin() && class_exists('SSF_Admin')) {
             $this->admin = new SSF_Admin();
             // Updater only needed in admin (update checks, plugin info, download auth)
             if (class_exists('SSF_Updater')) $this->updater = new SSF_Updater();
@@ -144,7 +144,7 @@ final class Smart_SEO_Fixer {
             // Ensure cron is scheduled (self-healing if cron was lost)
             add_action('admin_init', [$this, 'maybe_schedule_cron']);
             // Handle force update check from plugins page
-            add_action('admin_init', ['SSF_Updater', 'force_check']);
+            if (class_exists('SSF_Updater')) add_action('admin_init', ['SSF_Updater', 'force_check']);
             // Auto-detect custom post types (no need on every frontend request)
             add_action('init', [$this, 'auto_detect_post_types'], 999);
         }
