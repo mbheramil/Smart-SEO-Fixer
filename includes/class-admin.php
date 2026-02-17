@@ -51,6 +51,8 @@ class SSF_Admin {
         
         $our_pages = [
             'toplevel_page_smart-seo-fixer',
+            'smart-seo_page_smart-seo-fixer-analyzer',
+            'smart-seo_page_smart-seo-fixer-bulk-fix',
             'smart-seo_page_smart-seo-fixer-settings',
             'smart-seo_page_smart-seo-fixer-posts',
             'smart-seo_page_smart-seo-fixer-schema',
@@ -120,6 +122,26 @@ class SSF_Admin {
             'edit_posts',
             'smart-seo-fixer',
             [$this, 'render_dashboard']
+        );
+        
+        // SEO Analyzer submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('SEO Analyzer', 'smart-seo-fixer'),
+            __('SEO Analyzer', 'smart-seo-fixer'),
+            'edit_posts',
+            'smart-seo-fixer-analyzer',
+            [$this, 'render_analyzer']
+        );
+        
+        // Bulk AI Fix submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Bulk AI Fix', 'smart-seo-fixer'),
+            __('Bulk AI Fix', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-bulk-fix',
+            [$this, 'render_bulk_fix']
         );
         
         // All Posts submenu
@@ -202,6 +224,8 @@ class SSF_Admin {
         // Only on our pages or post editor
         $our_pages = [
             'toplevel_page_smart-seo-fixer',
+            'smart-seo_page_smart-seo-fixer-analyzer',
+            'smart-seo_page_smart-seo-fixer-bulk-fix',
             'smart-seo_page_smart-seo-fixer-posts',
             'smart-seo_page_smart-seo-fixer-settings',
             'smart-seo_page_smart-seo-fixer-local',
@@ -253,6 +277,20 @@ class SSF_Admin {
      */
     public function render_dashboard() {
         include SSF_PLUGIN_DIR . 'admin/views/dashboard.php';
+    }
+    
+    /**
+     * Render SEO Analyzer page
+     */
+    public function render_analyzer() {
+        include SSF_PLUGIN_DIR . 'admin/views/analyzer.php';
+    }
+    
+    /**
+     * Render Bulk AI Fix page
+     */
+    public function render_bulk_fix() {
+        include SSF_PLUGIN_DIR . 'admin/views/bulk-fix.php';
     }
     
     /**
