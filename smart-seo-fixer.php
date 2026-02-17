@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.4.1
+ * Version: 1.5.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.4.1');
+define('SSF_VERSION', '1.5.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -48,6 +48,7 @@ final class Smart_SEO_Fixer {
     public $breadcrumbs;
     public $woocommerce;
     public $updater;
+    public $search_console;
     public $admin;
     
     /**
@@ -84,6 +85,7 @@ final class Smart_SEO_Fixer {
             'includes/class-breadcrumbs.php',
             'includes/class-woocommerce.php',
             'includes/class-updater.php',
+            'includes/class-search-console.php',
             'includes/class-ajax.php',
         ];
         
@@ -131,12 +133,15 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Breadcrumbs'))  $this->breadcrumbs   = new SSF_Breadcrumbs();
         if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
         if (class_exists('SSF_Updater'))      $this->updater       = new SSF_Updater();
+        if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
         if (is_admin()) {
             $this->admin = new SSF_Admin();
             // Ensure DB table exists (self-healing if plugin was updated without reactivation)
             add_action('admin_init', [$this, 'maybe_create_tables']);
+            // Ensure cron is scheduled (self-healing if cron was lost)
+            add_action('admin_init', [$this, 'maybe_schedule_cron']);
             // Handle force update check from plugins page
             add_action('admin_init', ['SSF_Updater', 'force_check']);
         }
@@ -312,6 +317,17 @@ final class Smart_SEO_Fixer {
                 'generated' => $generated_count,
                 'remaining' => max(0, count($posts_missing_title) - $generated_count),
             ]);
+        }
+    }
+    
+    /**
+     * Ensure cron is scheduled (self-healing if lost after server migration, etc.)
+     */
+    public function maybe_schedule_cron() {
+        if (self::get_option('background_seo_cron', true)) {
+            if (!wp_next_scheduled('ssf_cron_generate_missing_seo')) {
+                wp_schedule_event(time() + 3600, 'twicedaily', 'ssf_cron_generate_missing_seo');
+            }
         }
     }
     

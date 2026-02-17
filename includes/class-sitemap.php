@@ -314,6 +314,9 @@ class SSF_Sitemap {
      * URL entry
      */
     private function url_entry($loc, $lastmod = '', $changefreq = 'weekly', $priority = '0.5') {
+        // Normalize URL for consistency (trailing slashes, etc.)
+        $loc = apply_filters('ssf_sitemap_url', $loc);
+        
         $output = "  <url>\n";
         $output .= "    <loc>" . esc_url($loc) . "</loc>\n";
         

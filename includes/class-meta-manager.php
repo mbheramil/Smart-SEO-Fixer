@@ -12,6 +12,11 @@ if (!defined('ABSPATH')) {
 class SSF_Meta_Manager {
     
     /**
+     * Track output buffer level to avoid conflicts with caching plugins
+     */
+    private $ob_level_before = 0;
+    
+    /**
      * Constructor
      */
     public function __construct() {
@@ -63,30 +68,37 @@ class SSF_Meta_Manager {
      * Fallback: ensure a <title> tag exists even if title-tag support fails
      * 
      * Some themes hardcode their header.php in a way that prevents title-tag
-     * from working. This hooks into wp_head at priority 0 and uses output
-     * buffering to check if a <title> tag was rendered. If not, we inject one.
+     * from working. We use a safe output buffer scoped only to wp_head to
+     * detect if a <title> tag was rendered. If not, we inject one.
+     * 
+     * Safety: Uses ob_get_level() to avoid conflicts with caching plugins
+     * (WP Rocket, W3 Total Cache, etc.) that also use output buffering.
      */
     public function ensure_title_tag() {
-        // Start buffering wp_head output to check for <title> tag later
+        $this->ob_level_before = ob_get_level();
         ob_start();
-        // We'll check the buffer at the end of wp_head
-        add_action('wp_head', [$this, 'check_title_tag_buffer'], 9999);
+        add_action('wp_head', [$this, 'check_title_tag_buffer'], 9998);
     }
     
     /**
      * Check if <title> tag exists in wp_head output, inject if missing
      */
     public function check_title_tag_buffer() {
+        // Only clean the buffer we started — don't touch other plugins' buffers
+        if (ob_get_level() <= ($this->ob_level_before ?? 0)) {
+            return;
+        }
+        
         $head_output = ob_get_clean();
         
         // Check if a <title> tag was rendered
         if (stripos($head_output, '<title') === false) {
-            // No <title> tag found — inject one
             $title = $this->get_current_page_title();
-            echo '<title>' . esc_html($title) . '</title>' . "\n";
+            if (!empty($title)) {
+                echo '<title>' . esc_html($title) . '</title>' . "\n";
+            }
         }
         
-        // Output the buffered content
         echo $head_output;
     }
     
@@ -494,21 +506,37 @@ class SSF_Meta_Manager {
      * Output canonical URL
      */
     public function output_canonical() {
-        if (!is_singular()) {
-            return;
+        // Get canonical URL based on page type
+        $canonical = '';
+        
+        if (is_singular()) {
+            $post_id = get_the_ID();
+            $canonical = get_post_meta($post_id, '_ssf_canonical_url', true);
+            
+            if (empty($canonical)) {
+                $canonical = get_permalink($post_id);
+            }
+        } elseif (is_front_page() || is_home()) {
+            $canonical = home_url('/');
+        } elseif (is_category() || is_tag() || is_tax()) {
+            $term = get_queried_object();
+            if ($term && !is_wp_error($term)) {
+                $canonical = get_term_link($term);
+            }
+        } elseif (is_post_type_archive()) {
+            $canonical = get_post_type_archive_link(get_query_var('post_type'));
+        } elseif (is_author()) {
+            $author = get_queried_object();
+            if ($author) {
+                $canonical = get_author_posts_url($author->ID);
+            }
         }
         
-        $post_id = get_the_ID();
-        $canonical = get_post_meta($post_id, '_ssf_canonical_url', true);
-        
-        if (empty($canonical)) {
-            $canonical = get_permalink($post_id);
+        // Apply canonical URL filter (handles UTM stripping via search console class)
+        if (!empty($canonical) && !is_wp_error($canonical)) {
+            $canonical = apply_filters('ssf_canonical_url', $canonical);
+            echo '<link rel="canonical" href="' . esc_url($canonical) . '" />' . "\n";
         }
-        
-        // Remove default WordPress canonical
-        remove_action('wp_head', 'rel_canonical');
-        
-        echo '<link rel="canonical" href="' . esc_url($canonical) . '" />' . "\n";
     }
     
     /**
