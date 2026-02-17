@@ -175,10 +175,18 @@ if (!defined('ABSPATH')) {
                     </button>
                     
                     <button type="button" class="ssf-action-btn" id="bulk-fix-btn">
-                        <span class="dashicons dashicons-admin-generic"></span>
+                        <span class="dashicons dashicons-superhero-alt"></span>
                         <span class="ssf-action-text">
                             <strong><?php esc_html_e('Bulk AI Fix', 'smart-seo-fixer'); ?></strong>
-                            <small><?php esc_html_e('Generate titles & descriptions for poor posts', 'smart-seo-fixer'); ?></small>
+                            <small><?php esc_html_e('Preview & fix posts missing SEO data', 'smart-seo-fixer'); ?></small>
+                        </span>
+                    </button>
+                    
+                    <button type="button" class="ssf-action-btn" id="regen-schemas-btn">
+                        <span class="dashicons dashicons-shortcode"></span>
+                        <span class="ssf-action-text">
+                            <strong><?php esc_html_e('Regenerate Custom Schemas', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Re-run AI schema for all posts with custom markup', 'smart-seo-fixer'); ?></small>
                         </span>
                     </button>
                     
@@ -189,14 +197,6 @@ if (!defined('ABSPATH')) {
                             <small><?php esc_html_e('Configure plugin options', 'smart-seo-fixer'); ?></small>
                         </span>
                     </a>
-                    
-                    <button type="button" class="ssf-action-btn" id="regen-schemas-btn">
-                        <span class="dashicons dashicons-shortcode"></span>
-                        <span class="ssf-action-text">
-                            <strong><?php esc_html_e('Regenerate Custom Schemas', 'smart-seo-fixer'); ?></strong>
-                            <small><?php esc_html_e('Re-run AI schema for all posts with custom markup', 'smart-seo-fixer'); ?></small>
-                        </span>
-                    </button>
                     
                     <a href="<?php echo esc_url(home_url('/sitemap.xml')); ?>" target="_blank" class="ssf-action-btn">
                         <span class="dashicons dashicons-networking"></span>
@@ -210,75 +210,111 @@ if (!defined('ABSPATH')) {
         </div>
     </div>
     
-    <!-- Bulk AI Fix Modal -->
-    <div class="ssf-modal" id="bulk-fix-modal" style="display: none;">
-        <div class="ssf-modal-content">
+    <!-- Bulk AI Fix Modal (Step 1: Configure + Preview, Step 2: Run) -->
+    <div class="ssf-modal ssf-modal-large" id="bulk-fix-modal" style="display: none;">
+        <div class="ssf-modal-content ssf-modal-wide">
             <div class="ssf-modal-header">
-                <h3><?php esc_html_e('Bulk AI Fix Options', 'smart-seo-fixer'); ?></h3>
+                <h3 id="bulk-modal-title"><?php esc_html_e('Bulk AI Fix', 'smart-seo-fixer'); ?></h3>
                 <button type="button" class="ssf-modal-close" onclick="jQuery('#bulk-fix-modal').hide();">&times;</button>
             </div>
-            <div class="ssf-modal-body">
-                <p><?php esc_html_e('Select what the AI should generate for posts with missing or low-quality SEO content:', 'smart-seo-fixer'); ?></p>
-                
-                <div class="ssf-bulk-options">
-                    <h4><?php esc_html_e('Generate:', 'smart-seo-fixer'); ?></h4>
-                    <label class="ssf-checkbox-option">
-                        <input type="checkbox" name="bulk_opt_title" checked>
-                        <span class="ssf-checkbox-label">
-                            <strong><?php esc_html_e('SEO Titles', 'smart-seo-fixer'); ?></strong>
-                            <small><?php esc_html_e('Generate optimized titles (50-60 chars)', 'smart-seo-fixer'); ?></small>
-                        </span>
-                    </label>
-                    <label class="ssf-checkbox-option">
-                        <input type="checkbox" name="bulk_opt_desc" checked>
-                        <span class="ssf-checkbox-label">
-                            <strong><?php esc_html_e('Meta Descriptions', 'smart-seo-fixer'); ?></strong>
-                            <small><?php esc_html_e('Generate compelling descriptions (150-160 chars)', 'smart-seo-fixer'); ?></small>
-                        </span>
-                    </label>
-                    <label class="ssf-checkbox-option">
-                        <input type="checkbox" name="bulk_opt_keywords">
-                        <span class="ssf-checkbox-label">
-                            <strong><?php esc_html_e('Focus Keywords', 'smart-seo-fixer'); ?></strong>
-                            <small><?php esc_html_e('Suggest focus keywords for each post', 'smart-seo-fixer'); ?></small>
-                        </span>
-                    </label>
-                </div>
-                
-                <div class="ssf-bulk-options">
-                    <h4><?php esc_html_e('Apply to:', 'smart-seo-fixer'); ?></h4>
-                    <label class="ssf-radio-option">
-                        <input type="radio" name="bulk_apply_to" value="missing" checked>
-                        <span><?php esc_html_e('Only posts with MISSING content (safe)', 'smart-seo-fixer'); ?></span>
-                    </label>
-                    <label class="ssf-radio-option">
-                        <input type="radio" name="bulk_apply_to" value="poor">
-                        <span><?php esc_html_e('Posts with score below 60 (missing + poor quality)', 'smart-seo-fixer'); ?></span>
-                    </label>
-                    <label class="ssf-radio-option ssf-option-danger">
-                        <input type="radio" name="bulk_apply_to" value="all">
-                        <span><?php esc_html_e('ALL posts (overwrite everything)', 'smart-seo-fixer'); ?></span>
-                    </label>
-                </div>
-                
-                <div class="ssf-bulk-estimate" id="bulk-estimate">
-                    <span class="dashicons dashicons-info"></span>
-                    <?php esc_html_e('Estimated: ~X posts will be processed', 'smart-seo-fixer'); ?>
+            
+            <!-- Step 1: Configure & Preview -->
+            <div id="bulk-step-config" class="ssf-modal-body">
+                <div class="ssf-bulk-config-row">
+                    <!-- Left: Options -->
+                    <div class="ssf-bulk-config-left">
+                        <div class="ssf-bulk-options">
+                            <h4><?php esc_html_e('What to generate:', 'smart-seo-fixer'); ?></h4>
+                            <label class="ssf-checkbox-option">
+                                <input type="checkbox" name="bulk_opt_title" checked>
+                                <span class="ssf-checkbox-label">
+                                    <strong><?php esc_html_e('SEO Titles', 'smart-seo-fixer'); ?></strong>
+                                    <small><?php esc_html_e('Optimized titles (50-60 chars)', 'smart-seo-fixer'); ?></small>
+                                </span>
+                            </label>
+                            <label class="ssf-checkbox-option">
+                                <input type="checkbox" name="bulk_opt_desc" checked>
+                                <span class="ssf-checkbox-label">
+                                    <strong><?php esc_html_e('Meta Descriptions', 'smart-seo-fixer'); ?></strong>
+                                    <small><?php esc_html_e('Compelling descriptions (150-160 chars)', 'smart-seo-fixer'); ?></small>
+                                </span>
+                            </label>
+                            <label class="ssf-checkbox-option">
+                                <input type="checkbox" name="bulk_opt_keywords" checked>
+                                <span class="ssf-checkbox-label">
+                                    <strong><?php esc_html_e('Focus Keywords', 'smart-seo-fixer'); ?></strong>
+                                    <small><?php esc_html_e('AI-suggested focus keywords', 'smart-seo-fixer'); ?></small>
+                                </span>
+                            </label>
+                        </div>
+                        
+                        <div class="ssf-bulk-options">
+                            <h4><?php esc_html_e('Apply to:', 'smart-seo-fixer'); ?></h4>
+                            <label class="ssf-radio-option">
+                                <input type="radio" name="bulk_apply_to" value="missing" checked>
+                                <span><?php esc_html_e('Only posts with MISSING SEO data (safe)', 'smart-seo-fixer'); ?></span>
+                            </label>
+                            <label class="ssf-radio-option">
+                                <input type="radio" name="bulk_apply_to" value="poor">
+                                <span><?php esc_html_e('Posts with score below 60', 'smart-seo-fixer'); ?></span>
+                            </label>
+                            <label class="ssf-radio-option ssf-option-danger">
+                                <input type="radio" name="bulk_apply_to" value="all">
+                                <span><?php esc_html_e('ALL posts (overwrite everything)', 'smart-seo-fixer'); ?></span>
+                            </label>
+                        </div>
+                        
+                        <button type="button" class="button button-primary button-hero" id="load-preview-btn" style="width:100%; margin-top: 10px;">
+                            <span class="dashicons dashicons-visibility" style="margin-top:4px;"></span>
+                            <?php esc_html_e('Load Preview — Show Affected Posts', 'smart-seo-fixer'); ?>
+                        </button>
+                    </div>
+                    
+                    <!-- Right: Preview List -->
+                    <div class="ssf-bulk-config-right">
+                        <div class="ssf-preview-header">
+                            <h4>
+                                <span class="dashicons dashicons-list-view"></span>
+                                <?php esc_html_e('Posts That Will Be Fixed', 'smart-seo-fixer'); ?>
+                                <span class="ssf-preview-count" id="preview-count"></span>
+                            </h4>
+                            <label class="ssf-select-all-label" id="select-all-wrap" style="display:none;">
+                                <input type="checkbox" id="preview-select-all" checked>
+                                <?php esc_html_e('Select All', 'smart-seo-fixer'); ?>
+                            </label>
+                        </div>
+                        <div class="ssf-preview-list" id="preview-list">
+                            <div class="ssf-preview-empty">
+                                <span class="dashicons dashicons-arrow-left-alt"></span>
+                                <p><?php esc_html_e('Choose your options on the left, then click "Load Preview" to see which posts will be affected.', 'smart-seo-fixer'); ?></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="ssf-modal-footer">
+            
+            <!-- Step 2: Progress (replaces config when running) -->
+            <div id="bulk-step-progress" class="ssf-modal-body" style="display:none;">
+                <div class="ssf-progress-bar">
+                    <div class="ssf-progress-fill" id="bulk-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="ssf-progress-text" id="bulk-progress-text">0%</p>
+                <div class="ssf-progress-log" id="bulk-progress-log"></div>
+            </div>
+            
+            <div class="ssf-modal-footer" id="bulk-modal-footer">
                 <button type="button" class="button" onclick="jQuery('#bulk-fix-modal').hide();">
                     <?php esc_html_e('Cancel', 'smart-seo-fixer'); ?>
                 </button>
-                <button type="button" class="button button-primary" id="start-bulk-fix">
-                    <span class="dashicons dashicons-admin-generic"></span>
-                    <?php esc_html_e('Start AI Fix', 'smart-seo-fixer'); ?>
+                <button type="button" class="button button-primary" id="start-bulk-fix" disabled>
+                    <span class="dashicons dashicons-superhero-alt" style="margin-top:4px;"></span>
+                    <?php esc_html_e('Fix All Selected Posts', 'smart-seo-fixer'); ?>
                 </button>
             </div>
         </div>
     </div>
     
-    <!-- Progress Modal -->
+    <!-- Progress Modal (for analyze and schema actions) -->
     <div class="ssf-modal" id="progress-modal" style="display: none;">
         <div class="ssf-modal-content">
             <div class="ssf-modal-header">
@@ -296,473 +332,424 @@ if (!defined('ABSPATH')) {
 </div>
 
 <style>
-.ssf-modal-close {
-    position: absolute;
-    right: 15px;
-    top: 15px;
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #666;
-}
+.ssf-modal-close { position: absolute; right: 15px; top: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666; }
+.ssf-modal-close:hover { color: #333; }
 
-.ssf-bulk-options {
-    margin: 20px 0;
-}
+/* Bulk options */
+.ssf-bulk-options { margin: 0 0 16px 0; }
+.ssf-bulk-options h4 { margin: 0 0 8px 0; font-size: 13px; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; }
+.ssf-checkbox-option, .ssf-radio-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: #f9fafb; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: background 0.2s; }
+.ssf-checkbox-option:hover, .ssf-radio-option:hover { background: #f3f4f6; }
+.ssf-checkbox-option input, .ssf-radio-option input { margin-top: 3px; }
+.ssf-checkbox-label { display: flex; flex-direction: column; }
+.ssf-checkbox-label strong { color: #1f2937; font-size: 13px; }
+.ssf-checkbox-label small { color: #6b7280; font-size: 11px; }
+.ssf-option-danger { border: 1px solid #fecaca; background: #fef2f2; }
+.ssf-option-danger:hover { background: #fee2e2; }
 
-.ssf-bulk-options h4 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
-    color: #374151;
-}
+/* Wide modal for bulk fix */
+.ssf-modal-wide { max-width: 960px !important; width: 95vw !important; }
+.ssf-bulk-config-row { display: flex; gap: 24px; min-height: 400px; }
+.ssf-bulk-config-left { flex: 0 0 320px; }
+.ssf-bulk-config-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-.ssf-checkbox-option,
-.ssf-radio-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
-    background: #f9fafb;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
+/* Preview header */
+.ssf-preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ssf-preview-header h4 { margin: 0; font-size: 14px; color: #1f2937; display: flex; align-items: center; gap: 6px; }
+.ssf-preview-header h4 .dashicons { color: #6b7280; }
+.ssf-preview-count { background: #2563eb; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.ssf-select-all-label { font-size: 13px; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
-.ssf-checkbox-option:hover,
-.ssf-radio-option:hover {
-    background: #f3f4f6;
-}
+/* Preview list */
+.ssf-preview-list { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; overflow-y: auto; max-height: 420px; background: #fff; }
+.ssf-preview-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #9ca3af; text-align: center; padding: 30px; }
+.ssf-preview-empty .dashicons { font-size: 32px; width: 32px; height: 32px; margin-bottom: 8px; }
+.ssf-preview-empty p { margin: 0; font-size: 13px; line-height: 1.5; }
 
-.ssf-checkbox-option input,
-.ssf-radio-option input {
-    margin-top: 3px;
-}
+/* Preview loading */
+.ssf-preview-loading { display: flex; align-items: center; justify-content: center; height: 200px; color: #6b7280; font-size: 14px; gap: 8px; }
 
-.ssf-checkbox-label {
-    display: flex;
-    flex-direction: column;
-}
+/* Preview items */
+.ssf-preview-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #f3f4f6; transition: background 0.15s; }
+.ssf-preview-item:last-child { border-bottom: none; }
+.ssf-preview-item:hover { background: #f9fafb; }
+.ssf-preview-item input[type="checkbox"] { flex-shrink: 0; }
+.ssf-preview-item-info { flex: 1; min-width: 0; }
+.ssf-preview-item-title { font-weight: 600; font-size: 13px; color: #1f2937; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ssf-preview-item-title a { color: #1f2937; text-decoration: none; }
+.ssf-preview-item-title a:hover { color: #2563eb; }
+.ssf-preview-item-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+.ssf-preview-item-meta .ssf-tag-missing { color: #dc2626; font-weight: 600; }
+.ssf-preview-item-meta .ssf-tag-has { color: #059669; }
+.ssf-preview-item-score { flex-shrink: 0; font-size: 12px; font-weight: 700; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.ssf-preview-item-score.score-good { background: #d1fae5; color: #065f46; }
+.ssf-preview-item-score.score-ok { background: #fef3c7; color: #92400e; }
+.ssf-preview-item-score.score-poor { background: #fee2e2; color: #991b1b; }
+.ssf-preview-item-score.score-na { background: #f3f4f6; color: #9ca3af; font-size: 10px; }
 
-.ssf-checkbox-label strong {
-    color: #1f2937;
-}
+/* Footer */
+.ssf-modal-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 15px 20px; border-top: 1px solid #e5e7eb; background: #f9fafb; }
+.ssf-modal-footer .dashicons { margin-right: 4px; }
+.ssf-footer-left { font-size: 13px; color: #6b7280; }
+.ssf-footer-left strong { color: #1f2937; }
 
-.ssf-checkbox-label small {
-    color: #6b7280;
-    font-size: 12px;
-}
-
-.ssf-option-danger {
-    border: 1px solid #fecaca;
-    background: #fef2f2;
-}
-
-.ssf-option-danger:hover {
-    background: #fee2e2;
-}
-
-.ssf-bulk-estimate {
-    padding: 12px;
-    background: #eff6ff;
-    border-radius: 6px;
-    color: #1e40af;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ssf-modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-}
-
-.ssf-modal-footer .dashicons {
-    margin-right: 5px;
-}
-
-/* Missing SEO stat card */
-.ssf-stat-missing {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: #fff;
-}
-
-.ssf-stat-card-missing {
-    border-left: 4px solid #f59e0b;
-}
+/* Stat cards */
+.ssf-stat-missing { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
+.ssf-stat-card-missing { border-left: 4px solid #f59e0b; }
 
 /* Missing SEO alert banner */
-.ssf-missing-seo-banner {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    border: 1px solid #f59e0b;
-    border-left: 4px solid #d97706;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
-}
+.ssf-missing-seo-banner { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 20px; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b; border-left: 4px solid #d97706; border-radius: 8px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15); }
+.ssf-banner-icon { flex-shrink: 0; width: 40px; height: 40px; background: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.ssf-banner-icon .dashicons { color: #fff; font-size: 20px; width: 20px; height: 20px; }
+.ssf-banner-content { flex: 1; }
+.ssf-banner-content strong { display: block; color: #92400e; font-size: 14px; margin-bottom: 4px; }
+.ssf-banner-content p { margin: 0; color: #78350f; font-size: 13px; line-height: 1.4; }
+.ssf-banner-actions { flex-shrink: 0; }
+.ssf-banner-actions .button-primary { background: #d97706; border-color: #b45309; padding: 6px 16px; height: auto; display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.ssf-banner-actions .button-primary:hover { background: #b45309; border-color: #92400e; }
+.ssf-banner-actions .button-primary .dashicons { font-size: 16px; width: 16px; height: 16px; line-height: 16px; }
 
-.ssf-banner-icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    background: #d97706;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.ssf-banner-icon .dashicons {
-    color: #fff;
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
-}
-
-.ssf-banner-content {
-    flex: 1;
-}
-
-.ssf-banner-content strong {
-    display: block;
-    color: #92400e;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-
-.ssf-banner-content p {
-    margin: 0;
-    color: #78350f;
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-.ssf-banner-actions {
-    flex-shrink: 0;
-}
-
-.ssf-banner-actions .button-primary {
-    background: #d97706;
-    border-color: #b45309;
-    padding: 6px 16px;
-    height: auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.ssf-banner-actions .button-primary:hover {
-    background: #b45309;
-    border-color: #92400e;
-}
-
-.ssf-banner-actions .button-primary .dashicons {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-    line-height: 16px;
+@media (max-width: 860px) {
+    .ssf-bulk-config-row { flex-direction: column; }
+    .ssf-bulk-config-left { flex: none; }
+    .ssf-modal-wide { max-width: 98vw !important; }
 }
 </style>
 
 <script>
 jQuery(document).ready(function($) {
-    // Load dashboard stats
+    var previewData = [];
+    
     function loadDashboardStats() {
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_get_dashboard_stats',
             nonce: ssfAdmin.nonce
         }, function(response) {
             if (response.success) {
-                var data = response.data;
+                var d = response.data;
+                window.dashboardStats = d;
+                $('#stat-avg-score').text(d.avg_score || 0);
+                $('#stat-good').text(d.good_count || 0);
+                $('#stat-ok').text(d.ok_count || 0);
+                $('#stat-poor').text(d.poor_count || 0);
+                $('#stat-unanalyzed').text(d.unanalyzed || 0);
                 
-                // Store for bulk fix modal
-                window.dashboardStats = data;
+                var mt = d.missing_titles || 0, md = d.missing_descs || 0;
+                $('#stat-missing-titles').text(mt);
+                mt > 0 ? $('#stat-card-missing').show() : $('#stat-card-missing').hide();
                 
-                // Update stat cards
-                $('#stat-avg-score').text(data.avg_score || 0);
-                $('#stat-good').text(data.good_count || 0);
-                $('#stat-ok').text(data.ok_count || 0);
-                $('#stat-poor').text(data.poor_count || 0);
-                $('#stat-unanalyzed').text(data.unanalyzed || 0);
-                
-                // Missing SEO stat card
-                var missingTitles = data.missing_titles || 0;
-                var missingDescs = data.missing_descs || 0;
-                $('#stat-missing-titles').text(missingTitles);
-                
-                if (missingTitles > 0) {
-                    $('#stat-card-missing').show();
-                } else {
-                    $('#stat-card-missing').hide();
-                }
-                
-                // Missing SEO alert banner
-                if (missingTitles > 0 || missingDescs > 0) {
+                if (mt > 0 || md > 0) {
                     var parts = [];
-                    if (missingTitles > 0) parts.push(missingTitles + ' <?php echo esc_js(__('missing SEO titles', 'smart-seo-fixer')); ?>');
-                    if (missingDescs > 0) parts.push(missingDescs + ' <?php echo esc_js(__('missing meta descriptions', 'smart-seo-fixer')); ?>');
-                    
-                    $('#missing-banner-desc').text(parts.join(', ') + '. <?php echo esc_js(__('Click below to generate AI-optimized SEO for all of them instantly.', 'smart-seo-fixer')); ?>');
+                    if (mt > 0) parts.push(mt + ' <?php echo esc_js(__('missing SEO titles', 'smart-seo-fixer')); ?>');
+                    if (md > 0) parts.push(md + ' <?php echo esc_js(__('missing meta descriptions', 'smart-seo-fixer')); ?>');
+                    $('#missing-banner-desc').text(parts.join(', ') + '. <?php echo esc_js(__('Click below to review and fix them.', 'smart-seo-fixer')); ?>');
                     $('#missing-seo-banner').slideDown(300);
                 } else {
                     $('#missing-seo-banner').slideUp(200);
                 }
                 
-                // Render needs attention list
-                renderPostList('#needs-attention-list', data.needs_attention);
-                
-                // Render recent list
-                renderPostList('#recent-list', data.recent);
+                renderPostList('#needs-attention-list', d.needs_attention);
+                renderPostList('#recent-list', d.recent);
             } else {
-                // Handle error
-                $('#needs-attention-list').html('<p class="ssf-empty"><?php esc_html_e('Could not load data. Try clicking "Analyze All Posts" first.', 'smart-seo-fixer'); ?></p>');
-                $('#recent-list').html('<p class="ssf-empty"><?php esc_html_e('No posts analyzed yet. Click "Analyze All Posts" to get started.', 'smart-seo-fixer'); ?></p>');
+                $('#needs-attention-list, #recent-list').html('<p class="ssf-empty"><?php echo esc_js(__('Could not load data.', 'smart-seo-fixer')); ?></p>');
             }
-        }).fail(function() {
-            // Handle AJAX failure
-            $('#needs-attention-list').html('<p class="ssf-empty" style="color:#dc2626;"><?php esc_html_e('Failed to load dashboard data. Please refresh the page.', 'smart-seo-fixer'); ?></p>');
-            $('#recent-list').html('<p class="ssf-empty" style="color:#dc2626;"><?php esc_html_e('Failed to load dashboard data. Please refresh the page.', 'smart-seo-fixer'); ?></p>');
         });
     }
     
-    function renderPostList(selector, posts) {
-        var $container = $(selector);
-        
-        if (!posts || posts.length === 0) {
-            $container.html('<p class="ssf-empty"><?php esc_html_e('No posts found.', 'smart-seo-fixer'); ?></p>');
-            return;
-        }
-        
-        var html = '';
-        posts.forEach(function(post) {
-            var scoreClass = getScoreClass(post.score);
-            html += '<div class="ssf-post-item">';
-            html += '<a href="' + '<?php echo esc_url(admin_url('post.php?action=edit&post=')); ?>' + post.post_id + '" class="ssf-post-title">' + escapeHtml(post.post_title) + '</a>';
-            html += '<span class="ssf-score ssf-score-' + scoreClass + '">' + post.score + '</span>';
-            html += '</div>';
+    function renderPostList(sel, posts) {
+        var $c = $(sel);
+        if (!posts || !posts.length) { $c.html('<p class="ssf-empty"><?php echo esc_js(__('No posts found.', 'smart-seo-fixer')); ?></p>'); return; }
+        var h = '';
+        posts.forEach(function(p) {
+            var sc = p.score >= 80 ? 'good' : (p.score >= 60 ? 'ok' : 'poor');
+            h += '<div class="ssf-post-item"><a href="<?php echo esc_url(admin_url('post.php?action=edit&post=')); ?>' + p.post_id + '" class="ssf-post-title">' + esc(p.post_title) + '</a><span class="ssf-score ssf-score-' + sc + '">' + p.score + '</span></div>';
         });
-        
-        $container.html(html);
+        $c.html(h);
     }
     
-    function getScoreClass(score) {
-        if (score >= 80) return 'good';
-        if (score >= 60) return 'ok';
-        return 'poor';
-    }
+    function esc(t) { return $('<span>').text(t || '').html(); }
     
-    function escapeHtml(text) {
-        var div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    // Initial load
     loadDashboardStats();
     
-    // Analyze unanalyzed posts button
+    // === Analyze buttons ===
     $('#analyze-all-btn').on('click', function() {
-        if (!confirm('<?php echo esc_js(__('This will analyze all unanalyzed posts. Continue?', 'smart-seo-fixer')); ?>')) {
-            return;
-        }
-        analyzeAllPosts('unanalyzed');
+        if (!confirm('<?php echo esc_js(__('Analyze all unanalyzed posts?', 'smart-seo-fixer')); ?>')) return;
+        runProgress('<?php echo esc_js(__('Analyzing Posts...', 'smart-seo-fixer')); ?>', 'ssf_bulk_analyze', { analyze_mode: 'unanalyzed' });
     });
     
-    // Re-analyze ALL posts button
     $('#reanalyze-all-btn').on('click', function() {
-        if (!confirm('<?php echo esc_js(__('This will re-analyze ALL published posts and update their SEO scores. This may take a while for large sites. Continue?', 'smart-seo-fixer')); ?>')) {
-            return;
-        }
-        analyzeAllPosts('all');
+        if (!confirm('<?php echo esc_js(__('Re-analyze ALL published posts? This may take a while.', 'smart-seo-fixer')); ?>')) return;
+        runProgress('<?php echo esc_js(__('Re-Analyzing All Posts...', 'smart-seo-fixer')); ?>', 'ssf_bulk_analyze', { analyze_mode: 'all' });
     });
     
-    // Bulk fix button - Open modal with options
-    $('#bulk-fix-btn').on('click', function() {
-        <?php if (!Smart_SEO_Fixer::get_option('openai_api_key')): ?>
-        alert('<?php esc_html_e('Please configure your OpenAI API key in Settings first.', 'smart-seo-fixer'); ?>');
-        return;
-        <?php endif; ?>
-        
-        // Update estimate when modal opens
-        updateBulkEstimate();
-        $('#bulk-fix-modal').show();
-    });
-    
-    // Update estimate when options change
-    $('input[name="bulk_apply_to"]').on('change', updateBulkEstimate);
-    
-    function updateBulkEstimate() {
-        var applyTo = $('input[name="bulk_apply_to"]:checked').val();
-        var stats = window.dashboardStats || {};
-        var estimate = 0;
-        
-        switch(applyTo) {
-            case 'missing':
-                // Use accurate count of posts missing SEO titles (primary metric)
-                estimate = Math.max(stats.missing_titles || 0, stats.missing_descs || 0, stats.unanalyzed || 0);
-                break;
-            case 'poor':
-                estimate = (stats.poor_count || 0) + (stats.unanalyzed || 0);
-                break;
-            case 'all':
-                estimate = stats.total_posts || 0;
-                break;
-        }
-        
-        $('#bulk-estimate').html('<span class="dashicons dashicons-info"></span> <?php esc_html_e('Estimated:', 'smart-seo-fixer'); ?> ~' + estimate + ' <?php esc_html_e('posts will be processed', 'smart-seo-fixer'); ?>');
-    }
-    
-    // Start bulk fix
-    $('#start-bulk-fix').on('click', function() {
-        var options = {
-            generate_title: $('input[name="bulk_opt_title"]').is(':checked'),
-            generate_desc: $('input[name="bulk_opt_desc"]').is(':checked'),
-            generate_keywords: $('input[name="bulk_opt_keywords"]').is(':checked'),
-            apply_to: $('input[name="bulk_apply_to"]:checked').val()
-        };
-        
-        if (!options.generate_title && !options.generate_desc && !options.generate_keywords) {
-            alert('<?php esc_html_e('Please select at least one option to generate.', 'smart-seo-fixer'); ?>');
-            return;
-        }
-        
-        $('#bulk-fix-modal').hide();
-        bulkFixPosts(options);
-    });
-    
-    // One-click "Generate All Missing SEO" from the alert banner
-    $('#quick-generate-all-btn').on('click', function() {
+    // === Regenerate schemas ===
+    $('#regen-schemas-btn').on('click', function() {
         <?php if (!Smart_SEO_Fixer::get_option('openai_api_key')): ?>
         alert('<?php echo esc_js(__('Please configure your OpenAI API key in Settings first.', 'smart-seo-fixer')); ?>');
         return;
         <?php endif; ?>
-        
-        var options = {
-            generate_title: true,
-            generate_desc: true,
-            generate_keywords: true,
-            apply_to: 'missing'
-        };
-        
-        bulkFixPosts(options);
+        if (!confirm('<?php echo esc_js(__('Regenerate all custom schemas with AI?', 'smart-seo-fixer')); ?>')) return;
+        runProgress('<?php echo esc_js(__('Regenerating Schemas...', 'smart-seo-fixer')); ?>', 'ssf_bulk_regenerate_schemas', { mode: 'regenerate' });
     });
     
-    function analyzeAllPosts(mode) {
-        $('#progress-modal').show();
-        var title = mode === 'all' 
-            ? '<?php echo esc_js(__('Re-Analyzing All Posts...', 'smart-seo-fixer')); ?>' 
-            : '<?php echo esc_js(__('Analyzing Posts...', 'smart-seo-fixer')); ?>';
-        $('#progress-title').text(title);
-        $('#progress-fill').css('width', '0%');
-        $('#progress-text').text('0%');
-        $('#progress-log').html('');
-        
-        runBatchProcess('ssf_bulk_analyze', { analyze_mode: mode || 'unanalyzed' }, function() {
-            loadDashboardStats();
-        });
-    }
+    // === BULK AI FIX — Preview-first workflow ===
     
-    function bulkFixPosts(options) {
-        $('#progress-modal').show();
-        $('#progress-title').text('<?php esc_html_e('Fixing SEO Issues with AI...', 'smart-seo-fixer'); ?>');
-        $('#progress-fill').css('width', '0%');
-        $('#progress-text').text('0%');
-        $('#progress-log').html('');
-        
-        runBatchProcess('ssf_bulk_ai_fix', options, function() {
-            loadDashboardStats();
-        });
-    }
-    
-    // Regenerate custom schemas
-    $('#regen-schemas-btn').on('click', function() {
+    // Open modal
+    $('#bulk-fix-btn, #quick-generate-all-btn').on('click', function() {
         <?php if (!Smart_SEO_Fixer::get_option('openai_api_key')): ?>
-        alert('<?php esc_html_e('Please configure your OpenAI API key in Settings first.', 'smart-seo-fixer'); ?>');
+        alert('<?php echo esc_js(__('Please configure your OpenAI API key in Settings first.', 'smart-seo-fixer')); ?>');
         return;
         <?php endif; ?>
+        resetBulkModal();
         
-        var choice = confirm('<?php echo esc_js(__('This will regenerate all custom schemas using AI with your current site data (logo, URLs, etc.). Posts that no longer need custom schema will have it removed automatically. Continue?', 'smart-seo-fixer')); ?>');
-        if (!choice) return;
+        // If clicked from the banner, auto-load preview
+        if ($(this).attr('id') === 'quick-generate-all-btn') {
+            $('input[name="bulk_apply_to"][value="missing"]').prop('checked', true);
+            loadPreview();
+        }
         
-        $('#progress-modal').show();
-        $('#progress-title').text('<?php esc_html_e('Regenerating Custom Schemas...', 'smart-seo-fixer'); ?>');
-        $('#progress-fill').css('width', '0%');
-        $('#progress-text').text('<?php esc_html_e('Starting...', 'smart-seo-fixer'); ?>');
-        $('#progress-log').html('');
-        
-        runBatchProcess('ssf_bulk_regenerate_schemas', { mode: 'regenerate' }, function() {
-            loadDashboardStats();
-        });
+        $('#bulk-fix-modal').show();
     });
     
-    function runBatchProcess(action, options, callback) {
-        var offset = 0;
-        // Use smaller batches for AI-heavy operations
-        var batchSize = (action === 'ssf_bulk_regenerate_schemas') ? 2 : 5;
-        var processed = 0;
-        var total = 0;
+    function resetBulkModal() {
+        previewData = [];
+        $('#bulk-step-config').show();
+        $('#bulk-step-progress').hide();
+        $('#start-bulk-fix').prop('disabled', true).text('<?php echo esc_js(__('Fix All Selected Posts', 'smart-seo-fixer')); ?>');
+        $('#bulk-modal-title').text('<?php echo esc_js(__('Bulk AI Fix', 'smart-seo-fixer')); ?>');
+        $('#preview-list').html('<div class="ssf-preview-empty"><span class="dashicons dashicons-arrow-left-alt"></span><p><?php echo esc_js(__('Choose your options, then click "Load Preview".', 'smart-seo-fixer')); ?></p></div>');
+        $('#preview-count').text('');
+        $('#select-all-wrap').hide();
+        $('.ssf-footer-left').remove();
+    }
+    
+    // Load preview
+    $('#load-preview-btn').on('click', loadPreview);
+    
+    function loadPreview() {
+        var applyTo = $('input[name="bulk_apply_to"]:checked').val();
         
-        function processBatch() {
+        $('#preview-list').html('<div class="ssf-preview-loading"><span class="spinner is-active"></span> <?php echo esc_js(__('Loading affected posts...', 'smart-seo-fixer')); ?></div>');
+        $('#start-bulk-fix').prop('disabled', true);
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_preview_bulk_fix',
+            nonce: ssfAdmin.nonce,
+            apply_to: applyTo
+        }, function(response) {
+            if (response.success && response.data.posts) {
+                previewData = response.data.posts;
+                renderPreview(previewData);
+            } else {
+                var msg = (response.data && response.data.message) || '<?php echo esc_js(__('Failed to load preview.', 'smart-seo-fixer')); ?>';
+                $('#preview-list').html('<div class="ssf-preview-empty" style="color:#dc2626;"><span class="dashicons dashicons-warning"></span><p>' + esc(msg) + '</p></div>');
+            }
+        }).fail(function() {
+            $('#preview-list').html('<div class="ssf-preview-empty" style="color:#dc2626;"><span class="dashicons dashicons-warning"></span><p><?php echo esc_js(__('Request failed. Check connection.', 'smart-seo-fixer')); ?></p></div>');
+        });
+    }
+    
+    function renderPreview(posts) {
+        if (!posts.length) {
+            $('#preview-list').html('<div class="ssf-preview-empty"><span class="dashicons dashicons-smiley"></span><p><?php echo esc_js(__('All posts already have SEO data. Nothing to fix!', 'smart-seo-fixer')); ?></p></div>');
+            $('#preview-count').text('0');
+            $('#select-all-wrap').hide();
+            $('#start-bulk-fix').prop('disabled', true);
+            return;
+        }
+        
+        var html = '';
+        posts.forEach(function(p) {
+            var scoreClass = p.score === null ? 'na' : (p.score >= 80 ? 'good' : (p.score >= 60 ? 'ok' : 'poor'));
+            var scoreText = p.score === null ? '—' : p.score;
+            
+            var tags = '';
+            if (!p.has_title)   tags += '<span class="ssf-tag-missing">⚠ Title</span>';
+            else                tags += '<span class="ssf-tag-has">✓ Title</span>';
+            if (!p.has_desc)    tags += '<span class="ssf-tag-missing">⚠ Desc</span>';
+            else                tags += '<span class="ssf-tag-has">✓ Desc</span>';
+            if (!p.has_keyword) tags += '<span class="ssf-tag-missing">⚠ Keyword</span>';
+            else                tags += '<span class="ssf-tag-has">✓ Keyword</span>';
+            
+            html += '<div class="ssf-preview-item">';
+            html += '<input type="checkbox" class="preview-item-cb" value="' + p.id + '" checked>';
+            html += '<div class="ssf-preview-item-info">';
+            html += '<span class="ssf-preview-item-title"><a href="' + p.edit_url + '" target="_blank">' + esc(p.title) + '</a></span>';
+            html += '<div class="ssf-preview-item-meta">' + tags + ' <span style="color:#9ca3af;">(' + esc(p.type) + ')</span></div>';
+            html += '</div>';
+            html += '<div class="ssf-preview-item-score score-' + scoreClass + '">' + scoreText + '</div>';
+            html += '</div>';
+        });
+        
+        $('#preview-list').html(html);
+        $('#preview-count').text(posts.length);
+        $('#select-all-wrap').show();
+        $('#preview-select-all').prop('checked', true);
+        updateFixButton();
+        $('#start-bulk-fix').prop('disabled', false);
+    }
+    
+    // Select all toggle
+    $(document).on('change', '#preview-select-all', function() {
+        var checked = $(this).is(':checked');
+        $('.preview-item-cb').prop('checked', checked);
+        updateFixButton();
+    });
+    
+    // Individual checkbox
+    $(document).on('change', '.preview-item-cb', function() {
+        updateFixButton();
+        var total = $('.preview-item-cb').length;
+        var selected = $('.preview-item-cb:checked').length;
+        $('#preview-select-all').prop('checked', selected === total);
+    });
+    
+    function updateFixButton() {
+        var count = $('.preview-item-cb:checked').length;
+        if (count > 0) {
+            $('#start-bulk-fix').prop('disabled', false).html('<span class="dashicons dashicons-superhero-alt" style="margin-top:4px;"></span> <?php echo esc_js(__('Fix', 'smart-seo-fixer')); ?> ' + count + ' <?php echo esc_js(__('Selected Posts', 'smart-seo-fixer')); ?>');
+        } else {
+            $('#start-bulk-fix').prop('disabled', true).html('<span class="dashicons dashicons-superhero-alt" style="margin-top:4px;"></span> <?php echo esc_js(__('Select posts to fix', 'smart-seo-fixer')); ?>');
+        }
+    }
+    
+    // Start bulk fix from modal
+    $('#start-bulk-fix').on('click', function() {
+        var genTitle = $('input[name="bulk_opt_title"]').is(':checked');
+        var genDesc = $('input[name="bulk_opt_desc"]').is(':checked');
+        var genKw = $('input[name="bulk_opt_keywords"]').is(':checked');
+        
+        if (!genTitle && !genDesc && !genKw) {
+            alert('<?php echo esc_js(__('Select at least one option to generate.', 'smart-seo-fixer')); ?>');
+            return;
+        }
+        
+        var selectedCount = $('.preview-item-cb:checked').length;
+        if (!selectedCount) {
+            alert('<?php echo esc_js(__('No posts selected.', 'smart-seo-fixer')); ?>');
+            return;
+        }
+        
+        if (!confirm('<?php echo esc_js(__('AI will generate SEO data for', 'smart-seo-fixer')); ?> ' + selectedCount + ' <?php echo esc_js(__('posts. This uses your OpenAI API credits. Continue?', 'smart-seo-fixer')); ?>')) {
+            return;
+        }
+        
+        // Switch to progress view inside same modal
+        $('#bulk-step-config').hide();
+        $('#bulk-step-progress').show();
+        $('#bulk-modal-title').text('<?php echo esc_js(__('Generating SEO Data...', 'smart-seo-fixer')); ?>');
+        $('#start-bulk-fix').prop('disabled', true);
+        $('#bulk-progress-fill').css('width', '0%');
+        $('#bulk-progress-text').text('0%');
+        $('#bulk-progress-log').html('');
+        
+        var options = {
+            generate_title: genTitle,
+            generate_desc: genDesc,
+            generate_keywords: genKw,
+            apply_to: $('input[name="bulk_apply_to"]:checked').val()
+        };
+        
+        runBulkInModal(options);
+    });
+    
+    function runBulkInModal(options) {
+        var offset = 0, batchSize = 5, processed = 0, total = 0;
+        
+        function next() {
             var postData = $.extend({
-                action: action,
+                action: 'ssf_bulk_ai_fix',
                 nonce: ssfAdmin.nonce,
                 offset: offset,
                 batch_size: batchSize
-            }, options || {});
-            
-            // Also pass as nested for backward compat
+            }, options);
             postData.options = options;
             
             $.post(ssfAdmin.ajax_url, postData, function(response) {
                 if (response.success) {
                     processed += response.data.processed || 0;
                     total = response.data.total || total;
+                    var pct = total > 0 ? Math.round((processed / total) * 100) : 100;
+                    $('#bulk-progress-fill').css('width', pct + '%');
+                    $('#bulk-progress-text').text(pct + '% (' + processed + '/' + total + ')');
                     
-                    var percent = total > 0 ? Math.round((processed / total) * 100) : 100;
-                    $('#progress-fill').css('width', percent + '%');
-                    $('#progress-text').text(percent + '% (' + processed + '/' + total + ')');
-                    
-                    // Add log entries
                     if (response.data.log) {
-                        response.data.log.forEach(function(entry) {
-                            $('#progress-log').append('<div>' + entry + '</div>');
+                        response.data.log.forEach(function(e) {
+                            $('#bulk-progress-log').append('<div>' + e + '</div>');
                         });
-                        // Scroll to bottom
-                        var logEl = document.getElementById('progress-log');
-                        logEl.scrollTop = logEl.scrollHeight;
+                        var el = document.getElementById('bulk-progress-log');
+                        el.scrollTop = el.scrollHeight;
                     }
                     
                     if (response.data.done) {
-                        $('#progress-title').text('<?php esc_html_e('Complete!', 'smart-seo-fixer'); ?>');
-                        setTimeout(function() {
-                            $('#progress-modal').hide();
-                            if (callback) callback();
-                        }, 1500);
+                        $('#bulk-modal-title').text('<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
+                        $('#start-bulk-fix').prop('disabled', false).html('<span class="dashicons dashicons-yes-alt" style="margin-top:4px;"></span> <?php echo esc_js(__('Done — Close', 'smart-seo-fixer')); ?>').off('click').on('click', function() {
+                            $('#bulk-fix-modal').hide();
+                            loadDashboardStats();
+                        });
                     } else {
                         offset += batchSize;
-                        setTimeout(processBatch, 500);
+                        setTimeout(next, 300);
                     }
                 } else {
-                    $('#progress-log').append('<div style="color:red;"><?php esc_html_e('Error:', 'smart-seo-fixer'); ?> ' + (response.data.message || '<?php esc_html_e('Unknown error', 'smart-seo-fixer'); ?>') + '</div>');
+                    var msg = (response.data && response.data.message) || '<?php echo esc_js(__('Unknown error', 'smart-seo-fixer')); ?>';
+                    $('#bulk-progress-log').append('<div style="color:#dc2626;">❌ ' + esc(msg) + '</div>');
+                    $('#bulk-modal-title').text('<?php echo esc_js(__('Error', 'smart-seo-fixer')); ?>');
                 }
             }).fail(function() {
-                $('#progress-log').append('<div style="color:red;"><?php esc_html_e('Request failed. Retrying...', 'smart-seo-fixer'); ?></div>');
-                setTimeout(processBatch, 2000);
+                $('#bulk-progress-log').append('<div style="color:#dc2626;"><?php echo esc_js(__('Request failed. Retrying...', 'smart-seo-fixer')); ?></div>');
+                setTimeout(next, 2000);
             });
         }
         
-        processBatch();
+        next();
+    }
+    
+    // === Generic progress modal (for analyze & schema) ===
+    function runProgress(title, action, options) {
+        $('#progress-modal').show();
+        $('#progress-title').text(title);
+        $('#progress-fill').css('width', '0%');
+        $('#progress-text').text('0%');
+        $('#progress-log').html('');
+        
+        var offset = 0, batchSize = (action === 'ssf_bulk_regenerate_schemas') ? 2 : 5, processed = 0, total = 0;
+        
+        function next() {
+            var postData = $.extend({ action: action, nonce: ssfAdmin.nonce, offset: offset, batch_size: batchSize }, options || {});
+            postData.options = options;
+            
+            $.post(ssfAdmin.ajax_url, postData, function(response) {
+                if (response.success) {
+                    processed += response.data.processed || 0;
+                    total = response.data.total || total;
+                    var pct = total > 0 ? Math.round((processed / total) * 100) : 100;
+                    $('#progress-fill').css('width', pct + '%');
+                    $('#progress-text').text(pct + '% (' + processed + '/' + total + ')');
+                    
+                    if (response.data.log) {
+                        response.data.log.forEach(function(e) { $('#progress-log').append('<div>' + e + '</div>'); });
+                        var el = document.getElementById('progress-log');
+                        el.scrollTop = el.scrollHeight;
+                    }
+                    
+                    if (response.data.done) {
+                        $('#progress-title').text('<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
+                        setTimeout(function() { $('#progress-modal').hide(); loadDashboardStats(); }, 1500);
+                    } else {
+                        offset += batchSize;
+                        setTimeout(next, 500);
+                    }
+                } else {
+                    $('#progress-log').append('<div style="color:#dc2626;">Error: ' + ((response.data && response.data.message) || 'Unknown') + '</div>');
+                }
+            }).fail(function() {
+                $('#progress-log').append('<div style="color:#dc2626;"><?php echo esc_js(__('Request failed. Retrying...', 'smart-seo-fixer')); ?></div>');
+                setTimeout(next, 2000);
+            });
+        }
+        
+        next();
     }
 });
 </script>

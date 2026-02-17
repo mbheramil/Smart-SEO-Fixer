@@ -46,6 +46,7 @@ class SSF_Ajax {
         
         // Bulk operations
         add_action('wp_ajax_ssf_bulk_ai_fix', [$this, 'bulk_ai_fix']);
+        add_action('wp_ajax_ssf_preview_bulk_fix', [$this, 'preview_bulk_fix']);
         add_action('wp_ajax_ssf_suggest_images', [$this, 'suggest_images']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         
@@ -1129,6 +1130,94 @@ class SSF_Ajax {
         }
         
         wp_send_json_success(['suggestions' => $suggestions]);
+    }
+    
+    /**
+     * Preview posts that need AI fixes (returns list without making changes)
+     */
+    public function preview_bulk_fix() {
+        $this->verify_nonce();
+        
+        $apply_to = sanitize_text_field($_POST['apply_to'] ?? 'missing');
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        switch ($apply_to) {
+            case 'missing':
+                $query = $wpdb->prepare(
+                    "SELECT p.ID, p.post_title, p.post_type, p.post_date
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->postmeta} t ON p.ID = t.post_id AND t.meta_key = '_ssf_seo_title'
+                    LEFT JOIN {$wpdb->postmeta} d ON p.ID = d.post_id AND d.meta_key = '_ssf_meta_description'
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    AND ((t.meta_value IS NULL OR t.meta_value = '') OR (d.meta_value IS NULL OR d.meta_value = ''))
+                    ORDER BY p.post_date DESC",
+                    ...$post_types
+                );
+                break;
+                
+            case 'poor':
+                $query = $wpdb->prepare(
+                    "SELECT p.ID, p.post_title, p.post_type, p.post_date
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN $table s ON p.ID = s.post_id
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    AND (s.score < 60 OR s.post_id IS NULL)
+                    ORDER BY p.post_date DESC",
+                    ...$post_types
+                );
+                break;
+                
+            case 'all':
+            default:
+                $query = $wpdb->prepare(
+                    "SELECT p.ID, p.post_title, p.post_type, p.post_date
+                    FROM {$wpdb->posts} p
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    ORDER BY p.post_date DESC",
+                    ...$post_types
+                );
+                break;
+        }
+        
+        $posts = $wpdb->get_results($query);
+        
+        // Enrich with current SEO status
+        $items = [];
+        foreach ($posts as $post) {
+            $seo_title = get_post_meta($post->ID, '_ssf_seo_title', true);
+            $meta_desc = get_post_meta($post->ID, '_ssf_meta_description', true);
+            $focus_kw  = get_post_meta($post->ID, '_ssf_focus_keyword', true);
+            $score_row = $wpdb->get_row($wpdb->prepare("SELECT score FROM $table WHERE post_id = %d", $post->ID));
+            
+            $missing = [];
+            if (empty($seo_title))  $missing[] = 'title';
+            if (empty($meta_desc))  $missing[] = 'description';
+            if (empty($focus_kw))   $missing[] = 'keyword';
+            
+            $items[] = [
+                'id'          => $post->ID,
+                'title'       => $post->post_title,
+                'type'        => $post->post_type,
+                'edit_url'    => admin_url('post.php?action=edit&post=' . $post->ID),
+                'has_title'   => !empty($seo_title),
+                'has_desc'    => !empty($meta_desc),
+                'has_keyword' => !empty($focus_kw),
+                'score'       => $score_row ? intval($score_row->score) : null,
+                'missing'     => $missing,
+            ];
+        }
+        
+        wp_send_json_success([
+            'total' => count($items),
+            'posts' => $items,
+        ]);
     }
     
     /**
