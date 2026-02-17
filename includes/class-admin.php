@@ -59,6 +59,8 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-local',
             'smart-seo_page_smart-seo-fixer-search-performance',
             'smart-seo_page_smart-seo-fixer-migration',
+            'smart-seo_page_smart-seo-fixer-history',
+            'smart-seo_page_smart-seo-fixer-debug-log',
             'plugins',
         ];
         
@@ -215,6 +217,26 @@ class SSF_Admin {
             [$this, 'render_migration']
         );
         
+        // Change History submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Change History', 'smart-seo-fixer'),
+            __('Change History', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-history',
+            [$this, 'render_change_history']
+        );
+        
+        // Debug Log submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Debug Log', 'smart-seo-fixer'),
+            __('Debug Log', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-debug-log',
+            [$this, 'render_debug_log']
+        );
+        
         // Settings submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -245,6 +267,8 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-gsc',
             'smart-seo_page_smart-seo-fixer-search-performance',
             'smart-seo_page_smart-seo-fixer-migration',
+            'smart-seo_page_smart-seo-fixer-history',
+            'smart-seo_page_smart-seo-fixer-debug-log',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -356,6 +380,20 @@ class SSF_Admin {
     
     public function render_gsc_page() {
         include SSF_PLUGIN_DIR . 'admin/views/search-console.php';
+    }
+    
+    /**
+     * Render Change History page
+     */
+    public function render_change_history() {
+        include SSF_PLUGIN_DIR . 'admin/views/change-history.php';
+    }
+    
+    /**
+     * Render Debug Log page
+     */
+    public function render_debug_log() {
+        include SSF_PLUGIN_DIR . 'admin/views/debug-log.php';
     }
     
     /**

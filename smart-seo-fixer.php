@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.9.0
+ * Version: 1.10.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.9.0');
+define('SSF_VERSION', '1.10.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -86,6 +86,8 @@ final class Smart_SEO_Fixer {
             'includes/class-breadcrumbs.php',
             'includes/class-woocommerce.php',
             'includes/class-updater.php',
+            'includes/class-history.php',
+            'includes/class-logger.php',
             'includes/class-search-console.php',
             'includes/class-gsc-client.php',
             'includes/class-ajax.php',
@@ -137,6 +139,11 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_GSC_Client'))   $this->gsc_client    = new SSF_GSC_Client();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
+        
+        // Enable automatic history tracking for all _ssf_ meta changes
+        if (class_exists('SSF_History')) {
+            SSF_History::enable_tracking();
+        }
         
         if (is_admin() && class_exists('SSF_Admin')) {
             $this->admin = new SSF_Admin();
@@ -240,6 +247,11 @@ final class Smart_SEO_Fixer {
             return;
         }
         
+        // Set history source to cron
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('cron');
+        }
+        
         // Must have OpenAI configured
         if (!class_exists('SSF_OpenAI')) {
             return;
@@ -339,10 +351,17 @@ final class Smart_SEO_Fixer {
      */
     public function maybe_create_tables() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'ssf_seo_scores';
-        // Only run if table doesn't exist yet
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") !== $table_name) {
-            $this->create_tables();
+        $tables_to_check = [
+            $wpdb->prefix . 'ssf_seo_scores',
+            $wpdb->prefix . 'ssf_history',
+            $wpdb->prefix . 'ssf_logs',
+        ];
+        
+        foreach ($tables_to_check as $table_name) {
+            if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") !== $table_name) {
+                $this->create_tables();
+                return;
+            }
         }
     }
     
@@ -369,6 +388,16 @@ final class Smart_SEO_Fixer {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+        
+        // Create history table
+        if (class_exists('SSF_History')) {
+            SSF_History::create_table();
+        }
+        
+        // Create log table
+        if (class_exists('SSF_Logger')) {
+            SSF_Logger::create_table();
+        }
     }
     
     /**

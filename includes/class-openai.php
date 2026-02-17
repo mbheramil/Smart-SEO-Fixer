@@ -62,6 +62,9 @@ class SSF_OpenAI {
         ]);
         
         if (is_wp_error($response)) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('OpenAI request failed: ' . $response->get_error_message(), 'ai');
+            }
             return $response;
         }
         
@@ -69,13 +72,27 @@ class SSF_OpenAI {
         $data = json_decode($body, true);
         
         if (isset($data['error'])) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('OpenAI API error: ' . $data['error']['message'], 'ai', [
+                    'model' => $this->get_model(),
+                ]);
+            }
             return new WP_Error('api_error', $data['error']['message']);
         }
         
         if (isset($data['choices'][0]['message']['content'])) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::debug('OpenAI request successful', 'ai', [
+                    'model'  => $this->get_model(),
+                    'tokens' => $data['usage']['total_tokens'] ?? null,
+                ]);
+            }
             return $data['choices'][0]['message']['content'];
         }
         
+        if (class_exists('SSF_Logger')) {
+            SSF_Logger::error('OpenAI returned invalid response', 'ai');
+        }
         return new WP_Error('invalid_response', __('Invalid response from OpenAI.', 'smart-seo-fixer'));
     }
     

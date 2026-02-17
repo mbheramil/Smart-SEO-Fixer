@@ -974,6 +974,7 @@ class SSF_Search_Console {
      */
     public function ajax_fix_orphaned_page() {
         $this->verify();
+        if (class_exists('SSF_History')) SSF_History::set_source('orphan_fix');
         
         $orphan_id = intval($_POST['post_id'] ?? 0);
         if ($orphan_id <= 0) {
@@ -1119,6 +1120,11 @@ class SSF_Search_Console {
             // Replace only the FIRST occurrence of the anchor text
             $new_content = substr_replace($content, $link_html, $pos, strlen($anchor));
             
+            // Track content change in history
+            if (class_exists('SSF_History')) {
+                SSF_History::record_content($candidate->ID, $content, $new_content, 'orphan_fix');
+            }
+            
             // Save the updated content
             $update_result = wp_update_post([
                 'ID' => $candidate->ID,
@@ -1177,6 +1183,10 @@ class SSF_Search_Console {
                             if ($last_a_open === false || ($last_a_close !== false && $last_a_close > $last_a_open)) {
                                 $link_html = '<a href="' . esc_url($orphan_url) . '">' . $anchor . '</a>';
                                 $new_content = substr_replace($content, $link_html, $pos, strlen($anchor));
+                                
+                                if (class_exists('SSF_History')) {
+                                    SSF_History::record_content($fallback_post->ID, $content, $new_content, 'orphan_fix');
+                                }
                                 
                                 $update_result = wp_update_post([
                                     'ID' => $fallback_post->ID,
@@ -1323,6 +1333,11 @@ class SSF_Search_Console {
             }
             
             if ($outgoing_added > 0) {
+                // Track content change in history
+                if (class_exists('SSF_History')) {
+                    SSF_History::record_content($orphan_id, $orphan_post->post_content, $orphan_content, 'orphan_fix');
+                }
+                
                 $update_result = wp_update_post([
                     'ID' => $orphan_id,
                     'post_content' => $orphan_content,

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,18 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.10.0 =
+* NEW: Change History system - every AI/manual change is recorded with before/after values
+* NEW: One-click Undo/Rollback - revert any change instantly from the Change History page
+* NEW: Debug Log with admin viewer - errors, warnings, and info events logged to a dedicated page
+* NEW: Automatic meta tracking via WordPress hooks - all _ssf_ meta changes captured without code duplication
+* NEW: Source tagging - changes are tagged as AI, Manual, Bulk, Cron, or Orphan Fix for easy filtering
+* NEW: Dashboard navigation cards for Change History and Debug Log
+* IMPROVED: OpenAI API calls now log success/failure with token usage for monitoring
+* IMPROVED: GSC API errors logged with request context for debugging
+* IMPROVED: Plugin updater logs success/failure after install for troubleshooting
+* Database: Added ssf_history and ssf_logs tables (auto-created on activation or admin visit)
 
 = 1.9.0 =
 * NEW: Google Search Console integration — connect your GSC account directly

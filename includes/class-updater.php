@@ -309,11 +309,20 @@ class SSF_Updater {
         // Verify critical files exist after installation
         $critical_file = $proper_dir . '/smart-seo-fixer.php';
         if (!$wp_filesystem->exists($critical_file)) {
-            // Log for debugging
+            $error_context = [
+                'critical_file' => $critical_file,
+                'install_dir'   => $install_dir,
+                'source'        => $result['source'] ?? 'unknown',
+            ];
             error_log('Smart SEO Fixer: Critical file missing after update: ' . $critical_file);
-            error_log('Smart SEO Fixer: Install dir was: ' . $install_dir);
-            if (isset($result['source']) && $result['source']) {
-                error_log('Smart SEO Fixer: Source dir was: ' . $result['source']);
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('Critical file missing after update', 'updater', $error_context);
+            }
+        } else {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::info('Plugin updated successfully', 'updater', [
+                    'destination' => $result['destination'] ?? $proper_dir,
+                ]);
             }
         }
         

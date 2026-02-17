@@ -75,6 +75,15 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_regenerate_single_schema', [$this, 'regenerate_single_schema']);
         add_action('wp_ajax_ssf_generate_schema_for_post', [$this, 'generate_schema_for_post']);
         add_action('wp_ajax_ssf_search_posts_for_schema', [$this, 'search_posts_for_schema']);
+        
+        // Change History & Undo
+        add_action('wp_ajax_ssf_get_history', [$this, 'get_history']);
+        add_action('wp_ajax_ssf_undo_change', [$this, 'undo_change']);
+        add_action('wp_ajax_ssf_get_history_stats', [$this, 'get_history_stats']);
+        
+        // Debug Log
+        add_action('wp_ajax_ssf_get_logs', [$this, 'get_logs']);
+        add_action('wp_ajax_ssf_clear_logs', [$this, 'clear_logs']);
     }
     
     /**
@@ -231,6 +240,7 @@ class SSF_Ajax {
      */
     public function generate_title() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
@@ -282,6 +292,7 @@ class SSF_Ajax {
      */
     public function generate_description() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
@@ -402,6 +413,7 @@ class SSF_Ajax {
      */
     public function suggest_keywords() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         
@@ -447,6 +459,7 @@ class SSF_Ajax {
      */
     public function save_seo_data() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('manual');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         
@@ -546,6 +559,7 @@ class SSF_Ajax {
      */
     public function fix_issue() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $issue_code = sanitize_text_field($_POST['issue_code'] ?? '');
@@ -622,6 +636,7 @@ class SSF_Ajax {
      */
     public function bulk_fix() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('bulk');
         
         $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
         $issue_types = isset($_POST['issue_types']) ? array_map('sanitize_text_field', $_POST['issue_types']) : [];
@@ -1256,6 +1271,7 @@ class SSF_Ajax {
      */
     public function bulk_ai_fix() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('bulk');
         
         $options = $_POST['options'] ?? [];
         
@@ -1389,6 +1405,7 @@ class SSF_Ajax {
      */
     public function ai_fix_single() {
         $this->verify_nonce();
+        if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
         $options = $_POST['options'] ?? [];
@@ -2452,6 +2469,165 @@ class SSF_Ajax {
             'not_indexed'     => $not_indexed,
             'count'           => count($not_indexed),
         ]);
+    }
+    
+    // ========================================================================
+    // Change History & Undo
+    // ========================================================================
+    
+    /**
+     * Get change history with filters
+     */
+    public function get_history() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_History')) {
+            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $args = [
+            'page'        => intval($_POST['page'] ?? 1),
+            'per_page'    => intval($_POST['per_page'] ?? 50),
+            'action_type' => sanitize_key($_POST['action_type'] ?? '') ?: null,
+            'source'      => sanitize_key($_POST['source'] ?? '') ?: null,
+            'search'      => sanitize_text_field($_POST['search'] ?? ''),
+            'post_id'     => !empty($_POST['post_id']) ? intval($_POST['post_id']) : null,
+        ];
+        
+        $result = SSF_History::query($args);
+        
+        // Format for display
+        $items = [];
+        foreach ($result['items'] as $item) {
+            $items[] = [
+                'id'          => intval($item->id),
+                'post_id'     => intval($item->post_id),
+                'post_title'  => $item->post_title ?: __('(Deleted post)', 'smart-seo-fixer'),
+                'action_type' => $item->action_type,
+                'field_key'   => $item->field_key,
+                'old_value'   => $item->old_value,
+                'new_value'   => $item->new_value,
+                'source'      => $item->source,
+                'reverted'    => intval($item->reverted),
+                'created_at'  => $item->created_at,
+                'user_id'     => intval($item->user_id),
+            ];
+        }
+        
+        wp_send_json_success([
+            'items'       => $items,
+            'total'       => $result['total'],
+            'page'        => $result['page'],
+            'per_page'    => $result['per_page'],
+            'total_pages' => $result['total_pages'],
+        ]);
+    }
+    
+    /**
+     * Undo a change
+     */
+    public function undo_change() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_History')) {
+            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $history_id = intval($_POST['history_id'] ?? 0);
+        if (!$history_id) {
+            wp_send_json_error(['message' => __('Invalid history ID.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_History::undo($history_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success(['message' => __('Change reverted successfully.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Get history stats
+     */
+    public function get_history_stats() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_History')) {
+            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success(SSF_History::get_stats());
+    }
+    
+    // ========================================================================
+    // Debug Log
+    // ========================================================================
+    
+    /**
+     * Get logs
+     */
+    public function get_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Logger')) {
+            wp_send_json_error(['message' => __('Logger module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $args = [
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => intval($_POST['per_page'] ?? 50),
+            'level'    => sanitize_key($_POST['level'] ?? '') ?: null,
+            'category' => sanitize_key($_POST['category'] ?? '') ?: null,
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+        ];
+        
+        $result = SSF_Logger::query($args);
+        $counts = SSF_Logger::get_counts();
+        
+        wp_send_json_success([
+            'items'       => $result['items'],
+            'total'       => $result['total'],
+            'page'        => $result['page'],
+            'per_page'    => $result['per_page'],
+            'total_pages' => $result['total_pages'],
+            'counts'      => $counts,
+        ]);
+    }
+    
+    /**
+     * Clear all logs
+     */
+    public function clear_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Logger')) {
+            wp_send_json_error(['message' => __('Logger module not available.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_Logger::clear();
+        
+        wp_send_json_success(['message' => __('Logs cleared successfully.', 'smart-seo-fixer')]);
     }
 }
 

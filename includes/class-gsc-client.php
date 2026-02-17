@@ -295,6 +295,14 @@ class SSF_GSC_Client {
             $error_msg = sprintf(__('HTTP %d error from Google API.', 'smart-seo-fixer'), $code);
         }
         
+        if (class_exists('SSF_Logger')) {
+            SSF_Logger::error('GSC API error: ' . $error_msg, 'gsc', [
+                'url'    => $url,
+                'method' => $method,
+                'code'   => $code,
+            ]);
+        }
+        
         return new WP_Error('gsc_api_error', $error_msg);
     }
     

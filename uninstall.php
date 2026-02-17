@@ -79,9 +79,15 @@ foreach ($term_meta_keys as $key) {
     );
 }
 
-// 4. Drop custom database table
-$table_name = $wpdb->prefix . 'ssf_seo_scores';
-$wpdb->query("DROP TABLE IF EXISTS $table_name");
+// 4. Drop custom database tables
+$tables = [
+    $wpdb->prefix . 'ssf_seo_scores',
+    $wpdb->prefix . 'ssf_history',
+    $wpdb->prefix . 'ssf_logs',
+];
+foreach ($tables as $table_name) {
+    $wpdb->query("DROP TABLE IF EXISTS $table_name");
+}
 
 // 5. Clear any scheduled cron events
 $timestamp = wp_next_scheduled('ssf_cron_generate_missing_seo');

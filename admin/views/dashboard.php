@@ -174,6 +174,28 @@ if (!defined('ABSPATH')) {
                         <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
                     </a>
                     
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-history')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
+                            <span class="dashicons dashicons-backup"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Change History', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Track all changes with one-click undo', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-debug-log')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+                            <span class="dashicons dashicons-code-standards"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Debug Log', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('View errors, warnings, and event logs', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
                     <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-settings')); ?>" class="ssf-nav-card">
                         <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #6b7280, #374151);">
                             <span class="dashicons dashicons-admin-settings"></span>
