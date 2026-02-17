@@ -70,6 +70,7 @@ class SSF_Updater {
     
     /**
      * Fetch the latest release info from GitHub API
+     * Falls back to tags if no formal Release exists
      */
     private function get_github_release($force = false) {
         if (!$force && $this->github_response !== null) {
@@ -85,6 +86,30 @@ class SSF_Updater {
             }
         }
         
+        // Try 1: Check for a formal GitHub Release
+        $body = $this->fetch_latest_release();
+        
+        // Try 2: If no release exists, fall back to latest tag
+        if (!$body) {
+            $body = $this->fetch_latest_tag();
+        }
+        
+        if (!$body || !isset($body->tag_name)) {
+            $this->github_response = false;
+            return false;
+        }
+        
+        $this->github_response = $body;
+        delete_transient('ssf_update_error');
+        set_transient('ssf_github_release', $body, 6 * HOUR_IN_SECONDS);
+        
+        return $body;
+    }
+    
+    /**
+     * Try to fetch the latest formal GitHub Release
+     */
+    private function fetch_latest_release() {
         $url = sprintf(
             'https://api.github.com/repos/%s/%s/releases/latest',
             $this->github_user,
@@ -97,44 +122,84 @@ class SSF_Updater {
         ]);
         
         if (is_wp_error($response)) {
-            $this->github_response = false;
             return false;
         }
         
         $code = wp_remote_retrieve_response_code($response);
         
         if ($code === 401 || $code === 403) {
-            // Token is invalid or missing for private repo
-            $this->github_response = false;
             set_transient('ssf_update_error', 'auth', HOUR_IN_SECONDS);
             return false;
         }
         
-        if ($code === 404) {
-            // No releases found, or repo not accessible
-            $this->github_response = false;
-            set_transient('ssf_update_error', 'no_release', HOUR_IN_SECONDS);
-            return false;
-        }
-        
         if ($code !== 200) {
-            $this->github_response = false;
             return false;
         }
         
         $body = json_decode(wp_remote_retrieve_body($response));
         
         if (empty($body) || !isset($body->tag_name)) {
-            $this->github_response = false;
+            return false;
+        }
+        
+        return $body;
+    }
+    
+    /**
+     * Fallback: fetch the latest tag and build a release-like object
+     */
+    private function fetch_latest_tag() {
+        $url = sprintf(
+            'https://api.github.com/repos/%s/%s/tags?per_page=1',
+            $this->github_user,
+            $this->github_repo
+        );
+        
+        $response = wp_remote_get($url, [
+            'headers' => $this->get_headers(),
+            'timeout' => 15,
+        ]);
+        
+        if (is_wp_error($response)) {
+            return false;
+        }
+        
+        $code = wp_remote_retrieve_response_code($response);
+        
+        if ($code === 401 || $code === 403) {
+            set_transient('ssf_update_error', 'auth', HOUR_IN_SECONDS);
+            return false;
+        }
+        
+        if ($code !== 200) {
             set_transient('ssf_update_error', 'no_release', HOUR_IN_SECONDS);
             return false;
         }
         
-        $this->github_response = $body;
-        delete_transient('ssf_update_error');
-        set_transient('ssf_github_release', $body, 6 * HOUR_IN_SECONDS);
+        $tags = json_decode(wp_remote_retrieve_body($response));
         
-        return $body;
+        if (empty($tags) || !is_array($tags) || !isset($tags[0]->name)) {
+            set_transient('ssf_update_error', 'no_release', HOUR_IN_SECONDS);
+            return false;
+        }
+        
+        $tag = $tags[0];
+        
+        // Build a release-like object from the tag
+        $release = new stdClass();
+        $release->tag_name = $tag->name;
+        $release->html_url = sprintf(
+            'https://github.com/%s/%s/releases/tag/%s',
+            $this->github_user,
+            $this->github_repo,
+            $tag->name
+        );
+        $release->zipball_url = $tag->zipball_url;
+        $release->assets = [];
+        $release->body = 'See GitHub for changelog.';
+        $release->published_at = '';
+        
+        return $release;
     }
     
     /**
