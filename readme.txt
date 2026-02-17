@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.6.1 =
+* Fix: Resolved redirect loop on pages with year-prefixed slugs (e.g. 2025-scholarship)
+* Fix: Removed custom redirect handler — now uses WordPress native redirect_canonical
+* Performance: Removed permalink filters that ran on every link (major speed improvement)
+* Performance: Output buffering now conditional (only for themes without title-tag support)
+* Performance: Moved updater, post type detection to admin-only (no frontend overhead)
+* Performance: Meta manager skips admin requests
 
 = 1.6.0 =
 * NEW: Comprehensive Indexability Auditor — detects all 9 Google Search Console issue types
