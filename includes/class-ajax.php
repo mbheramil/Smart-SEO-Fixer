@@ -48,6 +48,12 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_bulk_ai_fix', [$this, 'bulk_ai_fix']);
         add_action('wp_ajax_ssf_preview_bulk_fix', [$this, 'preview_bulk_fix']);
         add_action('wp_ajax_ssf_suggest_images', [$this, 'suggest_images']);
+        
+        // Google Search Console
+        add_action('wp_ajax_ssf_gsc_disconnect', [$this, 'gsc_disconnect']);
+        add_action('wp_ajax_ssf_gsc_performance', [$this, 'gsc_performance']);
+        add_action('wp_ajax_ssf_gsc_inspect_url', [$this, 'gsc_inspect_url']);
+        add_action('wp_ajax_ssf_gsc_submit_sitemap', [$this, 'gsc_submit_sitemap']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         
         // Schema tools
@@ -489,6 +495,8 @@ class SSF_Ajax {
             'disable_other_seo_output' => !empty($_POST['disable_other_seo_output']) ? 1 : 0,
             'background_seo_cron' => !empty($_POST['background_seo_cron']) ? 1 : 0,
             'github_token' => sanitize_text_field($_POST['github_token'] ?? ''),
+            'gsc_client_id' => sanitize_text_field($_POST['gsc_client_id'] ?? ''),
+            'gsc_client_secret' => sanitize_text_field($_POST['gsc_client_secret'] ?? ''),
             'title_separator' => sanitize_text_field($_POST['title_separator'] ?? '|'),
             'homepage_title' => sanitize_text_field($_POST['homepage_title'] ?? ''),
             'homepage_description' => sanitize_textarea_field($_POST['homepage_description'] ?? ''),
@@ -507,6 +515,19 @@ class SSF_Ajax {
         // Handle post types array
         if (isset($_POST['post_types']) && is_array($_POST['post_types'])) {
             $settings['post_types'] = array_map('sanitize_text_field', $_POST['post_types']);
+        }
+        
+        // Handle GSC site URL selection
+        if (isset($_POST['gsc_site_url'])) {
+            $settings['gsc_site_url'] = esc_url_raw($_POST['gsc_site_url']);
+        }
+        
+        // Preserve existing GSC credentials if not submitted (connected state hides the fields)
+        if (empty($settings['gsc_client_id'])) {
+            unset($settings['gsc_client_id']);
+        }
+        if (empty($settings['gsc_client_secret'])) {
+            unset($settings['gsc_client_secret']);
         }
         
         foreach ($settings as $key => $value) {
@@ -2180,6 +2201,139 @@ class SSF_Ajax {
         }
         
         wp_send_json_success(['results' => $results]);
+    }
+    
+    // ========================================================
+    // Google Search Console AJAX Handlers
+    // ========================================================
+    
+    /**
+     * Disconnect from Google Search Console
+     */
+    public function gsc_disconnect() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        $gsc->disconnect();
+        
+        wp_send_json_success(['message' => __('Disconnected from Google Search Console.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Get search performance data
+     */
+    public function gsc_performance() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        
+        if (!$gsc->is_connected()) {
+            wp_send_json_error(['message' => __('Not connected to Google Search Console.', 'smart-seo-fixer')]);
+        }
+        
+        $days = intval($_POST['days'] ?? 28);
+        $type = sanitize_text_field($_POST['type'] ?? 'overview');
+        
+        // Use transient caching (1 hour)
+        $cache_key = "ssf_gsc_{$type}_{$days}";
+        $cached = get_transient($cache_key);
+        if ($cached !== false && empty($_POST['refresh'])) {
+            wp_send_json_success($cached);
+        }
+        
+        switch ($type) {
+            case 'overview':
+                $data = $gsc->get_performance_overview($days);
+                break;
+            case 'queries':
+                $data = $gsc->get_top_queries($days, 100);
+                break;
+            case 'pages':
+                $data = $gsc->get_top_pages($days, 100);
+                break;
+            default:
+                $data = new WP_Error('invalid_type', __('Invalid data type.', 'smart-seo-fixer'));
+        }
+        
+        if (is_wp_error($data)) {
+            wp_send_json_error(['message' => $data->get_error_message()]);
+        }
+        
+        set_transient($cache_key, $data, HOUR_IN_SECONDS);
+        
+        wp_send_json_success($data);
+    }
+    
+    /**
+     * Inspect a URL for index status
+     */
+    public function gsc_inspect_url() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        $url = esc_url_raw($_POST['url'] ?? '');
+        
+        if (empty($url)) {
+            wp_send_json_error(['message' => __('URL is required.', 'smart-seo-fixer')]);
+        }
+        
+        $result = $gsc->inspect_url($url);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Submit sitemap to Google
+     */
+    public function gsc_submit_sitemap() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        $sitemap_url = home_url('/sitemap.xml');
+        
+        $result = $gsc->submit_sitemap($sitemap_url);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success(['message' => __('Sitemap submitted successfully!', 'smart-seo-fixer')]);
     }
 }
 

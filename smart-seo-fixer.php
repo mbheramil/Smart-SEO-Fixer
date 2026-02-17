@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.8.7
+ * Version: 1.9.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.8.7');
+define('SSF_VERSION', '1.9.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -49,6 +49,7 @@ final class Smart_SEO_Fixer {
     public $woocommerce;
     public $updater;
     public $search_console;
+    public $gsc_client;
     public $admin;
     
     /**
@@ -86,6 +87,7 @@ final class Smart_SEO_Fixer {
             'includes/class-woocommerce.php',
             'includes/class-updater.php',
             'includes/class-search-console.php',
+            'includes/class-gsc-client.php',
             'includes/class-ajax.php',
         ];
         
@@ -133,6 +135,7 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Breadcrumbs'))  $this->breadcrumbs   = new SSF_Breadcrumbs();
         if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
+        if (class_exists('SSF_GSC_Client'))   $this->gsc_client    = new SSF_GSC_Client();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
         if (is_admin() && class_exists('SSF_Admin')) {

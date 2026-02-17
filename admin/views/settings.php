@@ -10,6 +10,22 @@ if (!defined('ABSPATH')) {
 $openai_api_key = Smart_SEO_Fixer::get_option('openai_api_key');
 $openai_model = Smart_SEO_Fixer::get_option('openai_model', 'gpt-4o-mini');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
+$gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
+$gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
+$gsc_connected = false;
+$gsc_site_url = '';
+$gsc_sites = [];
+if (class_exists('SSF_GSC_Client')) {
+    $gsc_client = new SSF_GSC_Client();
+    $gsc_connected = $gsc_client->is_connected();
+    $gsc_site_url = Smart_SEO_Fixer::get_option('gsc_site_url', '');
+    if ($gsc_connected) {
+        $gsc_sites_result = $gsc_client->get_sites();
+        if (!is_wp_error($gsc_sites_result)) {
+            $gsc_sites = $gsc_sites_result;
+        }
+    }
+}
 $auto_meta = Smart_SEO_Fixer::get_option('auto_meta');
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
@@ -96,6 +112,141 @@ unset($available_post_types['attachment']);
                         </td>
                     </tr>
                 </table>
+            </div>
+        </div>
+        
+        <!-- Google Search Console -->
+        <div class="ssf-card">
+            <div class="ssf-card-header">
+                <h2>
+                    <span class="dashicons dashicons-google"></span>
+                    <?php esc_html_e('Google Search Console', 'smart-seo-fixer'); ?>
+                </h2>
+            </div>
+            <div class="ssf-card-body">
+                <?php 
+                $gsc_error = get_transient('ssf_gsc_error');
+                $gsc_success = get_transient('ssf_gsc_success');
+                if ($gsc_error): delete_transient('ssf_gsc_error'); ?>
+                    <div class="notice notice-error inline" style="margin: 0 0 16px;">
+                        <p><?php echo esc_html($gsc_error); ?></p>
+                    </div>
+                <?php endif; ?>
+                <?php if ($gsc_success): delete_transient('ssf_gsc_success'); ?>
+                    <div class="notice notice-success inline" style="margin: 0 0 16px;">
+                        <p><?php echo esc_html($gsc_success); ?></p>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($gsc_connected): ?>
+                    <div style="padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 16px;">
+                        <p style="margin: 0 0 8px; font-weight: 600; color: #15803d;">
+                            <span class="dashicons dashicons-yes-alt" style="color: #16a34a;"></span>
+                            <?php esc_html_e('Connected to Google Search Console', 'smart-seo-fixer'); ?>
+                        </p>
+                        <?php if ($gsc_site_url): ?>
+                            <p style="margin: 0; color: #166534;">
+                                <?php printf(esc_html__('Site: %s', 'smart-seo-fixer'), '<strong>' . esc_html($gsc_site_url) . '</strong>'); ?>
+                            </p>
+                        <?php endif; ?>
+                    </div>
+                    <table class="form-table">
+                        <?php if (!empty($gsc_sites) && count($gsc_sites) > 1): ?>
+                        <tr>
+                            <th scope="row">
+                                <label for="gsc_site_url"><?php esc_html_e('Site Property', 'smart-seo-fixer'); ?></label>
+                            </th>
+                            <td>
+                                <select name="gsc_site_url" id="gsc_site_url">
+                                    <?php foreach ($gsc_sites as $site): ?>
+                                        <option value="<?php echo esc_attr($site['siteUrl']); ?>" <?php selected($gsc_site_url, $site['siteUrl']); ?>>
+                                            <?php echo esc_html($site['siteUrl']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e('Select which site property to use.', 'smart-seo-fixer'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </table>
+                    <p>
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-search-performance')); ?>" class="button button-primary">
+                            <span class="dashicons dashicons-chart-area" style="vertical-align: text-bottom;"></span>
+                            <?php esc_html_e('View Search Performance', 'smart-seo-fixer'); ?>
+                        </a>
+                        <button type="button" class="button" id="ssf-gsc-disconnect" style="color: #dc2626; border-color: #dc2626;">
+                            <?php esc_html_e('Disconnect', 'smart-seo-fixer'); ?>
+                        </button>
+                    </p>
+                <?php else: ?>
+                    <p class="description" style="margin-bottom: 16px;">
+                        <?php esc_html_e('Connect your Google Search Console to see real search performance data, index status, and more — directly inside WordPress.', 'smart-seo-fixer'); ?>
+                    </p>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="gsc_client_id"><?php esc_html_e('Client ID', 'smart-seo-fixer'); ?></label>
+                            </th>
+                            <td>
+                                <input type="text" 
+                                       name="gsc_client_id" 
+                                       id="gsc_client_id" 
+                                       value="<?php echo esc_attr($gsc_client_id); ?>" 
+                                       class="regular-text"
+                                       placeholder="xxxxxx.apps.googleusercontent.com">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="gsc_client_secret"><?php esc_html_e('Client Secret', 'smart-seo-fixer'); ?></label>
+                            </th>
+                            <td>
+                                <input type="password" 
+                                       name="gsc_client_secret" 
+                                       id="gsc_client_secret" 
+                                       value="<?php echo esc_attr($gsc_client_secret); ?>" 
+                                       class="regular-text"
+                                       autocomplete="off">
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <?php if (!empty($gsc_client_id) && !empty($gsc_client_secret)): ?>
+                        <p>
+                            <a href="<?php echo esc_url($gsc_client->get_auth_url()); ?>" class="button button-primary button-large">
+                                <span class="dashicons dashicons-google" style="vertical-align: text-bottom;"></span>
+                                <?php esc_html_e('Connect Google Search Console', 'smart-seo-fixer'); ?>
+                            </a>
+                        </p>
+                    <?php else: ?>
+                        <p class="description">
+                            <?php esc_html_e('Enter your Client ID and Secret, save settings, then click Connect.', 'smart-seo-fixer'); ?>
+                        </p>
+                    <?php endif; ?>
+                    
+                    <div style="margin-top: 12px; padding: 12px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                        <p style="margin: 0 0 8px; font-weight: 600; color: #1e40af;">
+                            <span class="dashicons dashicons-info" style="font-size: 16px;"></span>
+                            <?php esc_html_e('How to get your credentials:', 'smart-seo-fixer'); ?>
+                        </p>
+                        <ol style="margin: 0; padding-left: 20px; color: #1e3a5f; font-size: 13px;">
+                            <li><?php printf(
+                                __('Go to %s', 'smart-seo-fixer'),
+                                '<a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>'
+                            ); ?></li>
+                            <li><?php esc_html_e('Create a project (or select existing)', 'smart-seo-fixer'); ?></li>
+                            <li><?php esc_html_e('Enable "Google Search Console API"', 'smart-seo-fixer'); ?></li>
+                            <li><?php esc_html_e('Create OAuth 2.0 credentials (Web application type)', 'smart-seo-fixer'); ?></li>
+                            <li><?php printf(
+                                __('Add this as Authorized redirect URI: %s', 'smart-seo-fixer'),
+                                '<code>' . esc_html(admin_url('admin.php?page=smart-seo-fixer-settings')) . '</code>'
+                            ); ?></li>
+                            <li><?php esc_html_e('Copy the Client ID and Client Secret here', 'smart-seo-fixer'); ?></li>
+                        </ol>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
         
@@ -418,6 +569,24 @@ jQuery(document).ready(function($) {
     
     $('#homepage_description').on('input', function() {
         $('#homepage-desc-count').text($(this).val().length);
+    });
+    
+    // GSC Disconnect
+    $('#ssf-gsc-disconnect').on('click', function() {
+        if (!confirm('<?php esc_html_e('Disconnect Google Search Console?', 'smart-seo-fixer'); ?>')) return;
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('<?php esc_html_e('Disconnecting...', 'smart-seo-fixer'); ?>');
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_gsc_disconnect',
+            nonce: ssfAdmin.nonce
+        }, function(response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert(response.data.message || 'Error');
+                $btn.prop('disabled', false).text('<?php esc_html_e('Disconnect', 'smart-seo-fixer'); ?>');
+            }
+        });
     });
     
     // Save settings

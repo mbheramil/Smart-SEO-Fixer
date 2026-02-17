@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.7
+Stable tag: 1.9.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,15 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.9.0 =
+* NEW: Google Search Console integration — connect your GSC account directly
+* NEW: Search Performance dashboard — see clicks, impressions, CTR, and average position
+* NEW: Top Search Queries table — see which keywords bring traffic
+* NEW: Top Pages table — see which pages perform best in search
+* NEW: Performance chart with daily clicks and impressions over time
+* NEW: Submit sitemap to Google directly from the plugin
+* NEW: URL Inspection API support — check if specific pages are indexed
 
 = 1.8.7 =
 * FIXED: Auto-updater zip packaging - was using backslash paths causing extraction failures on Linux servers

@@ -35,6 +35,10 @@ $options = [
     'ssf_redirects',
     'ssf_404_log',
     'ssf_cron_last_run',
+    'ssf_gsc_client_id',
+    'ssf_gsc_client_secret',
+    'ssf_gsc_site_url',
+    'ssf_gsc_tokens',
 ];
 
 foreach ($options as $option) {

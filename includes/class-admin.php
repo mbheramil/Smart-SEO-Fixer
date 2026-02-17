@@ -57,6 +57,7 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-posts',
             'smart-seo_page_smart-seo-fixer-schema',
             'smart-seo_page_smart-seo-fixer-local',
+            'smart-seo_page_smart-seo-fixer-search-performance',
             'smart-seo_page_smart-seo-fixer-migration',
             'plugins',
         ];
@@ -184,6 +185,16 @@ class SSF_Admin {
             [$this, 'render_redirects_page']
         );
         
+        // Search Performance submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Search Performance', 'smart-seo-fixer'),
+            __('Search Performance', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-search-performance',
+            [$this, 'render_search_performance']
+        );
+        
         // Indexability Auditor submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -232,6 +243,7 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-schema',
             'smart-seo_page_smart-seo-fixer-redirects',
             'smart-seo_page_smart-seo-fixer-gsc',
+            'smart-seo_page_smart-seo-fixer-search-performance',
             'smart-seo_page_smart-seo-fixer-migration',
         ];
         
@@ -338,6 +350,10 @@ class SSF_Admin {
     /**
      * Render Search Console Fixer page
      */
+    public function render_search_performance() {
+        include SSF_PLUGIN_DIR . 'admin/views/search-performance.php';
+    }
+    
     public function render_gsc_page() {
         include SSF_PLUGIN_DIR . 'admin/views/search-console.php';
     }
