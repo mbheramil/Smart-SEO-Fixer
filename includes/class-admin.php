@@ -61,6 +61,7 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-migration',
             'smart-seo_page_smart-seo-fixer-history',
             'smart-seo_page_smart-seo-fixer-debug-log',
+            'smart-seo_page_smart-seo-fixer-jobs',
             'plugins',
         ];
         
@@ -217,6 +218,16 @@ class SSF_Admin {
             [$this, 'render_migration']
         );
         
+        // Background Jobs submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Background Jobs', 'smart-seo-fixer'),
+            __('Background Jobs', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-jobs',
+            [$this, 'render_job_queue']
+        );
+        
         // Change History submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -269,6 +280,7 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-migration',
             'smart-seo_page_smart-seo-fixer-history',
             'smart-seo_page_smart-seo-fixer-debug-log',
+            'smart-seo_page_smart-seo-fixer-jobs',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -380,6 +392,13 @@ class SSF_Admin {
     
     public function render_gsc_page() {
         include SSF_PLUGIN_DIR . 'admin/views/search-console.php';
+    }
+    
+    /**
+     * Render Job Queue page
+     */
+    public function render_job_queue() {
+        include SSF_PLUGIN_DIR . 'admin/views/job-queue.php';
     }
     
     /**

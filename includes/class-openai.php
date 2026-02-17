@@ -47,53 +47,66 @@ class SSF_OpenAI {
             return new WP_Error('no_api_key', __('OpenAI API key not configured.', 'smart-seo-fixer'));
         }
         
-        $response = wp_remote_post($this->api_url, [
-            'timeout' => 60,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $api_key,
-                'Content-Type' => 'application/json',
-            ],
-            'body' => wp_json_encode([
-                'model' => $this->get_model(),
-                'messages' => $messages,
-                'max_tokens' => $max_tokens,
-                'temperature' => $temperature,
-            ]),
-        ]);
+        $api_url = $this->api_url;
+        $model   = $this->get_model();
         
-        if (is_wp_error($response)) {
-            if (class_exists('SSF_Logger')) {
-                SSF_Logger::error('OpenAI request failed: ' . $response->get_error_message(), 'ai');
+        // Wrap the actual API call in the rate limiter for throttling + retry
+        $make_request = function() use ($api_key, $api_url, $model, $messages, $max_tokens, $temperature) {
+            $response = wp_remote_post($api_url, [
+                'timeout' => 60,
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Content-Type' => 'application/json',
+                ],
+                'body' => wp_json_encode([
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_tokens' => $max_tokens,
+                    'temperature' => $temperature,
+                ]),
+            ]);
+            
+            if (is_wp_error($response)) {
+                if (class_exists('SSF_Logger')) {
+                    SSF_Logger::error('OpenAI request failed: ' . $response->get_error_message(), 'ai');
+                }
+                return $response;
             }
-            return $response;
-        }
-        
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        
-        if (isset($data['error'])) {
-            if (class_exists('SSF_Logger')) {
-                SSF_Logger::error('OpenAI API error: ' . $data['error']['message'], 'ai', [
-                    'model' => $this->get_model(),
-                ]);
+            
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+            
+            if (isset($data['error'])) {
+                if (class_exists('SSF_Logger')) {
+                    SSF_Logger::error('OpenAI API error: ' . $data['error']['message'], 'ai', [
+                        'model' => $model,
+                    ]);
+                }
+                return new WP_Error('api_error', $data['error']['message']);
             }
-            return new WP_Error('api_error', $data['error']['message']);
-        }
-        
-        if (isset($data['choices'][0]['message']['content'])) {
-            if (class_exists('SSF_Logger')) {
-                SSF_Logger::debug('OpenAI request successful', 'ai', [
-                    'model'  => $this->get_model(),
-                    'tokens' => $data['usage']['total_tokens'] ?? null,
-                ]);
+            
+            if (isset($data['choices'][0]['message']['content'])) {
+                if (class_exists('SSF_Logger')) {
+                    SSF_Logger::debug('OpenAI request successful', 'ai', [
+                        'model'  => $model,
+                        'tokens' => $data['usage']['total_tokens'] ?? null,
+                    ]);
+                }
+                return $data['choices'][0]['message']['content'];
             }
-            return $data['choices'][0]['message']['content'];
+            
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('OpenAI returned invalid response', 'ai');
+            }
+            return new WP_Error('invalid_response', __('Invalid response from OpenAI.', 'smart-seo-fixer'));
+        };
+        
+        // Use rate limiter if available, otherwise call directly
+        if (class_exists('SSF_Rate_Limiter')) {
+            return SSF_Rate_Limiter::execute('openai', $make_request);
         }
         
-        if (class_exists('SSF_Logger')) {
-            SSF_Logger::error('OpenAI returned invalid response', 'ai');
-        }
-        return new WP_Error('invalid_response', __('Invalid response from OpenAI.', 'smart-seo-fixer'));
+        return $make_request();
     }
     
     /**

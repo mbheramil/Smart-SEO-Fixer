@@ -162,7 +162,7 @@ class SSF_GSC_Client {
     /**
      * Refresh the access token using the refresh token
      */
-    private function refresh_access_token() {
+    public function refresh_access_token() {
         $tokens = $this->get_tokens();
         
         if (empty($tokens['refresh_token'])) {
@@ -236,74 +236,86 @@ class SSF_GSC_Client {
             return $access_token;
         }
         
-        $args = [
-            'method'  => $method,
-            'timeout' => 30,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $access_token,
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'application/json',
-            ],
-        ];
+        $that = $this;
         
-        if ($body !== null) {
-            $args['body'] = wp_json_encode($body);
-        } elseif ($method === 'PUT') {
-            $args['body'] = '';
-            $args['headers']['Content-Length'] = '0';
-        }
-        
-        $response = wp_remote_request($url, $args);
-        
-        if (is_wp_error($response)) {
-            return $response;
-        }
-        
-        $code = wp_remote_retrieve_response_code($response);
-        $raw_body = wp_remote_retrieve_body($response);
-        $data = json_decode($raw_body, true);
-        
-        if ($code === 401) {
-            $new_token = $this->refresh_access_token();
-            if (is_wp_error($new_token)) {
-                return $new_token;
+        $make_request = function() use ($url, $method, $body, &$access_token, $that) {
+            $args = [
+                'method'  => $method,
+                'timeout' => 30,
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $access_token,
+                    'Content-Type'  => 'application/json',
+                    'Accept'        => 'application/json',
+                ],
+            ];
+            
+            if ($body !== null) {
+                $args['body'] = wp_json_encode($body);
+            } elseif ($method === 'PUT') {
+                $args['body'] = '';
+                $args['headers']['Content-Length'] = '0';
             }
-            $args['headers']['Authorization'] = 'Bearer ' . $new_token;
+            
             $response = wp_remote_request($url, $args);
+            
             if (is_wp_error($response)) {
                 return $response;
             }
+            
             $code = wp_remote_retrieve_response_code($response);
             $raw_body = wp_remote_retrieve_body($response);
             $data = json_decode($raw_body, true);
+            
+            if ($code === 401) {
+                $new_token = $that->refresh_access_token();
+                if (is_wp_error($new_token)) {
+                    return $new_token;
+                }
+                $access_token = $new_token;
+                $args['headers']['Authorization'] = 'Bearer ' . $new_token;
+                $response = wp_remote_request($url, $args);
+                if (is_wp_error($response)) {
+                    return $response;
+                }
+                $code = wp_remote_retrieve_response_code($response);
+                $raw_body = wp_remote_retrieve_body($response);
+                $data = json_decode($raw_body, true);
+            }
+            
+            // 2xx = success
+            if ($code >= 200 && $code < 300) {
+                return $data ?: ['success' => true];
+            }
+            
+            // Extract the most useful error message
+            $error_msg = '';
+            if (!empty($data['error']['message'])) {
+                $error_msg = $data['error']['message'];
+            } elseif (!empty($data['error']['status'])) {
+                $error_msg = $data['error']['status'];
+            } elseif (!empty($raw_body)) {
+                $error_msg = substr($raw_body, 0, 200);
+            } else {
+                $error_msg = sprintf(__('HTTP %d error from Google API.', 'smart-seo-fixer'), $code);
+            }
+            
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('GSC API error: ' . $error_msg, 'gsc', [
+                    'url'    => $url,
+                    'method' => $method,
+                    'code'   => $code,
+                ]);
+            }
+            
+            return new WP_Error('gsc_api_error', $error_msg);
+        };
+        
+        // Use rate limiter if available, otherwise call directly
+        if (class_exists('SSF_Rate_Limiter')) {
+            return SSF_Rate_Limiter::execute('gsc', $make_request);
         }
         
-        // 2xx = success (200 OK, 204 No Content, etc.)
-        if ($code >= 200 && $code < 300) {
-            return $data ?: ['success' => true];
-        }
-        
-        // Extract the most useful error message
-        $error_msg = '';
-        if (!empty($data['error']['message'])) {
-            $error_msg = $data['error']['message'];
-        } elseif (!empty($data['error']['status'])) {
-            $error_msg = $data['error']['status'];
-        } elseif (!empty($raw_body)) {
-            $error_msg = substr($raw_body, 0, 200);
-        } else {
-            $error_msg = sprintf(__('HTTP %d error from Google API.', 'smart-seo-fixer'), $code);
-        }
-        
-        if (class_exists('SSF_Logger')) {
-            SSF_Logger::error('GSC API error: ' . $error_msg, 'gsc', [
-                'url'    => $url,
-                'method' => $method,
-                'code'   => $code,
-            ]);
-        }
-        
-        return new WP_Error('gsc_api_error', $error_msg);
+        return $make_request();
     }
     
     // ========================================================

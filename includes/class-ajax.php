@@ -84,6 +84,12 @@ class SSF_Ajax {
         // Debug Log
         add_action('wp_ajax_ssf_get_logs', [$this, 'get_logs']);
         add_action('wp_ajax_ssf_clear_logs', [$this, 'clear_logs']);
+        
+        // Job Queue
+        add_action('wp_ajax_ssf_get_job_status', [$this, 'get_job_status']);
+        add_action('wp_ajax_ssf_get_jobs', [$this, 'get_jobs']);
+        add_action('wp_ajax_ssf_cancel_job', [$this, 'cancel_job']);
+        add_action('wp_ajax_ssf_retry_job', [$this, 'retry_job']);
     }
     
     /**
@@ -1292,6 +1298,33 @@ class SSF_Ajax {
         
         if (empty($post_ids)) {
             wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
+        }
+        
+        // For large batches (10+ posts), use background job queue
+        $use_background = !empty($_POST['background']) || count($post_ids) > 10;
+        if ($use_background && class_exists('SSF_Job_Queue')) {
+            $payload = [
+                'generate_title'    => $generate_title,
+                'generate_desc'     => $generate_desc,
+                'generate_keywords' => $generate_keywords,
+                'apply_to'          => $apply_to,
+            ];
+            
+            $job_id = SSF_Job_Queue::create('bulk_ai_fix', $post_ids, $payload);
+            
+            if (is_wp_error($job_id)) {
+                wp_send_json_error(['message' => $job_id->get_error_message()]);
+            }
+            
+            wp_send_json_success([
+                'queued'    => true,
+                'job_id'    => $job_id,
+                'total'     => count($post_ids),
+                'message'   => sprintf(
+                    __('Queued %d posts for background processing. Check the Job Queue page for progress.', 'smart-seo-fixer'),
+                    count($post_ids)
+                ),
+            ]);
         }
         
         global $wpdb;
@@ -2628,6 +2661,142 @@ class SSF_Ajax {
         SSF_Logger::clear();
         
         wp_send_json_success(['message' => __('Logs cleared successfully.', 'smart-seo-fixer')]);
+    }
+    
+    // ========================================================================
+    // Job Queue
+    // ========================================================================
+    
+    /**
+     * Get status of a specific job (for polling)
+     */
+    public function get_job_status() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        if (!$job_id) {
+            wp_send_json_error(['message' => __('Invalid job ID.', 'smart-seo-fixer')]);
+        }
+        
+        $job = SSF_Job_Queue::get($job_id);
+        if (!$job) {
+            wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
+        }
+        
+        $progress = $job->total_items > 0 
+            ? round(($job->processed_items / $job->total_items) * 100) 
+            : 0;
+        
+        wp_send_json_success([
+            'id'              => intval($job->id),
+            'job_type'        => $job->job_type,
+            'status'          => $job->status,
+            'total_items'     => intval($job->total_items),
+            'processed_items' => intval($job->processed_items),
+            'failed_items'    => intval($job->failed_items),
+            'progress'        => $progress,
+            'results'         => $job->results,
+            'created_at'      => $job->created_at,
+            'started_at'      => $job->started_at,
+            'completed_at'    => $job->completed_at,
+        ]);
+    }
+    
+    /**
+     * Get recent jobs list
+     */
+    public function get_jobs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $jobs = SSF_Job_Queue::get_recent(30);
+        $formatted = [];
+        
+        foreach ($jobs as $job) {
+            $progress = $job->total_items > 0 
+                ? round(($job->processed_items / $job->total_items) * 100) 
+                : 0;
+            
+            $formatted[] = [
+                'id'              => intval($job->id),
+                'job_type'        => $job->job_type,
+                'status'          => $job->status,
+                'total_items'     => intval($job->total_items),
+                'processed_items' => intval($job->processed_items),
+                'failed_items'    => intval($job->failed_items),
+                'progress'        => $progress,
+                'created_at'      => $job->created_at,
+                'started_at'      => $job->started_at,
+                'completed_at'    => $job->completed_at,
+            ];
+        }
+        
+        wp_send_json_success([
+            'jobs'         => $formatted,
+            'active_count' => SSF_Job_Queue::active_count(),
+        ]);
+    }
+    
+    /**
+     * Cancel a job
+     */
+    public function cancel_job() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        $result = SSF_Job_Queue::cancel($job_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success(['message' => __('Job cancelled.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Retry failed items in a job
+     */
+    public function retry_job() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        $new_job_id = SSF_Job_Queue::retry_failed($job_id);
+        
+        if (is_wp_error($new_job_id)) {
+            wp_send_json_error(['message' => $new_job_id->get_error_message()]);
+        }
+        
+        wp_send_json_success([
+            'message' => __('Retry job created.', 'smart-seo-fixer'),
+            'new_job_id' => $new_job_id,
+        ]);
     }
 }
 

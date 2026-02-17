@@ -84,6 +84,7 @@ $tables = [
     $wpdb->prefix . 'ssf_seo_scores',
     $wpdb->prefix . 'ssf_history',
     $wpdb->prefix . 'ssf_logs',
+    $wpdb->prefix . 'ssf_jobs',
 ];
 foreach ($tables as $table_name) {
     $wpdb->query("DROP TABLE IF EXISTS $table_name");
@@ -93,6 +94,10 @@ foreach ($tables as $table_name) {
 $timestamp = wp_next_scheduled('ssf_cron_generate_missing_seo');
 if ($timestamp) {
     wp_unschedule_event($timestamp, 'ssf_cron_generate_missing_seo');
+}
+$timestamp = wp_next_scheduled('ssf_process_job_queue');
+if ($timestamp) {
+    wp_unschedule_event($timestamp, 'ssf_process_job_queue');
 }
 
 // 6. Clear transients

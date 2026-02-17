@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,17 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.11.0 =
+* NEW: Background Job Queue - bulk operations (10+ posts) are automatically queued and processed in the background
+* NEW: Job Queue admin page with real-time progress bars, cancel, and retry failed items
+* NEW: API Rate Limiter - throttles OpenAI and GSC requests to prevent hitting rate limits
+* NEW: Automatic retry with exponential backoff on rate limit (429) and server errors (5xx)
+* NEW: Rate limit usage dashboard showing remaining requests per minute for OpenAI and GSC
+* NEW: Dashboard navigation card for Background Jobs
+* IMPROVED: Bulk AI Fix auto-routes to background queue when processing 10+ posts
+* IMPROVED: Custom cron interval (every minute) for responsive job processing
+* Database: Added ssf_jobs table for job tracking (auto-created on activation)
 
 = 1.10.0 =
 * NEW: Change History system - every AI/manual change is recorded with before/after values

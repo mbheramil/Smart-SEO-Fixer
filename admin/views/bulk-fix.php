@@ -359,6 +359,21 @@ jQuery(document).ready(function($) {
                 options: options
             }, function(response) {
                 if (response.success) {
+                    // Check if job was queued for background processing
+                    if (response.data.queued) {
+                        $('#bulk-progress-fill').css('width', '100%').css('background', '#7c3aed');
+                        $('#bulk-progress-text').text('<?php echo esc_js(__('Queued for background processing', 'smart-seo-fixer')); ?>');
+                        $('#bulk-progress-log').append(
+                            '<div style="padding: 12px; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; margin-top: 8px;">' +
+                            '<strong><?php echo esc_js(__('Background Job Created', 'smart-seo-fixer')); ?></strong><br>' +
+                            esc(response.data.message) + '<br><br>' +
+                            '<a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-jobs')); ?>" class="button button-primary">' +
+                            '<?php echo esc_js(__('View Job Queue', 'smart-seo-fixer')); ?></a></div>'
+                        );
+                        $('#bulk-done-btn').show();
+                        return;
+                    }
+                    
                     processed += response.data.processed || batch.length;
                     var pct = total > 0 ? Math.round((processed / total) * 100) : 100;
                     $('#bulk-progress-fill').css('width', pct + '%');
