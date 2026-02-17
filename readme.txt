@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,16 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.6.3 =
+* Fix: Bulk AI generation ("Generate All Missing SEO") now works — was silently failing
+* Fix: All AI handlers now validate API key upfront and return clear errors
+* Fix: Empty AI responses no longer wipe existing SEO data (all handlers protected)
+* Fix: Elementor/shortcode content now properly cleaned before sending to AI
+* Fix: Individual AI fix buttons now show actual API errors instead of generic failure
+* Fix: Post editor fix buttons validate API configuration before calling
+* Hardened: All 8 AJAX handlers audited for empty-response and error-path bugs
+* Improved: SQL queries use prepared statements for post type filtering
 
 = 1.6.2 =
 * Fix: "AI Unique Title" now generates a genuinely different title (tells AI to avoid repeating current one)

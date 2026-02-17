@@ -788,40 +788,72 @@ class SSF_Search_Console {
                 break;
                 
             case 'generate_seo':
-                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
-                    $openai = new SSF_OpenAI();
-                    if ($openai->is_configured()) {
-                        $post = get_post($post_id);
-                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                        
-                        $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
-                        if (empty($seo_title)) {
-                            $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
-                            if (!is_wp_error($title) && !empty(trim($title))) {
-                                update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
-                                $fixed[] = __('Generated SEO title', 'smart-seo-fixer');
-                            }
+                if ($post_id <= 0) {
+                    wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+                }
+                if (!class_exists('SSF_OpenAI')) {
+                    wp_send_json_error(['message' => __('OpenAI module not available.', 'smart-seo-fixer')]);
+                }
+                $openai = new SSF_OpenAI();
+                if (!$openai->is_configured()) {
+                    wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings.', 'smart-seo-fixer')]);
+                }
+                $post = get_post($post_id);
+                if (!$post) {
+                    wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+                }
+                
+                $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                $errors = [];
+                
+                // Generate focus keyword first (improves title/desc quality)
+                if (empty($focus_keyword)) {
+                    $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                    if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
+                        $kw = sanitize_text_field(trim($keywords['primary']));
+                        if (!empty($kw)) {
+                            update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+                            $focus_keyword = $kw;
+                            $fixed[] = sprintf(__('Focus keyword: "%s"', 'smart-seo-fixer'), $kw);
                         }
-                        
-                        $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
-                        if (empty($meta_desc)) {
-                            $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
-                            if (!is_wp_error($desc) && !empty(trim($desc))) {
-                                update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
-                                $fixed[] = __('Generated meta description', 'smart-seo-fixer');
-                            }
-                        }
-                        
-                        if (empty($focus_keyword)) {
-                            $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
-                            if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
-                                update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
-                                $fixed[] = __('Generated focus keyword', 'smart-seo-fixer');
-                            }
-                        }
-                    } else {
-                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+                    } elseif (is_wp_error($keywords)) {
+                        $errors[] = $keywords->get_error_message();
                     }
+                }
+                
+                // Generate SEO title
+                $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                if (empty($seo_title)) {
+                    $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                    if (!is_wp_error($title) && !empty(trim($title))) {
+                        $clean = sanitize_text_field(trim($title));
+                        if (!empty($clean)) {
+                            update_post_meta($post_id, '_ssf_seo_title', $clean);
+                            $fixed[] = sprintf(__('SEO title: "%s"', 'smart-seo-fixer'), $clean);
+                        }
+                    } elseif (is_wp_error($title)) {
+                        $errors[] = __('Title: ', 'smart-seo-fixer') . $title->get_error_message();
+                    }
+                }
+                
+                // Generate meta description
+                $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                if (empty($meta_desc)) {
+                    $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    if (!is_wp_error($desc) && !empty(trim($desc))) {
+                        $clean = sanitize_textarea_field(trim($desc));
+                        if (!empty($clean)) {
+                            update_post_meta($post_id, '_ssf_meta_description', $clean);
+                            $fixed[] = __('Meta description generated', 'smart-seo-fixer');
+                        }
+                    } elseif (is_wp_error($desc)) {
+                        $errors[] = __('Description: ', 'smart-seo-fixer') . $desc->get_error_message();
+                    }
+                }
+                
+                // If nothing was generated and there were errors, return error
+                if (empty($fixed) && !empty($errors)) {
+                    wp_send_json_error(['message' => implode('. ', $errors)]);
                 }
                 break;
                 

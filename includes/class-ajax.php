@@ -540,6 +540,10 @@ class SSF_Ajax {
         $openai = new SSF_OpenAI();
         $result = [];
         
+        if (!$openai->is_configured()) {
+            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+        }
+        
         switch ($issue_code) {
             case 'no_title':
             case 'title_too_short':
@@ -547,9 +551,14 @@ class SSF_Ajax {
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
                 $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
                 
-                if (!is_wp_error($title)) {
-                    update_post_meta($post_id, '_ssf_seo_title', trim($title));
+                if (is_wp_error($title)) {
+                    wp_send_json_error(['message' => $title->get_error_message()]);
+                }
+                if (!empty(trim($title))) {
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                     $result['seo_title'] = trim($title);
+                } else {
+                    wp_send_json_error(['message' => __('AI returned empty title. Try again.', 'smart-seo-fixer')]);
                 }
                 break;
                 
@@ -559,9 +568,14 @@ class SSF_Ajax {
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
                 $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                 
-                if (!is_wp_error($desc)) {
-                    update_post_meta($post_id, '_ssf_meta_description', trim($desc));
+                if (is_wp_error($desc)) {
+                    wp_send_json_error(['message' => $desc->get_error_message()]);
+                }
+                if (!empty(trim($desc))) {
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                     $result['meta_description'] = trim($desc);
+                } else {
+                    wp_send_json_error(['message' => __('AI returned empty description. Try again.', 'smart-seo-fixer')]);
                 }
                 break;
                 
@@ -593,14 +607,18 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
         }
         
+        $openai = new SSF_OpenAI();
+        if (!$openai->is_configured()) {
+            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+        }
+        
+        $analyzer = class_exists('SSF_Analyzer') ? new SSF_Analyzer() : null;
+        
         $results = [
             'success' => 0,
             'failed' => 0,
             'posts' => [],
         ];
-        
-        $openai = new SSF_OpenAI();
-        $analyzer = new SSF_Analyzer();
         
         foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
@@ -609,7 +627,6 @@ class SSF_Ajax {
             }
             
             $post = get_post($post_id);
-            
             if (!$post) {
                 $results['failed']++;
                 continue;
@@ -623,8 +640,8 @@ class SSF_Ajax {
                 $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
                 if (empty($current_title) || strlen($current_title) < 30) {
                     $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
-                    if (!is_wp_error($title)) {
-                        update_post_meta($post_id, '_ssf_seo_title', trim($title));
+                    if (!is_wp_error($title) && !empty(trim($title))) {
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                         $fixed[] = 'title';
                     }
                 }
@@ -635,20 +652,24 @@ class SSF_Ajax {
                 $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
                 if (empty($current_desc) || strlen($current_desc) < 120) {
                     $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
-                    if (!is_wp_error($desc)) {
-                        update_post_meta($post_id, '_ssf_meta_description', trim($desc));
+                    if (!is_wp_error($desc) && !empty(trim($desc))) {
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                         $fixed[] = 'meta';
                     }
                 }
             }
             
             // Re-analyze
-            $analysis = $analyzer->analyze_post($post_id);
+            $score = 0;
+            if ($analyzer) {
+                $analysis = $analyzer->analyze_post($post_id);
+                $score = $analysis['score'] ?? 0;
+            }
             
             $results['success']++;
             $results['posts'][$post_id] = [
                 'fixed' => $fixed,
-                'new_score' => $analysis['score'],
+                'new_score' => $score,
             ];
         }
         
@@ -1125,46 +1146,49 @@ class SSF_Ajax {
         $generate_keywords = !empty($options['generate_keywords']);
         $apply_to = sanitize_text_field($options['apply_to'] ?? 'missing');
         
+        // Validate OpenAI is configured BEFORE doing any work
+        $openai = new SSF_OpenAI();
+        if (!$openai->is_configured()) {
+            wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings to add it.', 'smart-seo-fixer')]);
+        }
+        
         global $wpdb;
         $table = $wpdb->prefix . 'ssf_seo_scores';
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
-        $post_types_str = "'" . implode("','", $post_types) . "'";
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
         
-        // Build query based on apply_to option
+        // Build query based on apply_to option (using prepared statements)
         switch ($apply_to) {
             case 'missing':
-                // Posts with no SEO data
-                $query = "
-                    SELECT p.ID 
-                    FROM {$wpdb->posts} p
+                $query = $wpdb->prepare(
+                    "SELECT p.ID FROM {$wpdb->posts} p
                     LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_seo_title'
                     WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($post_types_str)
-                    AND (pm.meta_value IS NULL OR pm.meta_value = '')
-                ";
+                    AND p.post_type IN ($placeholders)
+                    AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+                    ...$post_types
+                );
                 break;
                 
             case 'poor':
-                // Posts with score < 60 or no analysis
-                $query = "
-                    SELECT p.ID 
-                    FROM {$wpdb->posts} p
+                $query = $wpdb->prepare(
+                    "SELECT p.ID FROM {$wpdb->posts} p
                     LEFT JOIN $table s ON p.ID = s.post_id
                     WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($post_types_str)
-                    AND (s.score < 60 OR s.post_id IS NULL)
-                ";
+                    AND p.post_type IN ($placeholders)
+                    AND (s.score < 60 OR s.post_id IS NULL)",
+                    ...$post_types
+                );
                 break;
                 
             case 'all':
             default:
-                // All posts
-                $query = "
-                    SELECT p.ID 
-                    FROM {$wpdb->posts} p
+                $query = $wpdb->prepare(
+                    "SELECT p.ID FROM {$wpdb->posts} p
                     WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($post_types_str)
-                ";
+                    AND p.post_type IN ($placeholders)",
+                    ...$post_types
+                );
                 break;
         }
         
@@ -1175,23 +1199,58 @@ class SSF_Ajax {
         // Get batch
         $posts = $wpdb->get_col($wpdb->prepare($query . " ORDER BY p.ID ASC LIMIT %d OFFSET %d", $batch_size, $offset));
         
-        $openai = new SSF_OpenAI();
-        $analyzer = new SSF_Analyzer();
+        $analyzer = class_exists('SSF_Analyzer') ? new SSF_Analyzer() : null;
         $log = [];
         
         foreach ($posts as $post_id) {
             $post = get_post($post_id);
+            if (!$post) {
+                $log[] = sprintf('⚠️ Post #%d - Not found, skipped', $post_id);
+                continue;
+            }
+            
+            // Clean content for AI: strip shortcodes + HTML tags
+            $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
+            if (str_word_count($clean_content) < 10) {
+                $log[] = sprintf('⏭️ %s - Skipped (content too short for AI)', esc_html($post->post_title));
+                continue;
+            }
+            
             $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
             $generated = [];
+            $errors = [];
+            
+            // Generate keywords first (used for better title/desc generation)
+            if ($generate_keywords) {
+                $current_kw = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                if ($apply_to === 'all' || empty($current_kw)) {
+                    $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                    if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
+                        $kw = sanitize_text_field(trim($keywords['primary']));
+                        if (!empty($kw)) {
+                            update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+                            $focus_keyword = $kw;
+                            $generated[] = 'keyword';
+                        }
+                    } elseif (is_wp_error($keywords)) {
+                        $errors[] = 'keyword: ' . $keywords->get_error_message();
+                    }
+                }
+            }
             
             // Generate title
             if ($generate_title) {
                 $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
                 if ($apply_to === 'all' || empty($current_title)) {
                     $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
-                    if (!is_wp_error($title)) {
-                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
-                        $generated[] = 'title';
+                    if (!is_wp_error($title) && !empty(trim($title))) {
+                        $clean_title = sanitize_text_field(trim($title));
+                        if (!empty($clean_title)) {
+                            update_post_meta($post_id, '_ssf_seo_title', $clean_title);
+                            $generated[] = 'title';
+                        }
+                    } elseif (is_wp_error($title)) {
+                        $errors[] = 'title: ' . $title->get_error_message();
                     }
                 }
             }
@@ -1200,37 +1259,39 @@ class SSF_Ajax {
             if ($generate_desc) {
                 $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
                 if ($apply_to === 'all' || empty($current_desc)) {
-                    $desc = $openai->generate_meta_description($post->post_content, $current_desc, $focus_keyword);
-                    if (!is_wp_error($desc)) {
-                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
-                        $generated[] = 'description';
-                    }
-                }
-            }
-            
-            // Generate keywords
-            if ($generate_keywords) {
-                $current_kw = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                if ($apply_to === 'all' || empty($current_kw)) {
-                    $keywords = $openai->suggest_keywords($post->post_content);
-                    if (!is_wp_error($keywords) && !empty($keywords['primary'])) {
-                        update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
-                        $generated[] = 'keyword';
+                    $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    if (!is_wp_error($desc) && !empty(trim($desc))) {
+                        $clean_desc = sanitize_textarea_field(trim($desc));
+                        if (!empty($clean_desc)) {
+                            update_post_meta($post_id, '_ssf_meta_description', $clean_desc);
+                            $generated[] = 'description';
+                        }
+                    } elseif (is_wp_error($desc)) {
+                        $errors[] = 'desc: ' . $desc->get_error_message();
                     }
                 }
             }
             
             // Re-analyze
-            $analysis = $analyzer->analyze_post($post_id);
+            $score = 0;
+            if ($analyzer) {
+                $analysis = $analyzer->analyze_post($post_id);
+                $score = $analysis['score'] ?? 0;
+            }
             
             if (!empty($generated)) {
-                $log[] = sprintf('✅ %s - Generated: %s (New score: %d)', 
-                    $post->post_title, 
+                $log[] = sprintf('✅ %s — Generated: %s (Score: %d)', 
+                    esc_html($post->post_title), 
                     implode(', ', $generated),
-                    $analysis['score'] ?? 0
+                    $score
+                );
+            } elseif (!empty($errors)) {
+                $log[] = sprintf('❌ %s — API error: %s', 
+                    esc_html($post->post_title),
+                    implode('; ', $errors)
                 );
             } else {
-                $log[] = sprintf('⏭️ %s - Skipped (already has content)', $post->post_title);
+                $log[] = sprintf('⏭️ %s — Skipped (already has SEO data)', esc_html($post->post_title));
             }
         }
         
@@ -1295,7 +1356,7 @@ class SSF_Ajax {
             $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
             if ($overwrite || empty($current_title)) {
                 $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
-                if (!is_wp_error($title)) {
+                if (!is_wp_error($title) && !empty(trim($title))) {
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                     $generated[] = 'title';
                 }
@@ -1307,7 +1368,7 @@ class SSF_Ajax {
             $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
             if ($overwrite || empty($current_desc)) {
                 $desc = $openai->generate_meta_description($post->post_content, $current_desc, $focus_keyword);
-                if (!is_wp_error($desc)) {
+                if (!is_wp_error($desc) && !empty(trim($desc))) {
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                     $generated[] = 'description';
                 }

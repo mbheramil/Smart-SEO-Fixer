@@ -98,7 +98,8 @@ class SSF_OpenAI {
             $prompt .= "Current Title: {$current_title}\n\n";
         }
         
-        $prompt .= "Content:\n" . wp_trim_words($content, 500) . "\n\n";
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
+        $prompt .= "Content:\n" . $clean_content . "\n\n";
         $prompt .= "Respond with ONLY the optimized title, nothing else.";
         
         $messages = [
@@ -139,7 +140,8 @@ class SSF_OpenAI {
             $prompt .= "Current Description: {$current_description}\n\n";
         }
         
-        $prompt .= "Content:\n" . wp_trim_words($content, 500) . "\n\n";
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
+        $prompt .= "Content:\n" . $clean_content . "\n\n";
         $prompt .= "Respond with ONLY the meta description, nothing else.";
         
         $messages = [
@@ -216,7 +218,8 @@ class SSF_OpenAI {
             $prompt .= "Focus Keyword: {$focus_keyword}\n";
         }
         
-        $prompt .= "\nContent:\n" . wp_trim_words($content, 1000) . "\n\n";
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 1000);
+        $prompt .= "\nContent:\n" . $clean_content . "\n\n";
         
         $prompt .= "Analyze and provide feedback on:\n";
         $prompt .= "1. Keyword usage and placement\n";
@@ -299,7 +302,8 @@ class SSF_OpenAI {
             $prompt .= "Title: {$title}\n\n";
         }
         
-        $prompt .= "Content:\n" . wp_trim_words($content, 500) . "\n\n";
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
+        $prompt .= "Content:\n" . $clean_content . "\n\n";
         
         $prompt .= "Suggest 5 focus keywords with:\n";
         $prompt .= "- Primary keyword (main focus)\n";
@@ -351,7 +355,8 @@ class SSF_OpenAI {
         }
         $prompt .= "Content Type: {$post_type}\n";
         $prompt .= "=== END SITE DATA ===\n\n";
-        $prompt .= "Content:\n" . wp_trim_words($content, 300) . "\n\n";
+        $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 300);
+        $prompt .= "Content:\n" . $clean_content . "\n\n";
         
         $prompt .= "CRITICAL RULES:\n";
         $prompt .= "1. Do NOT suggest Article, BlogPosting, NewsArticle, WebPage, BreadcrumbList, Organization, or WebSite schemas — these are ALREADY generated automatically by the plugin.\n";
