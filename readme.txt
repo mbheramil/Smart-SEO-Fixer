@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.6.1
+Stable tag: 1.6.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.6.2 =
+* Fix: "AI Unique Title" now generates a genuinely different title (tells AI to avoid repeating current one)
+* Fix: "AI Unique Desc" now generates a genuinely different description
+* Fix: UI no longer shows "Fixed!" when AI call fails — shows actual error message
+* Fix: Validates AI returned something different before saving
+* Improved: Higher temperature (0.9) for unique generation to ensure creative variation
 
 = 1.6.1 =
 * Fix: Resolved redirect loop on pages with year-prefixed slugs (e.g. 2025-scholarship)

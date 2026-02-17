@@ -660,15 +660,18 @@ jQuery(document).ready(function($) {
             fix_type: fixType,
             post_id: postId
         }, function(response) {
-            if (response.success) {
+            if (response.success && response.data.fixed && response.data.fixed.length > 0) {
                 $btn.closest('.ssf-audit-item').addClass('ssf-audit-fixed');
-                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Fixed!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+                var msg = response.data.message || '<?php echo esc_js(__('Fixed!', 'smart-seo-fixer')); ?>';
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> ' + escHtml(msg)).addClass('ssf-btn-fixed');
             } else {
                 $btn.prop('disabled', false).html(originalHtml);
-                alert(response.data.message || '<?php echo esc_js(__('Fix failed.', 'smart-seo-fixer')); ?>');
+                var errMsg = (response.data && response.data.message) ? response.data.message : '<?php echo esc_js(__('No changes made. Try again.', 'smart-seo-fixer')); ?>';
+                alert(errMsg);
             }
         }).fail(function() {
             $btn.prop('disabled', false).html(originalHtml);
+            alert('<?php echo esc_js(__('Request failed. Check your connection.', 'smart-seo-fixer')); ?>');
         });
     });
     

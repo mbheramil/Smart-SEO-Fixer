@@ -828,30 +828,106 @@ class SSF_Search_Console {
             case 'generate_unique_title':
                 if ($post_id > 0 && class_exists('SSF_OpenAI')) {
                     $openai = new SSF_OpenAI();
-                    if ($openai->is_configured()) {
-                        $post = get_post($post_id);
-                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                        $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
-                        if (!is_wp_error($title) && !empty(trim($title))) {
-                            update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
-                            $fixed[] = sprintf(__('Generated unique title: "%s"', 'smart-seo-fixer'), trim($title));
-                        }
+                    if (!$openai->is_configured()) {
+                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
                     }
+                    $post = get_post($post_id);
+                    if (!$post) {
+                        wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+                    }
+                    $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                    $current_seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                    
+                    // Tell AI to generate a DIFFERENT title than the current one
+                    $content = wp_trim_words(wp_strip_all_tags($post->post_content), 500);
+                    $prompt = "You are an SEO expert. Generate a NEW, UNIQUE SEO title for this page.\n\n";
+                    $prompt .= "CRITICAL: The title MUST be completely different from the current one. Do NOT reuse the same wording.\n\n";
+                    $prompt .= "Requirements:\n- Maximum 60 characters\n- Include focus keyword naturally if provided\n- Make it compelling and click-worthy\n- Must be DIFFERENT from current title\n\n";
+                    if (!empty($focus_keyword)) {
+                        $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
+                    }
+                    $prompt .= "Current Title (DO NOT repeat this): " . (!empty($current_seo_title) ? $current_seo_title : $post->post_title) . "\n\n";
+                    $prompt .= "Page Content:\n{$content}\n\n";
+                    $prompt .= "Respond with ONLY the new unique title, nothing else.";
+                    
+                    $messages = [
+                        ['role' => 'system', 'content' => 'You generate unique, SEO-optimized titles. Never repeat the existing title.'],
+                        ['role' => 'user', 'content' => $prompt],
+                    ];
+                    
+                    $title = $openai->request($messages, 100, 0.9);
+                    
+                    if (is_wp_error($title)) {
+                        wp_send_json_error(['message' => $title->get_error_message()]);
+                    }
+                    
+                    $title = trim(trim($title), '"\'');
+                    
+                    if (empty($title)) {
+                        wp_send_json_error(['message' => __('AI returned empty title. Try again.', 'smart-seo-fixer')]);
+                    }
+                    
+                    // Ensure it's actually different
+                    if (strtolower($title) === strtolower($current_seo_title)) {
+                        wp_send_json_error(['message' => __('AI generated the same title. Try again.', 'smart-seo-fixer')]);
+                    }
+                    
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+                    $fixed[] = sprintf(__('New title: "%s"', 'smart-seo-fixer'), $title);
                 }
                 break;
                 
             case 'generate_unique_desc':
                 if ($post_id > 0 && class_exists('SSF_OpenAI')) {
                     $openai = new SSF_OpenAI();
-                    if ($openai->is_configured()) {
-                        $post = get_post($post_id);
-                        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                        $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
-                        if (!is_wp_error($desc) && !empty(trim($desc))) {
-                            update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
-                            $fixed[] = sprintf(__('Generated unique description', 'smart-seo-fixer'));
-                        }
+                    if (!$openai->is_configured()) {
+                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
                     }
+                    $post = get_post($post_id);
+                    if (!$post) {
+                        wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+                    }
+                    $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                    $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                    
+                    // Tell AI to generate a DIFFERENT description
+                    $content = wp_trim_words(wp_strip_all_tags($post->post_content), 500);
+                    $prompt = "You are an SEO expert. Generate a NEW, UNIQUE meta description for this page.\n\n";
+                    $prompt .= "CRITICAL: The description MUST be completely different from the current one. Do NOT reuse the same wording.\n\n";
+                    $prompt .= "Requirements:\n- Between 150-160 characters\n- Include focus keyword naturally if provided\n- Include a subtle call-to-action\n- Must be DIFFERENT from current description\n\n";
+                    if (!empty($focus_keyword)) {
+                        $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
+                    }
+                    if (!empty($current_desc)) {
+                        $prompt .= "Current Description (DO NOT repeat this): {$current_desc}\n\n";
+                    }
+                    $prompt .= "Page Content:\n{$content}\n\n";
+                    $prompt .= "Respond with ONLY the new unique meta description, nothing else.";
+                    
+                    $messages = [
+                        ['role' => 'system', 'content' => 'You generate unique, SEO-optimized meta descriptions. Never repeat the existing description.'],
+                        ['role' => 'user', 'content' => $prompt],
+                    ];
+                    
+                    $desc = $openai->request($messages, 200, 0.9);
+                    
+                    if (is_wp_error($desc)) {
+                        wp_send_json_error(['message' => $desc->get_error_message()]);
+                    }
+                    
+                    $desc = trim(trim($desc), '"\'');
+                    
+                    if (empty($desc)) {
+                        wp_send_json_error(['message' => __('AI returned empty description. Try again.', 'smart-seo-fixer')]);
+                    }
+                    
+                    // Ensure it's actually different
+                    if (strtolower($desc) === strtolower($current_desc)) {
+                        wp_send_json_error(['message' => __('AI generated the same description. Try again.', 'smart-seo-fixer')]);
+                    }
+                    
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+                    $fixed[] = __('New unique description generated', 'smart-seo-fixer');
                 }
                 break;
                 
