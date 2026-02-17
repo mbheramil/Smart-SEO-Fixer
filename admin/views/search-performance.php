@@ -159,6 +159,77 @@ if (class_exists('SSF_GSC_Client')) {
             </div>
         </div>
         
+        <!-- Pages Not Indexed -->
+        <div class="ssf-card" style="margin-top: 24px;">
+            <div class="ssf-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>
+                    <span class="dashicons dashicons-warning" style="color: #f59e0b;"></span>
+                    <?php esc_html_e('Pages Not Appearing in Search', 'smart-seo-fixer'); ?>
+                </h2>
+                <button type="button" class="button" id="ssf-gsc-scan-indexed">
+                    <span class="dashicons dashicons-search" style="vertical-align: text-bottom;"></span>
+                    <?php esc_html_e('Scan Now', 'smart-seo-fixer'); ?>
+                </button>
+            </div>
+            <div class="ssf-card-body">
+                <p class="description" style="margin: 0 0 16px;" id="ssf-gsc-index-desc">
+                    <?php esc_html_e('Click "Scan Now" to compare your published pages against Google Search Console data and find pages that aren\'t appearing in search results.', 'smart-seo-fixer'); ?>
+                </p>
+                
+                <!-- Summary stats (hidden until scan) -->
+                <div id="ssf-gsc-index-summary" style="display: none; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: 700; color: #16a34a;" id="ssf-idx-in-search">0</div>
+                            <div style="font-size: 12px; color: #15803d;"><?php esc_html_e('In Search Results', 'smart-seo-fixer'); ?></div>
+                        </div>
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: 700; color: #dc2626;" id="ssf-idx-not-found">0</div>
+                            <div style="font-size: 12px; color: #991b1b;"><?php esc_html_e('Not in Search Results', 'smart-seo-fixer'); ?></div>
+                        </div>
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: 700; color: #2563eb;" id="ssf-idx-total">0</div>
+                            <div style="font-size: 12px; color: #1e40af;"><?php esc_html_e('Total Published', 'smart-seo-fixer'); ?></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Loading state -->
+                <div id="ssf-gsc-index-loading" style="display: none; text-align: center; padding: 40px;">
+                    <span class="spinner is-active" style="float: none;"></span>
+                    <p style="color: #9ca3af;"><?php esc_html_e('Scanning pages... This may take a moment.', 'smart-seo-fixer'); ?></p>
+                </div>
+                
+                <!-- Results table -->
+                <div id="ssf-gsc-index-results" style="display: none;">
+                    <table class="wp-list-table widefat striped" id="ssf-gsc-index-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 35%;"><?php esc_html_e('Page', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 30%;"><?php esc_html_e('Issues Found', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 15%;"><?php esc_html_e('Status', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 20%; text-align: right;"><?php esc_html_e('Actions', 'smart-seo-fixer'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="ssf-gsc-index-body"></tbody>
+                    </table>
+                    <div id="ssf-gsc-index-show-more" style="text-align: center; padding: 12px; display: none;">
+                        <button type="button" class="button" id="ssf-gsc-show-all">
+                            <?php esc_html_e('Show All', 'smart-seo-fixer'); ?>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- No issues found -->
+                <div id="ssf-gsc-index-clean" style="display: none; text-align: center; padding: 30px;">
+                    <span class="dashicons dashicons-yes-alt" style="font-size: 48px; color: #16a34a; width: 48px; height: 48px;"></span>
+                    <p style="color: #15803d; font-weight: 600; margin-top: 12px;">
+                        <?php esc_html_e('All your published pages are appearing in Google search results!', 'smart-seo-fixer'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
     <?php endif; ?>
 </div>
 
@@ -412,6 +483,193 @@ jQuery(document).ready(function($) {
             }
         });
     });
+    
+    // =====================================================
+    // Not Indexed Pages Scanner
+    // =====================================================
+    var allNotIndexed = [];
+    var showLimit = 20;
+    
+    function issueTag(code) {
+        var labels = {
+            'missing_title': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No SEO Title</span>',
+            'missing_description': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Meta Desc</span>',
+            'no_outgoing_links': '<span style="background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Outgoing Links</span>',
+            'no_incoming_links': '<span style="background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Incoming Links</span>'
+        };
+        return labels[code] || code;
+    }
+    
+    function renderIndexRows(items) {
+        var html = '';
+        items.forEach(function(p) {
+            var issues = p.issues.map(function(i) { return issueTag(i); }).join('');
+            if (!issues) issues = '<span style="color:#16a34a;font-size:12px;">No obvious issues</span>';
+            
+            var statusColor = p.issue_count > 2 ? '#dc2626' : (p.issue_count > 0 ? '#f59e0b' : '#9ca3af');
+            var statusLabel = p.issue_count > 2 ? '<?php esc_html_e('Critical', 'smart-seo-fixer'); ?>' : (p.issue_count > 0 ? '<?php esc_html_e('Needs Fix', 'smart-seo-fixer'); ?>' : '<?php esc_html_e('Check', 'smart-seo-fixer'); ?>');
+            
+            html += '<tr id="ssf-idx-row-' + p.id + '">';
+            html += '<td>';
+            html += '<a href="' + $('<span>').text(p.url).html() + '" target="_blank" style="text-decoration:none;font-weight:500;">' + $('<span>').text(p.title).html() + '</a>';
+            html += '<div style="font-size:11px;color:#9ca3af;">' + p.post_type + '</div>';
+            html += '</td>';
+            html += '<td>' + issues + '</td>';
+            html += '<td><span style="color:' + statusColor + ';font-weight:600;font-size:12px;">' + statusLabel + '</span></td>';
+            html += '<td style="text-align:right;">';
+            if (p.issue_count > 0) {
+                html += '<button type="button" class="button button-small ssf-idx-fix-btn" data-id="' + p.id + '" data-issues=\'' + JSON.stringify(p.issues) + '\' style="margin-right:4px;">AI Fix</button>';
+            }
+            html += '<button type="button" class="button button-small ssf-idx-inspect-btn" data-url="' + $('<span>').text(p.url).html() + '" data-id="' + p.id + '">Inspect</button>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        return html;
+    }
+    
+    // Scan button
+    $('#ssf-gsc-scan-indexed').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> <?php esc_html_e('Scanning...', 'smart-seo-fixer'); ?>');
+        
+        $('#ssf-gsc-index-desc').hide();
+        $('#ssf-gsc-index-loading').show();
+        $('#ssf-gsc-index-results, #ssf-gsc-index-clean, #ssf-gsc-index-summary').hide();
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_gsc_not_indexed',
+            nonce: ssfAdmin.nonce
+        }, function(response) {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-search" style="vertical-align:text-bottom;"></span> <?php esc_html_e('Scan Now', 'smart-seo-fixer'); ?>');
+            $('#ssf-gsc-index-loading').hide();
+            
+            if (!response.success) {
+                $('#ssf-gsc-index-desc').show().text(response.data?.message || 'Error scanning.');
+                return;
+            }
+            
+            var d = response.data;
+            
+            // Show summary
+            $('#ssf-idx-total').text(d.total_published);
+            $('#ssf-idx-in-search').text(d.total_in_gsc);
+            $('#ssf-idx-not-found').text(d.count);
+            $('#ssf-gsc-index-summary').show();
+            
+            if (d.count === 0) {
+                $('#ssf-gsc-index-clean').show();
+                return;
+            }
+            
+            allNotIndexed = d.not_indexed;
+            var showing = allNotIndexed.slice(0, showLimit);
+            $('#ssf-gsc-index-body').html(renderIndexRows(showing));
+            $('#ssf-gsc-index-results').show();
+            
+            if (allNotIndexed.length > showLimit) {
+                $('#ssf-gsc-index-show-more').show();
+                $('#ssf-gsc-show-all').text('<?php esc_html_e('Show All', 'smart-seo-fixer'); ?> (' + allNotIndexed.length + ')');
+            } else {
+                $('#ssf-gsc-index-show-more').hide();
+            }
+        });
+    });
+    
+    // Show All
+    $(document).on('click', '#ssf-gsc-show-all', function() {
+        $('#ssf-gsc-index-body').html(renderIndexRows(allNotIndexed));
+        $('#ssf-gsc-index-show-more').hide();
+    });
+    
+    // Inspect URL
+    $(document).on('click', '.ssf-idx-inspect-btn', function() {
+        var $btn = $(this);
+        var url = $btn.data('url');
+        var postId = $btn.data('id');
+        
+        $btn.prop('disabled', true).text('...');
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_gsc_inspect_url',
+            nonce: ssfAdmin.nonce,
+            url: url
+        }, function(response) {
+            $btn.prop('disabled', false).text('Inspect');
+            
+            if (!response.success) {
+                alert(response.data?.message || 'Inspection failed');
+                return;
+            }
+            
+            var r = response.data;
+            var verdict = r?.inspectionResult?.indexStatusResult?.verdict || 'UNKNOWN';
+            var coverage = r?.inspectionResult?.indexStatusResult?.coverageState || '';
+            var crawled = r?.inspectionResult?.indexStatusResult?.lastCrawlTime || '';
+            
+            var verdictColor = verdict === 'PASS' ? '#16a34a' : (verdict === 'NEUTRAL' ? '#f59e0b' : '#dc2626');
+            var $row = $('#ssf-idx-row-' + postId);
+            $row.find('td:eq(2)').html(
+                '<span style="color:' + verdictColor + ';font-weight:600;font-size:12px;">' + verdict + '</span>' +
+                (coverage ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + $('<span>').text(coverage).html() + '</div>' : '')
+            );
+        });
+    });
+    
+    // AI Fix button
+    $(document).on('click', '.ssf-idx-fix-btn', function() {
+        var $btn = $(this);
+        var postId = $btn.data('id');
+        var issues = $btn.data('issues');
+        
+        $btn.prop('disabled', true).text('<?php esc_html_e('Fixing...', 'smart-seo-fixer'); ?>');
+        
+        var fixQueue = [];
+        
+        // Queue up fixes based on issues
+        if (issues.indexOf('missing_title') !== -1 || issues.indexOf('missing_description') !== -1) {
+            fixQueue.push({action: 'ssf_bulk_ai_fix', post_ids: [postId]});
+        }
+        if (issues.indexOf('no_incoming_links') !== -1 || issues.indexOf('no_outgoing_links') !== -1) {
+            fixQueue.push({action: 'ssf_fix_orphaned_page', post_id: postId});
+        }
+        
+        var completed = 0;
+        var results = [];
+        
+        function runNext() {
+            if (completed >= fixQueue.length) {
+                $btn.text('<?php esc_html_e('Fixed!', 'smart-seo-fixer'); ?>').css('color', '#16a34a');
+                // Update the issues column
+                var $row = $('#ssf-idx-row-' + postId);
+                $row.find('td:eq(1)').html('<span style="color:#16a34a;font-size:12px;">' + results.join('<br>') + '</span>');
+                $row.find('td:eq(2)').html('<span style="color:#16a34a;font-weight:600;font-size:12px;"><?php esc_html_e('Fixed', 'smart-seo-fixer'); ?></span>');
+                return;
+            }
+            
+            var fix = fixQueue[completed];
+            fix.nonce = ssfAdmin.nonce;
+            
+            $.post(ssfAdmin.ajax_url, fix, function(response) {
+                completed++;
+                if (response.success) {
+                    results.push(response.data?.message || '<?php esc_html_e('Fixed', 'smart-seo-fixer'); ?>');
+                } else {
+                    results.push(response.data?.message || '<?php esc_html_e('Could not fix', 'smart-seo-fixer'); ?>');
+                }
+                runNext();
+            }).fail(function() {
+                completed++;
+                results.push('<?php esc_html_e('Request failed', 'smart-seo-fixer'); ?>');
+                runNext();
+            });
+        }
+        
+        if (fixQueue.length > 0) {
+            runNext();
+        } else {
+            $btn.text('<?php esc_html_e('Nothing to fix', 'smart-seo-fixer'); ?>');
+        }
+    });
 });
 </script>
 
@@ -435,5 +693,15 @@ jQuery(document).ready(function($) {
     white-space: nowrap;
 }
 #ssf-gsc-canvas { display: none; }
+#ssf-gsc-index-table td, #ssf-gsc-index-table th {
+    padding: 10px 12px;
+    font-size: 13px;
+    vertical-align: middle;
+}
+.ssf-idx-fix-btn:disabled { opacity: 0.6; }
+@media (max-width: 768px) {
+    #ssf-gsc-index-table td:nth-child(2) { display: none; }
+    #ssf-gsc-index-table th:nth-child(2) { display: none; }
+}
 </style>
 <?php endif; ?>

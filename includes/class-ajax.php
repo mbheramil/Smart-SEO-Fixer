@@ -54,6 +54,7 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_gsc_performance', [$this, 'gsc_performance']);
         add_action('wp_ajax_ssf_gsc_inspect_url', [$this, 'gsc_inspect_url']);
         add_action('wp_ajax_ssf_gsc_submit_sitemap', [$this, 'gsc_submit_sitemap']);
+        add_action('wp_ajax_ssf_gsc_not_indexed', [$this, 'gsc_not_indexed']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         
         // Schema tools
@@ -2334,6 +2335,123 @@ class SSF_Ajax {
         }
         
         wp_send_json_success(['message' => __('Sitemap submitted successfully!', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Find pages not appearing in GSC search data (likely not indexed)
+     */
+    public function gsc_not_indexed() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        
+        if (!$gsc->is_connected()) {
+            wp_send_json_error(['message' => __('Not connected to Google Search Console.', 'smart-seo-fixer')]);
+        }
+        
+        // Get all pages that appear in GSC (last 90 days for broader coverage)
+        $gsc_pages = $gsc->get_top_pages(90, 5000);
+        
+        if (is_wp_error($gsc_pages)) {
+            wp_send_json_error(['message' => $gsc_pages->get_error_message()]);
+        }
+        
+        $indexed_urls = [];
+        if (!empty($gsc_pages['rows'])) {
+            foreach ($gsc_pages['rows'] as $row) {
+                if (!empty($row['keys'][0])) {
+                    $indexed_urls[] = rtrim($row['keys'][0], '/');
+                }
+            }
+        }
+        
+        // Get all published posts/pages
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $all_posts = get_posts([
+            'post_type'      => $post_types,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ]);
+        
+        $not_indexed = [];
+        foreach ($all_posts as $post_id) {
+            $url = get_permalink($post_id);
+            $url_normalized = rtrim($url, '/');
+            
+            if (!in_array($url_normalized, $indexed_urls)) {
+                $post = get_post($post_id);
+                $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                $seo_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                
+                // Check for internal links in content
+                $has_internal_links = false;
+                $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+                if (preg_match_all('/href=["\']([^"\']+)["\']/', $post->post_content, $link_matches)) {
+                    foreach ($link_matches[1] as $href) {
+                        $link_host = wp_parse_url($href, PHP_URL_HOST);
+                        if ($link_host === $site_host || (empty($link_host) && strpos($href, '/') === 0)) {
+                            $has_internal_links = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // Check if any other page links TO this page
+                $has_incoming_links = false;
+                global $wpdb;
+                $incoming = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->posts} 
+                     WHERE post_status = 'publish' 
+                     AND ID != %d 
+                     AND (post_content LIKE %s OR post_content LIKE %s)
+                     LIMIT 1",
+                    $post_id,
+                    '%' . $wpdb->esc_like($url) . '%',
+                    '%' . $wpdb->esc_like(wp_parse_url($url, PHP_URL_PATH)) . '%'
+                ));
+                $has_incoming_links = intval($incoming) > 0;
+                
+                $issues = [];
+                if (empty($seo_title)) $issues[] = 'missing_title';
+                if (empty($seo_desc)) $issues[] = 'missing_description';
+                if (!$has_internal_links) $issues[] = 'no_outgoing_links';
+                if (!$has_incoming_links) $issues[] = 'no_incoming_links';
+                
+                $not_indexed[] = [
+                    'id'          => $post_id,
+                    'title'       => $post->post_title,
+                    'url'         => $url,
+                    'post_type'   => $post->post_type,
+                    'has_title'   => !empty($seo_title),
+                    'has_desc'    => !empty($seo_desc),
+                    'has_outgoing' => $has_internal_links,
+                    'has_incoming' => $has_incoming_links,
+                    'issues'      => $issues,
+                    'issue_count' => count($issues),
+                ];
+            }
+        }
+        
+        // Sort by most issues first
+        usort($not_indexed, function($a, $b) {
+            return $b['issue_count'] - $a['issue_count'];
+        });
+        
+        wp_send_json_success([
+            'total_published' => count($all_posts),
+            'total_in_gsc'    => count($indexed_urls),
+            'not_indexed'     => $not_indexed,
+            'count'           => count($not_indexed),
+        ]);
     }
 }
 
