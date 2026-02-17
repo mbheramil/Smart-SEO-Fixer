@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.8.4 =
+* FIX: Critical error caused by incorrect plugin zip structure during auto-update
+* Fixed release packaging to include proper folder structure for WordPress updater
 
 = 1.8.3 =
 * NEW: AI-powered internal linking for orphaned pages — automatically adds contextual links from relevant posts

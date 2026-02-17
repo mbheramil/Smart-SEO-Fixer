@@ -95,7 +95,7 @@ if (!defined('ABSPATH')) {
             </div>
             <div class="ssf-stat-content">
                 <span class="ssf-stat-value" id="stat-trailing-slash">—</span>
-                <span class="ssf-stat-label"><?php esc_html_e('Trailing Slash — Auto-Enforced', 'smart-seo-fixer'); ?></span>
+                <span class="ssf-stat-label"><?php esc_html_e('Trailing Slash - Auto-Enforced', 'smart-seo-fixer'); ?></span>
             </div>
         </div>
         
