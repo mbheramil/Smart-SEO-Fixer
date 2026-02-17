@@ -643,6 +643,12 @@ jQuery(document).ready(function($) {
         $('#bulk-progress-text').text('0%');
         $('#bulk-progress-log').html('');
         
+        // Collect selected post IDs from the preview checkboxes
+        var selectedIds = [];
+        $('.preview-item-cb:checked').each(function() {
+            selectedIds.push(parseInt($(this).val()));
+        });
+        
         var options = {
             generate_title: genTitle,
             generate_desc: genDesc,
@@ -650,25 +656,35 @@ jQuery(document).ready(function($) {
             apply_to: $('input[name="bulk_apply_to"]:checked').val()
         };
         
-        runBulkInModal(options);
+        runBulkInModal(options, selectedIds);
     });
     
-    function runBulkInModal(options) {
-        var offset = 0, batchSize = 5, processed = 0, total = 0;
+    function runBulkInModal(options, postIds) {
+        var batchSize = 5, processed = 0, total = postIds.length;
         
         function next() {
-            var postData = $.extend({
+            if (processed >= total) {
+                $('#bulk-modal-title').text('<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
+                var pct = 100;
+                $('#bulk-progress-fill').css('width', pct + '%');
+                $('#bulk-progress-text').text('100% (' + total + '/' + total + ')');
+                $('#start-bulk-fix').prop('disabled', false).html('<span class="dashicons dashicons-yes-alt" style="margin-top:4px;"></span> <?php echo esc_js(__('Done — Close', 'smart-seo-fixer')); ?>').off('click').on('click', function() {
+                    $('#bulk-fix-modal').hide();
+                    loadDashboardStats();
+                });
+                return;
+            }
+            
+            var batch = postIds.slice(processed, processed + batchSize);
+            
+            $.post(ssfAdmin.ajax_url, {
                 action: 'ssf_bulk_ai_fix',
                 nonce: ssfAdmin.nonce,
-                offset: offset,
-                batch_size: batchSize
-            }, options);
-            postData.options = options;
-            
-            $.post(ssfAdmin.ajax_url, postData, function(response) {
+                post_ids: batch,
+                options: options
+            }, function(response) {
                 if (response.success) {
-                    processed += response.data.processed || 0;
-                    total = response.data.total || total;
+                    processed += response.data.processed || batch.length;
                     var pct = total > 0 ? Math.round((processed / total) * 100) : 100;
                     $('#bulk-progress-fill').css('width', pct + '%');
                     $('#bulk-progress-text').text(pct + '% (' + processed + '/' + total + ')');
@@ -681,16 +697,7 @@ jQuery(document).ready(function($) {
                         el.scrollTop = el.scrollHeight;
                     }
                     
-                    if (response.data.done) {
-                        $('#bulk-modal-title').text('<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
-                        $('#start-bulk-fix').prop('disabled', false).html('<span class="dashicons dashicons-yes-alt" style="margin-top:4px;"></span> <?php echo esc_js(__('Done — Close', 'smart-seo-fixer')); ?>').off('click').on('click', function() {
-                            $('#bulk-fix-modal').hide();
-                            loadDashboardStats();
-                        });
-                    } else {
-                        offset += batchSize;
-                        setTimeout(next, 300);
-                    }
+                    setTimeout(next, 300);
                 } else {
                     var msg = (response.data && response.data.message) || '<?php echo esc_js(__('Unknown error', 'smart-seo-fixer')); ?>';
                     $('#bulk-progress-log').append('<div style="color:#dc2626;">❌ ' + esc(msg) + '</div>');

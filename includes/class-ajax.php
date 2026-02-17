@@ -1145,16 +1145,24 @@ class SSF_Ajax {
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
         
+        // Helper: subquery to check if a meta key has a real (non-empty, non-whitespace) value
+        $has_meta = function($key) use ($wpdb) {
+            return "EXISTS (SELECT 1 FROM {$wpdb->postmeta} WHERE post_id = p.ID AND meta_key = '{$key}' AND TRIM(meta_value) != '')";
+        };
+        
         switch ($apply_to) {
             case 'missing':
+                // Posts where ANY of title/description/keyword is missing or empty
                 $query = $wpdb->prepare(
-                    "SELECT p.ID, p.post_title, p.post_type, p.post_date
+                    "SELECT DISTINCT p.ID, p.post_title, p.post_type, p.post_date
                     FROM {$wpdb->posts} p
-                    LEFT JOIN {$wpdb->postmeta} t ON p.ID = t.post_id AND t.meta_key = '_ssf_seo_title'
-                    LEFT JOIN {$wpdb->postmeta} d ON p.ID = d.post_id AND d.meta_key = '_ssf_meta_description'
                     WHERE p.post_status = 'publish'
                     AND p.post_type IN ($placeholders)
-                    AND ((t.meta_value IS NULL OR t.meta_value = '') OR (d.meta_value IS NULL OR d.meta_value = ''))
+                    AND (
+                        NOT {$has_meta('_ssf_seo_title')}
+                        OR NOT {$has_meta('_ssf_meta_description')}
+                        OR NOT {$has_meta('_ssf_focus_keyword')}
+                    )
                     ORDER BY p.post_date DESC",
                     ...$post_types
                 );
@@ -1162,7 +1170,7 @@ class SSF_Ajax {
                 
             case 'poor':
                 $query = $wpdb->prepare(
-                    "SELECT p.ID, p.post_title, p.post_type, p.post_date
+                    "SELECT DISTINCT p.ID, p.post_title, p.post_type, p.post_date
                     FROM {$wpdb->posts} p
                     LEFT JOIN $table s ON p.ID = s.post_id
                     WHERE p.post_status = 'publish'
@@ -1188,12 +1196,12 @@ class SSF_Ajax {
         
         $posts = $wpdb->get_results($query);
         
-        // Enrich with current SEO status
+        // Enrich with current SEO status (use trim to catch whitespace-only values)
         $items = [];
         foreach ($posts as $post) {
-            $seo_title = get_post_meta($post->ID, '_ssf_seo_title', true);
-            $meta_desc = get_post_meta($post->ID, '_ssf_meta_description', true);
-            $focus_kw  = get_post_meta($post->ID, '_ssf_focus_keyword', true);
+            $seo_title = trim(get_post_meta($post->ID, '_ssf_seo_title', true));
+            $meta_desc = trim(get_post_meta($post->ID, '_ssf_meta_description', true));
+            $focus_kw  = trim(get_post_meta($post->ID, '_ssf_focus_keyword', true));
             $score_row = $wpdb->get_row($wpdb->prepare("SELECT score FROM $table WHERE post_id = %d", $post->ID));
             
             $missing = [];
@@ -1209,6 +1217,7 @@ class SSF_Ajax {
                 'has_title'   => !empty($seo_title),
                 'has_desc'    => !empty($meta_desc),
                 'has_keyword' => !empty($focus_kw),
+                'seo_title'   => $seo_title,
                 'score'       => $score_row ? intval($score_row->score) : null,
                 'missing'     => $missing,
             ];
@@ -1226,8 +1235,6 @@ class SSF_Ajax {
     public function bulk_ai_fix() {
         $this->verify_nonce();
         
-        $offset = intval($_POST['offset'] ?? 0);
-        $batch_size = intval($_POST['batch_size'] ?? 5);
         $options = $_POST['options'] ?? [];
         
         $generate_title = !empty($options['generate_title']);
@@ -1241,52 +1248,17 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings to add it.', 'smart-seo-fixer')]);
         }
         
-        global $wpdb;
-        $table = $wpdb->prefix . 'ssf_seo_scores';
-        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
-        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        // Accept explicit post IDs from the frontend (preview selection)
+        $post_ids = isset($_POST['post_ids']) ? array_map('intval', (array) $_POST['post_ids']) : [];
+        $post_ids = array_filter($post_ids, function($id) { return $id > 0; });
         
-        // Build query based on apply_to option (using prepared statements)
-        switch ($apply_to) {
-            case 'missing':
-                $query = $wpdb->prepare(
-                    "SELECT p.ID FROM {$wpdb->posts} p
-                    LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_ssf_seo_title'
-                    WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($placeholders)
-                    AND (pm.meta_value IS NULL OR pm.meta_value = '')",
-                    ...$post_types
-                );
-                break;
-                
-            case 'poor':
-                $query = $wpdb->prepare(
-                    "SELECT p.ID FROM {$wpdb->posts} p
-                    LEFT JOIN $table s ON p.ID = s.post_id
-                    WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($placeholders)
-                    AND (s.score < 60 OR s.post_id IS NULL)",
-                    ...$post_types
-                );
-                break;
-                
-            case 'all':
-            default:
-                $query = $wpdb->prepare(
-                    "SELECT p.ID FROM {$wpdb->posts} p
-                    WHERE p.post_status = 'publish'
-                    AND p.post_type IN ($placeholders)",
-                    ...$post_types
-                );
-                break;
+        if (empty($post_ids)) {
+            wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
         }
         
-        // Get total
-        $total_query = str_replace('SELECT p.ID', 'SELECT COUNT(*)', $query);
-        $total = $wpdb->get_var($total_query);
-        
-        // Get batch
-        $posts = $wpdb->get_col($wpdb->prepare($query . " ORDER BY p.ID ASC LIMIT %d OFFSET %d", $batch_size, $offset));
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+        $posts = $post_ids;
         
         $analyzer = class_exists('SSF_Analyzer') ? new SSF_Analyzer() : null;
         $log = [];
@@ -1311,7 +1283,7 @@ class SSF_Ajax {
             
             // Generate keywords first (used for better title/desc generation)
             if ($generate_keywords) {
-                $current_kw = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                $current_kw = trim(get_post_meta($post_id, '_ssf_focus_keyword', true));
                 if ($apply_to === 'all' || empty($current_kw)) {
                     $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
                     if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
@@ -1329,7 +1301,7 @@ class SSF_Ajax {
             
             // Generate title
             if ($generate_title) {
-                $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                $current_title = trim(get_post_meta($post_id, '_ssf_seo_title', true));
                 if ($apply_to === 'all' || empty($current_title)) {
                     $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
                     if (!is_wp_error($title) && !empty(trim($title))) {
@@ -1346,7 +1318,7 @@ class SSF_Ajax {
             
             // Generate description
             if ($generate_desc) {
-                $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                $current_desc = trim(get_post_meta($post_id, '_ssf_meta_description', true));
                 if ($apply_to === 'all' || empty($current_desc)) {
                     $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                     if (!is_wp_error($desc) && !empty(trim($desc))) {
@@ -1384,12 +1356,8 @@ class SSF_Ajax {
             }
         }
         
-        $done = ($offset + $batch_size) >= $total;
-        
         wp_send_json_success([
             'processed' => count($posts),
-            'total' => intval($total),
-            'done' => $done,
             'log' => $log,
         ]);
     }

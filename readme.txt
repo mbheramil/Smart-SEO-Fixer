@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.7.0
+Stable tag: 1.7.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.7.1 =
+* FIX: Bulk AI Fix preview now correctly detects posts with missing SEO data (was showing "nothing to fix" falsely)
+* FIX: Replaced broken LEFT JOIN queries with reliable NOT EXISTS subqueries + TRIM for whitespace-only values
+* FIX: Bulk fix now processes the exact posts user selected in preview instead of re-querying (selections were ignored)
+* FIX: "Missing" filter now checks all three fields (title, description, keyword) instead of only title
+* FIX: Count query was broken for DISTINCT queries, returning wrong total
 
 = 1.7.0 =
 * NEW: Redesigned Bulk AI Fix with preview-before-fix workflow
