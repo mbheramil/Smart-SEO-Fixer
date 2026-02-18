@@ -3200,6 +3200,8 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Keyword Tracker or GSC Client not available.', 'smart-seo-fixer')]);
         }
         
+        try {
+        
         $gsc = new SSF_GSC_Client();
         if (!$gsc->is_connected()) {
             wp_send_json_error(['message' => __('Google Search Console is not connected. Go to Settings to connect it.', 'smart-seo-fixer')]);
@@ -3211,7 +3213,7 @@ class SSF_Ajax {
         }
         
         $date = date('Y-m-d', strtotime('-2 days'));
-        $result = $gsc->search_analytics($site_url, [
+        $result = $gsc->get_search_analytics([
             'startDate'  => $date,
             'endDate'    => $date,
             'dimensions' => ['query', 'page'],
@@ -3256,6 +3258,10 @@ class SSF_Ajax {
         }
         
         wp_send_json_success(['message' => sprintf(__('Fetched %d keywords from GSC for %s.', 'smart-seo-fixer'), $count, $date)]);
+        
+        } catch (\Throwable $e) {
+            wp_send_json_error(['message' => sprintf(__('PHP error: %s', 'smart-seo-fixer'), $e->getMessage())]);
+        }
     }
     
     /**

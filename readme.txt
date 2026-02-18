@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.15.3
+Stable tag: 1.15.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.15.4 =
+* Fix: Fetch Keywords 500 error — was calling non-existent method `search_analytics()` instead of `get_search_analytics()`
+* Fix: Keyword tracker cron had the same wrong method call (also fixed)
+* Fix: Added try/catch to keyword fetch handler so PHP errors return proper messages
+* Improvement: Flyout menu panels now have more padding, spacing, rounded corners, and a subtle gap from the sidebar
 
 = 1.15.3 =
 * Redesign: Admin menu now uses hover flyout panels instead of collapsible groups

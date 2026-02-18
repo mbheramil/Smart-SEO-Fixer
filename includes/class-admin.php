@@ -75,13 +75,14 @@ class SSF_Admin {
             .ssf-flyout-panel {
                 display: none;
                 position: absolute;
-                left: 100%;
-                top: -4px;
-                min-width: 200px;
-                background: #32373c;
-                border-radius: 0 4px 4px 0;
-                box-shadow: 2px 2px 12px rgba(0,0,0,0.25);
-                padding: 6px 0;
+                left: calc(100% + 6px);
+                top: -8px;
+                min-width: 220px;
+                background: #2c3338;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 6px;
+                box-shadow: 4px 4px 16px rgba(0,0,0,0.35);
+                padding: 8px 0;
                 z-index: 10000;
             }
             .ssf-flyout-trigger:hover > .ssf-flyout-panel,
@@ -90,11 +91,11 @@ class SSF_Admin {
             }
             .ssf-flyout-panel a {
                 display: block;
-                padding: 6px 16px;
+                padding: 8px 18px;
                 color: #b4b9be !important;
                 text-decoration: none !important;
                 font-size: 13px;
-                line-height: 1.4;
+                line-height: 1.5;
                 white-space: nowrap;
             }
             .ssf-flyout-panel a:hover {

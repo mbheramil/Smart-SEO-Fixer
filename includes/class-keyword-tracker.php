@@ -84,7 +84,7 @@ class SSF_Keyword_Tracker {
         // Get yesterday's data (GSC data has ~2 day delay)
         $date = date('Y-m-d', strtotime('-2 days'));
         
-        $result = $gsc->search_analytics($site_url, [
+        $result = $gsc->get_search_analytics([
             'startDate'  => $date,
             'endDate'    => $date,
             'dimensions' => ['query', 'page'],
