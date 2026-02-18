@@ -78,9 +78,10 @@ jQuery(document).ready(function($) {
         if (q.length < 2) { $('#ssf-cs-results').hide(); return; }
         timer = setTimeout(function() {
             $.post(ssfAdmin.ajax_url, { action: 'ssf_search_posts_for_schema', nonce: ssfAdmin.nonce, search: q }, function(r) {
-                if (!r.success || !r.data.length) { $('#ssf-cs-results').hide(); return; }
+                var posts = r.success ? (r.data.results || r.data || []) : [];
+                if (!posts.length) { $('#ssf-cs-results').hide(); return; }
                 var html = '';
-                $.each(r.data, function(i, p) { html += '<div class="item" data-id="' + p.ID + '">' + esc(p.post_title) + '</div>'; });
+                $.each(posts, function(i, p) { html += '<div class="item" data-id="' + (p.id || p.ID) + '">' + esc(p.title || p.post_title) + '</div>'; });
                 $('#ssf-cs-results').html(html).show();
             });
         }, 300);

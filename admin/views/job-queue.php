@@ -189,7 +189,7 @@ jQuery(document).ready(function($) {
         
         $.post(ajaxurl, {
             action: 'ssf_get_jobs',
-            nonce: ssf_ajax.nonce
+            nonce: ssfAdmin.nonce
         }, function(response) {
             $('#ssf-jobs-loading').hide();
             
@@ -279,7 +279,7 @@ jQuery(document).ready(function($) {
         $btn.prop('disabled', true);
         $.post(ajaxurl, {
             action: 'ssf_cancel_job',
-            nonce: ssf_ajax.nonce,
+            nonce: ssfAdmin.nonce,
             job_id: $btn.data('id')
         }, function(response) {
             loadJobs();
@@ -292,7 +292,7 @@ jQuery(document).ready(function($) {
         $btn.prop('disabled', true);
         $.post(ajaxurl, {
             action: 'ssf_retry_job',
-            nonce: ssf_ajax.nonce,
+            nonce: ssfAdmin.nonce,
             job_id: $btn.data('id')
         }, function(response) {
             if (response.success) {

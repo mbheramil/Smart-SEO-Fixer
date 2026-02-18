@@ -1,21 +1,16 @@
-Undo/Rollback system 
-Change history log
-Error logging with admin viewer
-Background job queue
-API rate limiting with retry
+content tips - says type to search post but when i type nothing is working nothing shows
+
+broken link currently hs 2 403 and 404 not shure if this is the actual number when i scan it only shows 2 not sure if this is all or not also when i click on the 404 monitor nothing is showing says No 404 errors logged yet. They'll appear here as visitors hit missing pages.
 
 
-Setup wizard
-Database migrations
-Input validation audit
+social preview - says to type to search post when i tried nothing is showing or nothing is pulling up
 
-Content readability scoring
-Social preview cards
-Broken link checker
-Keyword tracking over time
-robots.txt editor
-404 monitoring 
-Content suggestions 
+keywords which is very important says search keyword when i type nothing shows it says No keyword data yet. Connect Google Search Console and data will be collected daily. even though i already connected to search console
 
-WordPress coding standards
-Performance profiling
+jobs not sure but recent job keeps on loading
+history not sure but recent changes keeps on loading
+debug log not sure but the logs keeps on loading
+
+
+
+

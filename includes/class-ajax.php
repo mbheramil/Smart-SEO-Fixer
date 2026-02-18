@@ -117,6 +117,7 @@ class SSF_Ajax {
         // Keyword Tracker
         add_action('wp_ajax_ssf_get_tracked_keywords', [$this, 'get_tracked_keywords']);
         add_action('wp_ajax_ssf_get_keyword_history', [$this, 'get_keyword_history']);
+        add_action('wp_ajax_ssf_fetch_keywords_now', [$this, 'fetch_keywords_now']);
         
         // Content Suggestions
         add_action('wp_ajax_ssf_content_suggestions', [$this, 'content_suggestions']);
@@ -2260,14 +2261,10 @@ class SSF_Ajax {
     public function search_posts_for_schema() {
         $this->verify_nonce();
         
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
         $search = sanitize_text_field($_POST['search'] ?? '');
         
         if (strlen($search) < 2) {
-            wp_send_json_success(['results' => []]);
+            wp_send_json_success([]);
         }
         
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
@@ -2290,7 +2287,7 @@ class SSF_Ajax {
             ];
         }
         
-        wp_send_json_success(['results' => $results]);
+        wp_send_json_success($results);
     }
     
     // ========================================================
@@ -2877,11 +2874,12 @@ class SSF_Ajax {
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
         
+        // Scan all published posts (manual full scan)
         $posts = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT ID, post_content FROM {$wpdb->posts} 
                  WHERE post_status = 'publish' AND post_type IN ($placeholders)
-                 ORDER BY post_modified DESC LIMIT 10",
+                 ORDER BY ID ASC",
                 ...$post_types
             )
         );
@@ -2889,11 +2887,19 @@ class SSF_Ajax {
         $total_checked = 0;
         $total_broken = 0;
         
+        // Extend execution time for full scan
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
+        
         foreach ($posts as $post) {
             $result = SSF_Broken_Links::scan_post($post->ID, $post->post_content);
             $total_checked += $result['checked'];
             $total_broken += $result['broken'];
         }
+        
+        // Reset cycle pointer so cron continues from start
+        update_option('ssf_broken_links_last_post', 0);
         
         wp_send_json_success([
             'checked' => $total_checked,
@@ -3178,6 +3184,25 @@ class SSF_Ajax {
         
         $history = SSF_Keyword_Tracker::get_keyword_history($keyword, $days);
         wp_send_json_success($history);
+    }
+    
+    /**
+     * Manually trigger keyword data fetch from GSC
+     */
+    public function fetch_keywords_now() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_Keyword_Tracker::cron_track();
+        
+        wp_send_json_success(['message' => __('Keyword data fetched from Google Search Console.', 'smart-seo-fixer')]);
     }
     
     /**

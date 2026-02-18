@@ -190,10 +190,11 @@ jQuery(document).ready(function($) {
         
         searchTimer = setTimeout(function() {
             $.post(ssfAdmin.ajax_url, { action: 'ssf_search_posts_for_schema', nonce: ssfAdmin.nonce, search: q }, function(response) {
-                if (!response.success || !response.data.length) { $('#ssf-social-results').hide(); return; }
+                var posts = response.success ? (response.data.results || response.data || []) : [];
+                if (!posts.length) { $('#ssf-social-results').hide(); return; }
                 var html = '';
-                $.each(response.data, function(i, p) {
-                    html += '<div class="ssf-search-item" data-id="' + p.ID + '">' + $('<span>').text(p.post_title).html() + ' <small style="color: #94a3b8;">(' + p.post_type + ')</small></div>';
+                $.each(posts, function(i, p) {
+                    html += '<div class="ssf-search-item" data-id="' + (p.id || p.ID) + '">' + $('<span>').text(p.title || p.post_title).html() + ' <small style="color: #94a3b8;">(' + (p.post_type || '') + ')</small></div>';
                 });
                 $('#ssf-social-results').html(html).show();
             });

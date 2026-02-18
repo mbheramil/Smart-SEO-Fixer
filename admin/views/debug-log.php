@@ -196,7 +196,7 @@ jQuery(document).ready(function($) {
         
         $.post(ajaxurl, {
             action: 'ssf_get_logs',
-            nonce: ssf_ajax.nonce,
+            nonce: ssfAdmin.nonce,
             page: page,
             per_page: 50,
             level: $('#ssf-log-level').val(),
@@ -331,7 +331,7 @@ jQuery(document).ready(function($) {
         
         $.post(ajaxurl, {
             action: 'ssf_clear_logs',
-            nonce: ssf_ajax.nonce
+            nonce: ssfAdmin.nonce
         }, function(response) {
             if (response.success) {
                 loadLogs(1);

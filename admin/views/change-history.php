@@ -243,7 +243,7 @@ jQuery(document).ready(function($) {
         
         $.post(ajaxurl, {
             action: 'ssf_get_history',
-            nonce: ssf_ajax.nonce,
+            nonce: ssfAdmin.nonce,
             page: page,
             per_page: 50,
             action_type: $('#ssf-history-type').val(),
@@ -342,7 +342,7 @@ jQuery(document).ready(function($) {
         
         $.post(ajaxurl, {
             action: 'ssf_undo_change',
-            nonce: ssf_ajax.nonce,
+            nonce: ssfAdmin.nonce,
             history_id: historyId
         }, function(response) {
             if (response.success) {

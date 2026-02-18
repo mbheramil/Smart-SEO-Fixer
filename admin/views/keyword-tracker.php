@@ -22,6 +22,14 @@ if (class_exists('SSF_GSC_Client')) {
         <strong><?php esc_html_e('Google Search Console not connected.', 'smart-seo-fixer'); ?></strong>
         <?php esc_html_e('Connect GSC in', 'smart-seo-fixer'); ?> <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-settings')); ?>"><?php esc_html_e('Settings', 'smart-seo-fixer'); ?></a> <?php esc_html_e('to start tracking keyword rankings automatically.', 'smart-seo-fixer'); ?>
     </div>
+    <?php else: ?>
+    <div style="margin-bottom: 16px;">
+        <button type="button" id="ssf-fetch-keywords-now" class="button button-primary">
+            <span class="dashicons dashicons-download" style="margin-top: 3px;"></span>
+            <?php esc_html_e('Fetch Keywords Now', 'smart-seo-fixer'); ?>
+        </button>
+        <span id="ssf-fetch-status" style="margin-left: 8px; font-size: 13px; color: #64748b;"></span>
+    </div>
     <?php endif; ?>
     
     <!-- Stats -->
@@ -237,5 +245,23 @@ jQuery(document).ready(function($) {
     });
     
     loadKeywords();
+    
+    // Fetch Keywords Now button
+    $('#ssf-fetch-keywords-now').on('click', function() {
+        var $btn = $(this).prop('disabled', true);
+        $('#ssf-fetch-status').text('Fetching from Google Search Console...');
+        $.post(ssfAdmin.ajax_url, { action: 'ssf_fetch_keywords_now', nonce: ssfAdmin.nonce }, function(r) {
+            $btn.prop('disabled', false);
+            if (r.success) {
+                $('#ssf-fetch-status').text('Done! Reloading...').css('color', '#10b981');
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                $('#ssf-fetch-status').text(r.data?.message || 'Error fetching data.').css('color', '#ef4444');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false);
+            $('#ssf-fetch-status').text('Request failed.').css('color', '#ef4444');
+        });
+    });
 });
 </script>

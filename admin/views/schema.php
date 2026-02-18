@@ -576,13 +576,14 @@ jQuery(document).ready(function($) {
                 nonce: ssfAdmin.nonce,
                 search: query
             }, function(response) {
-                if (!response.success || !response.data.results.length) {
+                var posts = response.success ? (response.data || []) : [];
+                if (!posts.length) {
                     $results.html('<div style="padding:15px;color:#6b7280;text-align:center;"><?php echo esc_js(__('No posts found.', 'smart-seo-fixer')); ?></div>').show();
                     return;
                 }
                 
                 var html = '';
-                response.data.results.forEach(function(post) {
+                posts.forEach(function(post) {
                     html += '<div class="ssf-search-item" data-id="' + post.id + '" data-has-schema="' + (post.has_schema ? '1' : '0') + '">';
                     html += '<div><span class="ssf-search-title">' + escHtml(post.title) + '</span><br><span class="ssf-search-type">' + escHtml(post.post_type) + '</span></div>';
                     if (post.has_schema) {
