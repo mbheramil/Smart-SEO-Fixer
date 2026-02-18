@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.11.0');
+define('SSF_VERSION', '1.12.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -92,6 +92,9 @@ final class Smart_SEO_Fixer {
             'includes/class-rate-limiter.php',
             'includes/class-search-console.php',
             'includes/class-gsc-client.php',
+            'includes/class-db-migrator.php',
+            'includes/class-validator.php',
+            'includes/class-setup-wizard.php',
             'includes/class-ajax.php',
         ];
         
@@ -153,10 +156,17 @@ final class Smart_SEO_Fixer {
             SSF_History::enable_tracking();
         }
         
+        // Run pending DB migrations
+        if (is_admin() && class_exists('SSF_DB_Migrator')) {
+            SSF_DB_Migrator::maybe_migrate();
+        }
+        
         if (is_admin() && class_exists('SSF_Admin')) {
             $this->admin = new SSF_Admin();
             // Updater only needed in admin (update checks, plugin info, download auth)
             if (class_exists('SSF_Updater')) $this->updater = new SSF_Updater();
+            // Setup wizard (hidden page, redirects on first activation)
+            if (class_exists('SSF_Setup_Wizard')) new SSF_Setup_Wizard();
             // Ensure DB table exists (self-healing if plugin was updated without reactivation)
             add_action('admin_init', [$this, 'maybe_create_tables']);
             // Ensure cron is scheduled (self-healing if cron was lost)
@@ -222,6 +232,11 @@ final class Smart_SEO_Fixer {
         
         // Create database tables if needed
         $this->create_tables();
+        
+        // Trigger setup wizard redirect on first activation
+        if (!get_option('ssf_setup_completed', false)) {
+            set_transient('ssf_activation_redirect', true, 60);
+        }
         
         // Schedule background SEO generation cron (twice daily)
         if (!wp_next_scheduled('ssf_cron_generate_missing_seo')) {

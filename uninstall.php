@@ -39,6 +39,8 @@ $options = [
     'ssf_gsc_client_secret',
     'ssf_gsc_site_url',
     'ssf_gsc_tokens',
+    'ssf_setup_completed',
+    'ssf_db_version',
 ];
 
 foreach ($options as $option) {

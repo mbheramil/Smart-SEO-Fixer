@@ -467,19 +467,19 @@ class SSF_Ajax {
         $this->verify_nonce();
         if (class_exists('SSF_History')) SSF_History::set_source('manual');
         
-        $post_id = intval($_POST['post_id'] ?? 0);
+        $post_id = class_exists('SSF_Validator') ? SSF_Validator::post_id($_POST['post_id'] ?? 0) : intval($_POST['post_id'] ?? 0);
         
         if (!$post_id || !current_user_can('edit_post', $post_id)) {
             wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
         
         $data = [
-            'seo_title' => sanitize_text_field($_POST['seo_title'] ?? ''),
-            'meta_description' => sanitize_textarea_field($_POST['meta_description'] ?? ''),
-            'focus_keyword' => sanitize_text_field($_POST['focus_keyword'] ?? ''),
-            'canonical_url' => esc_url_raw($_POST['canonical_url'] ?? ''),
-            'noindex' => !empty($_POST['noindex']) ? 1 : 0,
-            'nofollow' => !empty($_POST['nofollow']) ? 1 : 0,
+            'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::seo_title($_POST['seo_title'] ?? '') : sanitize_text_field($_POST['seo_title'] ?? ''),
+            'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::meta_description($_POST['meta_description'] ?? '') : sanitize_textarea_field($_POST['meta_description'] ?? ''),
+            'focus_keyword'    => class_exists('SSF_Validator') ? SSF_Validator::focus_keyword($_POST['focus_keyword'] ?? '') : sanitize_text_field($_POST['focus_keyword'] ?? ''),
+            'canonical_url'    => class_exists('SSF_Validator') ? SSF_Validator::url($_POST['canonical_url'] ?? '') : esc_url_raw($_POST['canonical_url'] ?? ''),
+            'noindex'          => !empty($_POST['noindex']) ? 1 : 0,
+            'nofollow'         => !empty($_POST['nofollow']) ? 1 : 0,
         ];
         
         $meta_manager = new SSF_Meta_Manager();
@@ -505,21 +505,23 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
         
+        $v = class_exists('SSF_Validator');
+        
         $settings = [
-            'openai_api_key' => sanitize_text_field($_POST['openai_api_key'] ?? ''),
-            'openai_model' => sanitize_text_field($_POST['openai_model'] ?? 'gpt-4o-mini'),
-            'auto_meta' => !empty($_POST['auto_meta']) ? 1 : 0,
-            'auto_alt_text' => !empty($_POST['auto_alt_text']) ? 1 : 0,
-            'enable_schema' => !empty($_POST['enable_schema']) ? 1 : 0,
-            'enable_sitemap' => !empty($_POST['enable_sitemap']) ? 1 : 0,
-            'disable_other_seo_output' => !empty($_POST['disable_other_seo_output']) ? 1 : 0,
-            'background_seo_cron' => !empty($_POST['background_seo_cron']) ? 1 : 0,
-            'github_token' => sanitize_text_field($_POST['github_token'] ?? ''),
-            'gsc_client_id' => sanitize_text_field($_POST['gsc_client_id'] ?? ''),
-            'gsc_client_secret' => sanitize_text_field($_POST['gsc_client_secret'] ?? ''),
-            'title_separator' => sanitize_text_field($_POST['title_separator'] ?? '|'),
-            'homepage_title' => sanitize_text_field($_POST['homepage_title'] ?? ''),
-            'homepage_description' => sanitize_textarea_field($_POST['homepage_description'] ?? ''),
+            'openai_api_key'          => $v ? SSF_Validator::api_key($_POST['openai_api_key'] ?? '') : sanitize_text_field($_POST['openai_api_key'] ?? ''),
+            'openai_model'            => sanitize_key($_POST['openai_model'] ?? 'gpt-4o-mini'),
+            'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
+            'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
+            'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
+            'enable_sitemap'          => !empty($_POST['enable_sitemap']) ? 1 : 0,
+            'disable_other_seo_output'=> !empty($_POST['disable_other_seo_output']) ? 1 : 0,
+            'background_seo_cron'     => !empty($_POST['background_seo_cron']) ? 1 : 0,
+            'github_token'            => $v ? SSF_Validator::api_key($_POST['github_token'] ?? '') : sanitize_text_field($_POST['github_token'] ?? ''),
+            'gsc_client_id'           => sanitize_text_field($_POST['gsc_client_id'] ?? ''),
+            'gsc_client_secret'       => sanitize_text_field($_POST['gsc_client_secret'] ?? ''),
+            'title_separator'         => $v ? SSF_Validator::title_separator($_POST['title_separator'] ?? '|') : sanitize_text_field($_POST['title_separator'] ?? '|'),
+            'homepage_title'          => $v ? SSF_Validator::seo_title($_POST['homepage_title'] ?? '') : sanitize_text_field($_POST['homepage_title'] ?? ''),
+            'homepage_description'    => $v ? SSF_Validator::meta_description($_POST['homepage_description'] ?? '') : sanitize_textarea_field($_POST['homepage_description'] ?? ''),
         ];
         
         // Schedule or unschedule background cron based on setting
@@ -534,7 +536,7 @@ class SSF_Ajax {
         
         // Handle post types array
         if (isset($_POST['post_types']) && is_array($_POST['post_types'])) {
-            $settings['post_types'] = array_map('sanitize_text_field', $_POST['post_types']);
+            $settings['post_types'] = $v ? SSF_Validator::post_types($_POST['post_types']) : array_map('sanitize_text_field', $_POST['post_types']);
         }
         
         // Handle GSC site URL selection

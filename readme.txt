@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.11.0
+Stable tag: 1.12.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,18 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.12.0 =
+* NEW: Setup Wizard - guided first-run setup for API key, post types, and feature toggles
+* NEW: Database Migration System - versioned schema updates that apply cleanly on plugin update
+* NEW: Input Validator - centralized sanitization for all SEO titles, descriptions, URLs, API keys, and post types
+* NEW: Automatic redirect to setup wizard on first plugin activation
+* NEW: Skip option to bypass wizard and configure later in Settings
+* IMPROVED: Settings save now uses strict validation (title length limits, URL format, allowed separators)
+* IMPROVED: SEO data save uses dedicated validators for title, description, keyword, and URL fields
+* IMPROVED: Post type selection validated against registered public post types
+* IMPROVED: API keys stripped of non-printable characters
+* Database: Versioned migration system tracks schema version and applies updates incrementally
 
 = 1.11.0 =
 * NEW: Background Job Queue - bulk operations (10+ posts) are automatically queued and processed in the background
