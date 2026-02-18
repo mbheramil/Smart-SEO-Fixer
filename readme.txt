@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.0
+Stable tag: 1.16.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -94,11 +94,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 
 == Changelog ==
 
+= 1.16.1 =
+* Fix: Site Property field now ALWAYS shows when GSC is connected
+* If site list loads from GSC → shows dropdown to select
+* If site list fails → shows text input to enter URL manually (e.g. `https://example.com/` or `sc-domain:example.com`)
+* Eliminates "No site selected" dead-end when auto-detection fails
+
 = 1.16.0 =
-* Fix: GSC auto-match now handles `sc-domain:` properties (domain-level GSC verification)
-* Fix: Site selector dropdown now always visible in Settings when GSC is connected (was hidden for single-site accounts)
-* Shows "Select a site" prompt when no site is auto-detected
-* Shows a warning if no GSC properties are found at all
+* Fix: GSC auto-match now handles `sc-domain:` properties
 * Better error messaging when GSC connects but site list fetch fails
 
 = 1.15.9 =
