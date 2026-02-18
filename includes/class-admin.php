@@ -46,7 +46,7 @@ class SSF_Admin {
     }
     
     /**
-     * CSS for grouped admin menu with hover flyouts
+     * CSS for grouped admin menu with hover flyouts (native WP style)
      */
     public function admin_menu_group_css() {
         ?>
@@ -65,24 +65,24 @@ class SSF_Admin {
                 align-items: center !important;
             }
             #adminmenu .wp-submenu .ssf-flyout-trigger .ssf-fly-arrow {
-                font-size: 9px;
-                opacity: 0.4;
-                margin-left: 4px;
+                font-size: 8px;
+                opacity: 0.5;
+                margin-left: 6px;
             }
-            #adminmenu .wp-submenu .ssf-flyout-trigger:hover .ssf-fly-arrow { opacity: 0.8; }
+            #adminmenu .wp-submenu .ssf-flyout-trigger:hover .ssf-fly-arrow { opacity: 1; }
             
-            /* The flyout panel */
+            /* Native WP-style flyout panel */
             .ssf-flyout-panel {
                 display: none;
                 position: absolute;
-                left: calc(100% + 6px);
-                top: -8px;
-                min-width: 220px;
-                background: #2c3338;
-                border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 6px;
-                box-shadow: 4px 4px 16px rgba(0,0,0,0.35);
-                padding: 8px 0;
+                left: 100%;
+                top: -7px;
+                min-width: 190px;
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-left: none;
+                box-shadow: 0 3px 5px rgba(0,0,0,0.2);
+                padding: 7px 0;
                 z-index: 10000;
             }
             .ssf-flyout-trigger:hover > .ssf-flyout-panel,
@@ -91,19 +91,19 @@ class SSF_Admin {
             }
             .ssf-flyout-panel a {
                 display: block;
-                padding: 8px 18px;
-                color: #b4b9be !important;
+                padding: 5px 12px;
+                color: #50575e !important;
                 text-decoration: none !important;
                 font-size: 13px;
-                line-height: 1.5;
+                line-height: 1.6;
                 white-space: nowrap;
             }
             .ssf-flyout-panel a:hover {
-                color: #00b9eb !important;
-                background: rgba(255,255,255,0.04);
+                color: #135e96 !important;
+                background: #f0f0f1;
             }
             .ssf-flyout-panel a.ssf-fly-current {
-                color: #fff !important;
+                color: #135e96 !important;
                 font-weight: 600;
             }
             

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.15.4
+Stable tag: 1.15.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.15.5 =
+* Improvement: Flyout menu panels now use native WordPress styling (white background, standard colors, WP hover effects)
+* Matches the native WP submenu flyout look used by other plugins like Code Snippets
 
 = 1.15.4 =
 * Fix: Fetch Keywords 500 error — was calling non-existent method `search_analytics()` instead of `get_search_analytics()`
