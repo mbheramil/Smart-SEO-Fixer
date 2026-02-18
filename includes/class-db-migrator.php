@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 5;
+    const CURRENT_VERSION = 6;
     
     /**
      * Run any pending migrations
@@ -72,6 +72,8 @@ class SSF_DB_Migrator {
             4 => [__CLASS__, 'migrate_v4_setup_validation'],
             // v5: Broken links + 404 log tables (v1.13.0)
             5 => [__CLASS__, 'migrate_v5_broken_links_404'],
+            // v6: Keyword tracking table (v1.14.0)
+            6 => [__CLASS__, 'migrate_v6_keyword_tracking'],
         ];
     }
     
@@ -140,6 +142,15 @@ class SSF_DB_Migrator {
         }
         if (class_exists('SSF_404_Monitor')) {
             SSF_404_Monitor::create_table();
+        }
+    }
+    
+    /**
+     * Migration v6: Keyword tracking table
+     */
+    public static function migrate_v6_keyword_tracking() {
+        if (class_exists('SSF_Keyword_Tracker')) {
+            SSF_Keyword_Tracker::create_table();
         }
     }
     

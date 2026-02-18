@@ -65,6 +65,8 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-broken-links',
             'smart-seo_page_smart-seo-fixer-404-monitor',
             'smart-seo_page_smart-seo-fixer-robots',
+            'smart-seo_page_smart-seo-fixer-social-preview',
+            'smart-seo_page_smart-seo-fixer-keywords',
             'plugins',
         ];
         
@@ -271,6 +273,26 @@ class SSF_Admin {
             [$this, 'render_robots_editor']
         );
         
+        // Social Preview submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Social Preview', 'smart-seo-fixer'),
+            __('Social Preview', 'smart-seo-fixer'),
+            'edit_posts',
+            'smart-seo-fixer-social-preview',
+            [$this, 'render_social_preview']
+        );
+        
+        // Keyword Tracker submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Keyword Tracker', 'smart-seo-fixer'),
+            __('Keyword Tracker', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-keywords',
+            [$this, 'render_keyword_tracker']
+        );
+        
         // Debug Log submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -317,6 +339,8 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-broken-links',
             'smart-seo_page_smart-seo-fixer-404-monitor',
             'smart-seo_page_smart-seo-fixer-robots',
+            'smart-seo_page_smart-seo-fixer-social-preview',
+            'smart-seo_page_smart-seo-fixer-keywords',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -463,6 +487,20 @@ class SSF_Admin {
      */
     public function render_robots_editor() {
         include SSF_PLUGIN_DIR . 'admin/views/robots-editor.php';
+    }
+    
+    /**
+     * Render Social Preview page
+     */
+    public function render_social_preview() {
+        include SSF_PLUGIN_DIR . 'admin/views/social-preview.php';
+    }
+    
+    /**
+     * Render Keyword Tracker page
+     */
+    public function render_keyword_tracker() {
+        include SSF_PLUGIN_DIR . 'admin/views/keyword-tracker.php';
     }
     
     /**

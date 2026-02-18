@@ -106,6 +106,17 @@ class SSF_Ajax {
         
         // robots.txt Editor
         add_action('wp_ajax_ssf_save_robots', [$this, 'save_robots']);
+        
+        // Readability
+        add_action('wp_ajax_ssf_analyze_readability', [$this, 'analyze_readability']);
+        
+        // Social Preview
+        add_action('wp_ajax_ssf_save_social_data', [$this, 'save_social_data']);
+        add_action('wp_ajax_ssf_get_social_data', [$this, 'get_social_data']);
+        
+        // Keyword Tracker
+        add_action('wp_ajax_ssf_get_tracked_keywords', [$this, 'get_tracked_keywords']);
+        add_action('wp_ajax_ssf_get_keyword_history', [$this, 'get_keyword_history']);
     }
     
     /**
@@ -3022,6 +3033,141 @@ class SSF_Ajax {
             'message'  => __('robots.txt saved successfully.', 'smart-seo-fixer'),
             'warnings' => $warnings,
         ]);
+    }
+    
+    // =========================================================================
+    // Readability
+    // =========================================================================
+    
+    /**
+     * Analyze post readability
+     */
+    public function analyze_readability() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Readability')) {
+            wp_send_json_error(['message' => __('Readability module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Readability::analyze($post->post_content);
+        wp_send_json_success($result);
+    }
+    
+    // =========================================================================
+    // Social Preview
+    // =========================================================================
+    
+    /**
+     * Save social preview data
+     */
+    public function save_social_data() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id || !current_user_can('edit_post', $post_id)) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $fields = [
+            'og_title'            => '_ssf_og_title',
+            'og_description'      => '_ssf_og_description',
+            'og_image'            => '_ssf_og_image',
+            'twitter_title'       => '_ssf_twitter_title',
+            'twitter_description' => '_ssf_twitter_description',
+            'twitter_image'       => '_ssf_twitter_image',
+        ];
+        
+        foreach ($fields as $post_key => $meta_key) {
+            $value = isset($_POST[$post_key]) ? sanitize_text_field($_POST[$post_key]) : '';
+            if (in_array($post_key, ['og_image', 'twitter_image'])) {
+                $value = esc_url_raw($value);
+            }
+            if (in_array($post_key, ['og_description', 'twitter_description'])) {
+                $value = sanitize_textarea_field($_POST[$post_key] ?? '');
+            }
+            
+            if (!empty($value)) {
+                update_post_meta($post_id, $meta_key, $value);
+            } else {
+                delete_post_meta($post_id, $meta_key);
+            }
+        }
+        
+        wp_send_json_success(['message' => __('Social data saved.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Get social preview data for a post
+     */
+    public function get_social_data() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Social_Preview')) {
+            wp_send_json_error(['message' => __('Social Preview module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $data = SSF_Social_Preview::get_data($post_id);
+        wp_send_json_success($data);
+    }
+    
+    // =========================================================================
+    // Keyword Tracker
+    // =========================================================================
+    
+    /**
+     * Get tracked keywords
+     */
+    public function get_tracked_keywords() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Keyword_Tracker::get_keywords([
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => 20,
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+            'days'     => intval($_POST['days'] ?? 30),
+        ]);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Get keyword position history for chart
+     */
+    public function get_keyword_history() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
+        }
+        
+        $keyword = sanitize_text_field($_POST['keyword'] ?? '');
+        $days = intval($_POST['days'] ?? 30);
+        
+        if (empty($keyword)) {
+            wp_send_json_error(['message' => __('Keyword required.', 'smart-seo-fixer')]);
+        }
+        
+        $history = SSF_Keyword_Tracker::get_keyword_history($keyword, $days);
+        wp_send_json_success($history);
     }
 }
 

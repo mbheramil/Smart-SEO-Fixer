@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.13.0
+Stable tag: 1.14.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,22 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.14.0 =
+* NEW: Content Readability Scoring - Flesch-Kincaid Reading Ease, grade level, sentence/paragraph analysis
+* NEW: Readability suggestions - actionable tips for word count, sentence length, passive voice, transition words
+* NEW: AJAX-powered readability analysis from the SEO Analyzer and meta box
+* NEW: Social Preview Cards - dedicated admin page to preview and customize Facebook/Twitter sharing cards
+* NEW: Custom OG Title, OG Description, OG Image overrides per post
+* NEW: Custom Twitter Title, Twitter Description, Twitter Image overrides per post
+* NEW: Live preview updates as you type - see exactly how your post will appear on social media
+* NEW: Keyword Tracker - track search keyword rankings over time using Google Search Console data
+* NEW: Daily cron fetches GSC keyword data (position, clicks, impressions, CTR) and stores historical snapshots
+* NEW: Interactive position trend chart per keyword with Chart.js
+* NEW: Keyword search, date range filter (7d/30d/90d), position badges (top 3/10/20)
+* NEW: Dashboard navigation cards for Social Preview and Keyword Tracker
+* Database: Added ssf_keyword_tracking table (auto-created via migration v6)
+* IMPROVED: Social tags output now respects custom OG/Twitter overrides from the Social Preview editor
 
 = 1.13.0 =
 * NEW: Broken Link Checker - scans posts for dead links (404s, timeouts, connection errors)

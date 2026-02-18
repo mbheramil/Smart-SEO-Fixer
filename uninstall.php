@@ -63,6 +63,12 @@ $meta_keys = [
     '_ssf_product_brand',
     '_ssf_product_gtin',
     '_ssf_product_mpn',
+    '_ssf_og_title',
+    '_ssf_og_description',
+    '_ssf_og_image',
+    '_ssf_twitter_title',
+    '_ssf_twitter_description',
+    '_ssf_twitter_image',
 ];
 
 foreach ($meta_keys as $key) {
@@ -92,6 +98,7 @@ $tables = [
     $wpdb->prefix . 'ssf_jobs',
     $wpdb->prefix . 'ssf_broken_links',
     $wpdb->prefix . 'ssf_404_log',
+    $wpdb->prefix . 'ssf_keyword_tracking',
 ];
 foreach ($tables as $table_name) {
     $wpdb->query("DROP TABLE IF EXISTS $table_name");
@@ -109,6 +116,10 @@ if ($timestamp) {
 $timestamp = wp_next_scheduled('ssf_check_broken_links');
 if ($timestamp) {
     wp_unschedule_event($timestamp, 'ssf_check_broken_links');
+}
+$timestamp = wp_next_scheduled('ssf_track_keywords');
+if ($timestamp) {
+    wp_unschedule_event($timestamp, 'ssf_track_keywords');
 }
 
 // 6. Clear transients

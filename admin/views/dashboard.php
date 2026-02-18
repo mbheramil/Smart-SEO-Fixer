@@ -218,6 +218,28 @@ if (!defined('ABSPATH')) {
                         <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
                     </a>
                     
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-social-preview')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #1877F2, #0d4ea6);">
+                            <span class="dashicons dashicons-share-alt2"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Social Preview', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Preview and customize Facebook/Twitter cards', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-keywords')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #d946ef, #a21caf);">
+                            <span class="dashicons dashicons-chart-bar"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Keyword Tracker', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Track keyword rankings over time with GSC data', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
                     <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-history')); ?>" class="ssf-nav-card">
                         <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
                             <span class="dashicons dashicons-backup"></span>

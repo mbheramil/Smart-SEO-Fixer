@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.13.0
+ * Version: 1.14.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.13.0');
+define('SSF_VERSION', '1.14.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -98,6 +98,9 @@ final class Smart_SEO_Fixer {
             'includes/class-broken-links.php',
             'includes/class-404-monitor.php',
             'includes/class-robots-editor.php',
+            'includes/class-readability.php',
+            'includes/class-social-preview.php',
+            'includes/class-keyword-tracker.php',
             'includes/class-ajax.php',
         ];
         
@@ -137,6 +140,11 @@ final class Smart_SEO_Fixer {
             add_action(SSF_Broken_Links::CRON_HOOK, ['SSF_Broken_Links', 'cron_scan']);
         }
         
+        // Keyword tracker cron
+        if (class_exists('SSF_Keyword_Tracker')) {
+            add_action(SSF_Keyword_Tracker::CRON_HOOK, ['SSF_Keyword_Tracker', 'cron_track']);
+        }
+        
         // 404 Monitor (frontend hook)
         if (class_exists('SSF_404_Monitor')) {
             SSF_404_Monitor::init();
@@ -167,6 +175,7 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_GSC_Client'))   $this->gsc_client    = new SSF_GSC_Client();
+        if (class_exists('SSF_Social_Preview')) new SSF_Social_Preview();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
         // Enable automatic history tracking for all _ssf_ meta changes
@@ -271,6 +280,11 @@ final class Smart_SEO_Fixer {
             SSF_Broken_Links::schedule_cron();
         }
         
+        // Schedule keyword tracker (daily)
+        if (class_exists('SSF_Keyword_Tracker')) {
+            SSF_Keyword_Tracker::schedule_cron();
+        }
+        
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -291,6 +305,10 @@ final class Smart_SEO_Fixer {
         
         if (class_exists('SSF_Broken_Links')) {
             SSF_Broken_Links::unschedule_cron();
+        }
+        
+        if (class_exists('SSF_Keyword_Tracker')) {
+            SSF_Keyword_Tracker::unschedule_cron();
         }
         
         flush_rewrite_rules();
@@ -417,6 +435,7 @@ final class Smart_SEO_Fixer {
             $wpdb->prefix . 'ssf_jobs',
             $wpdb->prefix . 'ssf_broken_links',
             $wpdb->prefix . 'ssf_404_log',
+            $wpdb->prefix . 'ssf_keyword_tracking',
         ];
         
         foreach ($tables_to_check as $table_name) {
@@ -474,6 +493,11 @@ final class Smart_SEO_Fixer {
         // Create 404 log table
         if (class_exists('SSF_404_Monitor')) {
             SSF_404_Monitor::create_table();
+        }
+        
+        // Create keyword tracking table
+        if (class_exists('SSF_Keyword_Tracker')) {
+            SSF_Keyword_Tracker::create_table();
         }
     }
     
