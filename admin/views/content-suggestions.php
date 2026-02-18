@@ -97,14 +97,37 @@ jQuery(document).ready(function($) {
     
     $(document).on('click', function(e) { if (!$(e.target).closest('.ssf-cs-selector').length) $('#ssf-cs-results').hide(); });
     
+    var currentPostId = 0;
+    
+    function renderSuggestions(suggestions) {
+        var html = '';
+        if (!suggestions.length) {
+            return '<div class="ssf-cs-loading">No suggestions — your content looks great!</div>';
+        }
+        $.each(suggestions, function(i, s) {
+            html += '<div class="ssf-cs-card">';
+            html += '<div class="ssf-cs-priority ' + s.priority + '"></div>';
+            html += '<div class="ssf-cs-body">';
+            html += '<h4>' + esc(s.title) + '</h4>';
+            html += '<p>' + esc(s.description) + '</p>';
+            html += '<div class="ssf-cs-tags">';
+            html += '<span class="ssf-cs-tag cat-' + s.category + '">' + s.category + '</span>';
+            html += '<span class="ssf-cs-tag">' + s.priority + '</span>';
+            html += '</div></div></div>';
+        });
+        return html;
+    }
+    
     function analyzeSuggestions(postId, title) {
+        currentPostId = postId;
         $('#ssf-cs-output').show();
         $('#ssf-cs-title').text(title);
         $('#ssf-cs-meta').text('Analyzing...');
         $('#ssf-cs-score').css('background', '#94a3b8').text('...');
-        $('#ssf-cs-list').html('<div class="ssf-cs-loading">Analyzing content and generating suggestions...</div>');
+        $('#ssf-cs-list').html('<div class="ssf-cs-loading">Analyzing content...</div>');
         
-        $.post(ssfAdmin.ajax_url, { action: 'ssf_content_suggestions', nonce: ssfAdmin.nonce, post_id: postId }, function(r) {
+        // Fast rule-based analysis first
+        $.post(ssfAdmin.ajax_url, { action: 'ssf_content_suggestions', nonce: ssfAdmin.nonce, post_id: postId, mode: 'rules' }, function(r) {
             if (!r.success) {
                 $('#ssf-cs-list').html('<div class="ssf-cs-loading">' + esc(r.data?.message || 'Error') + '</div>');
                 return;
@@ -112,25 +135,51 @@ jQuery(document).ready(function($) {
             
             var d = r.data;
             $('#ssf-cs-score').css('background', scoreColor(d.score)).text(d.score);
-            $('#ssf-cs-meta').text(d.count + ' suggestions · Source: ' + d.source);
+            $('#ssf-cs-meta').text(d.count + ' suggestions · Rule-based analysis');
             
-            var html = '';
-            if (!d.suggestions.length) {
-                html = '<div class="ssf-cs-loading">No suggestions — your content looks great!</div>';
+            var html = renderSuggestions(d.suggestions);
+            
+            // Show "Enhance with AI" button if OpenAI is configured
+            if (d.has_ai) {
+                html += '<div id="ssf-cs-ai-section" style="text-align: center; padding: 16px;">';
+                html += '<button type="button" id="ssf-cs-ai-btn" class="button" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px;">';
+                html += '<span class="dashicons dashicons-admin-generic" style="margin-top: 2px; font-size: 16px;"></span> Enhance with AI Suggestions';
+                html += '</button>';
+                html += '<div id="ssf-cs-ai-status" style="margin-top: 8px; font-size: 12px; color: #94a3b8;"></div>';
+                html += '</div>';
             }
-            $.each(d.suggestions, function(i, s) {
-                html += '<div class="ssf-cs-card">';
-                html += '<div class="ssf-cs-priority ' + s.priority + '"></div>';
-                html += '<div class="ssf-cs-body">';
-                html += '<h4>' + esc(s.title) + '</h4>';
-                html += '<p>' + esc(s.description) + '</p>';
-                html += '<div class="ssf-cs-tags">';
-                html += '<span class="ssf-cs-tag cat-' + s.category + '">' + s.category + '</span>';
-                html += '<span class="ssf-cs-tag">' + s.priority + '</span>';
-                html += '</div></div></div>';
-            });
+            
             $('#ssf-cs-list').html(html);
         });
     }
+    
+    // Enhance with AI button (loads AI suggestions async)
+    $(document).on('click', '#ssf-cs-ai-btn', function() {
+        var $btn = $(this).prop('disabled', true).css('opacity', '0.6');
+        $('#ssf-cs-ai-status').text('Asking AI to analyze your content... (5-15 seconds)');
+        
+        $.post(ssfAdmin.ajax_url, { action: 'ssf_content_suggestions', nonce: ssfAdmin.nonce, post_id: currentPostId, mode: 'ai' }, function(r) {
+            if (!r.success || !r.data.suggestions.length) {
+                $('#ssf-cs-ai-status').text(r.data?.message || 'AI had no additional suggestions.');
+                $btn.prop('disabled', false).css('opacity', '1');
+                return;
+            }
+            
+            // Append AI suggestions below existing ones
+            var aiHtml = '<div style="border-top: 2px solid #8b5cf6; margin-top: 4px; padding-top: 12px;">';
+            aiHtml += '<div style="font-size: 11px; font-weight: 700; color: #8b5cf6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">AI Suggestions</div>';
+            aiHtml += renderSuggestions(r.data.suggestions);
+            aiHtml += '</div>';
+            
+            $('#ssf-cs-ai-section').replaceWith(aiHtml);
+            
+            // Update meta
+            var totalCount = $('#ssf-cs-list .ssf-cs-card').length;
+            $('#ssf-cs-meta').text(totalCount + ' suggestions · Rules + AI');
+        }).fail(function() {
+            $('#ssf-cs-ai-status').text('AI request failed. Check your OpenAI API key in Settings.');
+            $btn.prop('disabled', false).css('opacity', '1');
+        });
+    });
 });
 </script>

@@ -46,150 +46,131 @@ class SSF_Admin {
     }
     
     /**
-     * CSS for grouped admin menu (in head to prevent FOUC)
+     * CSS for grouped admin menu with hover flyouts
      */
     public function admin_menu_group_css() {
         ?>
         <style>
-            /* SSF grouped submenu */
-            #adminmenu .wp-submenu .ssf-menu-group-header {
-                padding: 8px 12px 4px !important;
-                color: #9ea3a8 !important;
-                font-size: 10.5px !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.6px !important;
+            /* Hide grouped child items from the inline submenu */
+            #adminmenu .wp-submenu .ssf-menu-group-item { display: none !important; }
+            
+            /* Group header as a normal submenu item with arrow */
+            #adminmenu .wp-submenu .ssf-flyout-trigger {
+                position: relative !important;
                 cursor: pointer !important;
+            }
+            #adminmenu .wp-submenu .ssf-flyout-trigger > a {
                 display: flex !important;
                 justify-content: space-between !important;
                 align-items: center !important;
-                margin-top: 2px !important;
-                border-top: 1px solid rgba(255,255,255,0.04) !important;
-                user-select: none !important;
-                line-height: 1.4 !important;
-                background: none !important;
             }
-            #adminmenu .wp-submenu .ssf-menu-group-header:first-of-type {
-                border-top: none !important;
-                margin-top: 0 !important;
-            }
-            #adminmenu .wp-submenu .ssf-menu-group-header:hover {
-                color: #fff !important;
-            }
-            #adminmenu .wp-submenu .ssf-menu-group-header .ssf-mg-arrow {
+            #adminmenu .wp-submenu .ssf-flyout-trigger .ssf-fly-arrow {
                 font-size: 9px;
                 opacity: 0.4;
-                transition: transform 0.15s;
+                margin-left: 4px;
             }
-            #adminmenu .wp-submenu .ssf-menu-group-header.collapsed .ssf-mg-arrow {
-                transform: rotate(0deg);
+            #adminmenu .wp-submenu .ssf-flyout-trigger:hover .ssf-fly-arrow { opacity: 0.8; }
+            
+            /* The flyout panel */
+            .ssf-flyout-panel {
+                display: none;
+                position: absolute;
+                left: 100%;
+                top: -4px;
+                min-width: 200px;
+                background: #32373c;
+                border-radius: 0 4px 4px 0;
+                box-shadow: 2px 2px 12px rgba(0,0,0,0.25);
+                padding: 6px 0;
+                z-index: 10000;
             }
-            #adminmenu .wp-submenu .ssf-menu-group-header.expanded .ssf-mg-arrow {
-                transform: rotate(90deg);
+            .ssf-flyout-trigger:hover > .ssf-flyout-panel,
+            .ssf-flyout-trigger.ssf-fly-open > .ssf-flyout-panel {
+                display: block;
             }
-            #adminmenu .wp-submenu .ssf-menu-group-item {
-                transition: max-height 0.15s ease, opacity 0.15s ease;
+            .ssf-flyout-panel a {
+                display: block;
+                padding: 6px 16px;
+                color: #b4b9be !important;
+                text-decoration: none !important;
+                font-size: 13px;
+                line-height: 1.4;
+                white-space: nowrap;
             }
-            #adminmenu .wp-submenu .ssf-menu-group-item.ssf-hidden {
-                display: none !important;
+            .ssf-flyout-panel a:hover {
+                color: #00b9eb !important;
+                background: rgba(255,255,255,0.04);
+            }
+            .ssf-flyout-panel a.ssf-fly-current {
+                color: #fff !important;
+                font-weight: 600;
+            }
+            
+            /* Make the current page's group header look active */
+            #adminmenu .wp-submenu .ssf-flyout-trigger.ssf-has-current > a {
+                color: #fff !important;
+                font-weight: 600;
             }
         </style>
         <?php
     }
     
     /**
-     * JS for grouped admin menu (in footer after DOM ready)
+     * JS for grouped admin menu with hover flyouts
      */
     public function admin_menu_group_js() {
         ?>
         <script>
         (function($) {
-            // Find the Smart SEO top-level menu
-            var $topLink = $('#adminmenu a.menu-top[href="admin.php?page=smart-seo-fixer"]');
-            if (!$topLink.length) {
-                $topLink = $('#adminmenu a[href="admin.php?page=smart-seo-fixer"]').first().closest('li.menu-top').find('> a.menu-top');
-            }
-            var $menuLi = $topLink.closest('li.menu-top');
+            var $menuLi = $('#adminmenu a[href="admin.php?page=smart-seo-fixer"]').first().closest('li.menu-top');
             if (!$menuLi.length) return;
             var $sub = $menuLi.find('ul.wp-submenu');
             if (!$sub.length) return;
 
             var groups = [
-                {
-                    label: '<?php echo esc_js(__('Analyze & Fix', 'smart-seo-fixer')); ?>',
-                    pages: ['smart-seo-fixer-analyzer','smart-seo-fixer-bulk-fix','smart-seo-fixer-posts','smart-seo-fixer-content-suggestions']
-                },
-                {
-                    label: '<?php echo esc_js(__('Technical SEO', 'smart-seo-fixer')); ?>',
-                    pages: ['smart-seo-fixer-schema','smart-seo-fixer-local','smart-seo-fixer-redirects','smart-seo-fixer-broken-links','smart-seo-fixer-404-monitor','smart-seo-fixer-robots']
-                },
-                {
-                    label: '<?php echo esc_js(__('Search & Social', 'smart-seo-fixer')); ?>',
-                    pages: ['smart-seo-fixer-search-performance','smart-seo-fixer-gsc','smart-seo-fixer-social-preview','smart-seo-fixer-keywords']
-                },
-                {
-                    label: '<?php echo esc_js(__('System', 'smart-seo-fixer')); ?>',
-                    pages: ['smart-seo-fixer-jobs','smart-seo-fixer-history','smart-seo-fixer-migration','smart-seo-fixer-wp-standards','smart-seo-fixer-performance','smart-seo-fixer-debug-log']
-                }
+                { label: '<?php echo esc_js(__('Analyze & Fix', 'smart-seo-fixer')); ?>', pages: ['smart-seo-fixer-analyzer','smart-seo-fixer-bulk-fix','smart-seo-fixer-posts','smart-seo-fixer-content-suggestions'] },
+                { label: '<?php echo esc_js(__('Technical SEO', 'smart-seo-fixer')); ?>', pages: ['smart-seo-fixer-schema','smart-seo-fixer-local','smart-seo-fixer-redirects','smart-seo-fixer-broken-links','smart-seo-fixer-404-monitor','smart-seo-fixer-robots'] },
+                { label: '<?php echo esc_js(__('Search & Social', 'smart-seo-fixer')); ?>', pages: ['smart-seo-fixer-search-performance','smart-seo-fixer-gsc','smart-seo-fixer-social-preview','smart-seo-fixer-keywords'] },
+                { label: '<?php echo esc_js(__('System', 'smart-seo-fixer')); ?>', pages: ['smart-seo-fixer-jobs','smart-seo-fixer-history','smart-seo-fixer-migration','smart-seo-fixer-wp-standards','smart-seo-fixer-performance','smart-seo-fixer-debug-log'] }
             ];
 
-            // Determine current page slug from URL
+            // Detect current page
             var currentSlug = '';
-            var $currentLi = $sub.find('li.current');
-            if ($currentLi.length) {
-                var href = $currentLi.find('a').attr('href') || '';
-                var m = href.match(/page=([\w-]+)/);
+            var $curLi = $sub.find('li.current');
+            if ($curLi.length) {
+                var m = ($curLi.find('a').attr('href') || '').match(/page=([\w-]+)/);
                 if (m) currentSlug = m[1];
             }
 
             $.each(groups, function(idx, group) {
-                // Tag each item in this group
                 var $items = $();
-                var groupHasCurrent = false;
+                var hasCurrent = false;
+                var flyLinks = '';
+
                 $.each(group.pages, function(_, slug) {
                     var $li = $sub.find('a[href="admin.php?page=' + slug + '"]').closest('li');
                     if ($li.length) {
-                        $li.addClass('ssf-menu-group-item ssf-group-' + idx);
+                        $li.addClass('ssf-menu-group-item');
                         $items = $items.add($li);
-                        if (slug === currentSlug) groupHasCurrent = true;
+                        var txt = $li.find('a').text().trim();
+                        var isCur = (slug === currentSlug);
+                        if (isCur) hasCurrent = true;
+                        flyLinks += '<a href="admin.php?page=' + slug + '"' + (isCur ? ' class="ssf-fly-current"' : '') + '>' + txt + '</a>';
                     }
                 });
 
                 if (!$items.length) return;
 
-                // Create the group header and insert before the first item
-                var $header = $('<li class="ssf-menu-group-header" data-group="' + idx + '">'
-                    + group.label
-                    + '<span class="ssf-mg-arrow">&#9654;</span></li>');
-                $items.first().before($header);
+                // Build the flyout trigger <li>
+                var $trigger = $('<li class="ssf-flyout-trigger' + (hasCurrent ? ' ssf-has-current' : '') + '">' +
+                    '<a href="#">' + group.label + ' <span class="ssf-fly-arrow">&#9654;</span></a>' +
+                    '<div class="ssf-flyout-panel">' + flyLinks + '</div></li>');
 
-                // Restore collapsed state (auto-expand if current page is in group)
-                var stored = localStorage.getItem('ssf_mg_' + idx);
-                var collapsed = (stored === '1') && !groupHasCurrent;
+                // Prevent the # link from navigating
+                $trigger.find('> a').on('click', function(e) { e.preventDefault(); });
 
-                if (collapsed) {
-                    $header.addClass('collapsed');
-                    $items.addClass('ssf-hidden');
-                } else {
-                    $header.addClass('expanded');
-                }
-
-                // Click to toggle
-                $header.on('click', function() {
-                    var $h = $(this);
-                    var gIdx = $h.data('group');
-                    var $gItems = $sub.find('.ssf-group-' + gIdx);
-
-                    if ($h.hasClass('expanded')) {
-                        $h.removeClass('expanded').addClass('collapsed');
-                        $gItems.addClass('ssf-hidden');
-                        localStorage.setItem('ssf_mg_' + gIdx, '1');
-                    } else {
-                        $h.removeClass('collapsed').addClass('expanded');
-                        $gItems.removeClass('ssf-hidden');
-                        localStorage.setItem('ssf_mg_' + gIdx, '0');
-                    }
-                });
+                // Insert before the first item of this group
+                $items.first().before($trigger);
             });
         })(jQuery);
         </script>

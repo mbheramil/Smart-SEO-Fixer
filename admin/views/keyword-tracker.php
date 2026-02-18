@@ -249,18 +249,18 @@ jQuery(document).ready(function($) {
     // Fetch Keywords Now button
     $('#ssf-fetch-keywords-now').on('click', function() {
         var $btn = $(this).prop('disabled', true);
-        $('#ssf-fetch-status').text('Fetching from Google Search Console...');
+        $('#ssf-fetch-status').text('Fetching from Google Search Console...').css('color', '#64748b');
         $.post(ssfAdmin.ajax_url, { action: 'ssf_fetch_keywords_now', nonce: ssfAdmin.nonce }, function(r) {
             $btn.prop('disabled', false);
             if (r.success) {
-                $('#ssf-fetch-status').text('Done! Reloading...').css('color', '#10b981');
-                setTimeout(function() { location.reload(); }, 800);
+                $('#ssf-fetch-status').text((r.data?.message || 'Done!') + ' Reloading...').css('color', '#10b981');
+                setTimeout(function() { location.reload(); }, 1200);
             } else {
-                $('#ssf-fetch-status').text(r.data?.message || 'Error fetching data.').css('color', '#ef4444');
+                $('#ssf-fetch-status').html('<strong>Error:</strong> ' + (r.data?.message || 'Unknown error.')).css('color', '#ef4444');
             }
-        }).fail(function() {
+        }).fail(function(xhr) {
             $btn.prop('disabled', false);
-            $('#ssf-fetch-status').text('Request failed.').css('color', '#ef4444');
+            $('#ssf-fetch-status').text('Network request failed (status ' + xhr.status + '). Check your server logs.').css('color', '#ef4444');
         });
     });
 });

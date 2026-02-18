@@ -15,7 +15,7 @@ class SSF_Content_Suggestions {
     /**
      * Generate content suggestions for a post using AI
      */
-    public static function generate($post_id) {
+    public static function generate($post_id, $mode = 'rules') {
         $post = get_post($post_id);
         if (!$post) {
             return new WP_Error('invalid_post', __('Post not found.', 'smart-seo-fixer'));
@@ -31,39 +31,49 @@ class SSF_Content_Suggestions {
                 ],
                 'score' => 10,
                 'source' => 'rules',
+                'has_ai' => false,
             ];
         }
         
-        // First generate rule-based suggestions (always available, no API needed)
-        $rule_suggestions = self::rule_based_suggestions($post);
+        $all = [];
+        $source = 'rules';
         
-        // Then try AI suggestions if OpenAI is configured
-        $ai_suggestions = [];
-        if (class_exists('SSF_OpenAI')) {
-            $openai = new SSF_OpenAI();
-            if ($openai->is_configured()) {
-                $ai_suggestions = self::ai_suggestions($post, $content);
+        if ($mode === 'ai') {
+            // AI-only mode (called as second async request)
+            if (class_exists('SSF_OpenAI')) {
+                $openai = new SSF_OpenAI();
+                if ($openai->is_configured()) {
+                    $all = self::ai_suggestions($post, $content);
+                    $source = 'ai';
+                }
             }
+        } else {
+            // Rules mode (fast, instant)
+            $all = self::rule_based_suggestions($post);
         }
         
-        $all = array_merge($rule_suggestions, $ai_suggestions);
-        
-        // Sort by priority
         usort($all, function($a, $b) {
             $order = ['high' => 0, 'medium' => 1, 'low' => 2];
             return ($order[$a['priority']] ?? 2) - ($order[$b['priority']] ?? 2);
         });
         
-        // Score based on how many issues
         $high = count(array_filter($all, function($s) { return $s['priority'] === 'high'; }));
         $medium = count(array_filter($all, function($s) { return $s['priority'] === 'medium'; }));
         $score = max(0, 100 - ($high * 15) - ($medium * 8));
         
+        // Check if AI is available for the "enhance" button
+        $has_ai = false;
+        if ($mode === 'rules' && class_exists('SSF_OpenAI')) {
+            $openai = new SSF_OpenAI();
+            $has_ai = $openai->is_configured();
+        }
+        
         return [
             'suggestions' => $all,
             'score'       => $score,
-            'source'      => !empty($ai_suggestions) ? 'ai+rules' : 'rules',
+            'source'      => $source,
             'count'       => count($all),
+            'has_ai'      => $has_ai,
         ];
     }
     

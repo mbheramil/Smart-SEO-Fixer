@@ -3196,13 +3196,66 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
         
-        if (!class_exists('SSF_Keyword_Tracker')) {
-            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
+        if (!class_exists('SSF_Keyword_Tracker') || !class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('Keyword Tracker or GSC Client not available.', 'smart-seo-fixer')]);
         }
         
-        SSF_Keyword_Tracker::cron_track();
+        $gsc = new SSF_GSC_Client();
+        if (!$gsc->is_connected()) {
+            wp_send_json_error(['message' => __('Google Search Console is not connected. Go to Settings to connect it.', 'smart-seo-fixer')]);
+        }
         
-        wp_send_json_success(['message' => __('Keyword data fetched from Google Search Console.', 'smart-seo-fixer')]);
+        $site_url = Smart_SEO_Fixer::get_option('gsc_site_url', '');
+        if (empty($site_url)) {
+            wp_send_json_error(['message' => __('No site URL configured for GSC. Check your Settings.', 'smart-seo-fixer')]);
+        }
+        
+        $date = date('Y-m-d', strtotime('-2 days'));
+        $result = $gsc->search_analytics($site_url, [
+            'startDate'  => $date,
+            'endDate'    => $date,
+            'dimensions' => ['query', 'page'],
+            'rowLimit'   => 100,
+        ]);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => sprintf(__('GSC API error: %s', 'smart-seo-fixer'), $result->get_error_message())]);
+        }
+        
+        if (empty($result['rows'])) {
+            wp_send_json_error(['message' => sprintf(__('No keyword data available from GSC for %s. Google Search Console data has a 2-3 day delay — this is normal for new or low-traffic sites.', 'smart-seo-fixer'), $date)]);
+        }
+        
+        // Store the data
+        global $wpdb;
+        $table = SSF_Keyword_Tracker::table();
+        $count = 0;
+        
+        foreach ($result['rows'] as $row) {
+            $keyword = $row['keys'][0] ?? '';
+            $url     = $row['keys'][1] ?? '';
+            if (empty($keyword)) continue;
+            
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table WHERE keyword = %s AND url = %s AND tracked_date = %s",
+                $keyword, $url, $date
+            ));
+            if ($exists) continue;
+            
+            $wpdb->insert($table, [
+                'keyword'      => mb_substr($keyword, 0, 500),
+                'url'          => $url,
+                'position'     => floatval($row['position'] ?? 0),
+                'clicks'       => intval($row['clicks'] ?? 0),
+                'impressions'  => intval($row['impressions'] ?? 0),
+                'ctr'          => floatval($row['ctr'] ?? 0) * 100,
+                'tracked_date' => $date,
+                'source'       => 'gsc',
+            ]);
+            $count++;
+        }
+        
+        wp_send_json_success(['message' => sprintf(__('Fetched %d keywords from GSC for %s.', 'smart-seo-fixer'), $count, $date)]);
     }
     
     /**
@@ -3220,7 +3273,12 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post ID required.', 'smart-seo-fixer')]);
         }
         
-        $result = SSF_Content_Suggestions::generate($post_id);
+        $mode = sanitize_text_field($_POST['mode'] ?? 'rules');
+        if (!in_array($mode, ['rules', 'ai'], true)) {
+            $mode = 'rules';
+        }
+        
+        $result = SSF_Content_Suggestions::generate($post_id, $mode);
         
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()]);
