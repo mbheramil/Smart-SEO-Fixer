@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.11.0
+ * Version: 1.13.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.12.0');
+define('SSF_VERSION', '1.13.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -95,6 +95,9 @@ final class Smart_SEO_Fixer {
             'includes/class-db-migrator.php',
             'includes/class-validator.php',
             'includes/class-setup-wizard.php',
+            'includes/class-broken-links.php',
+            'includes/class-404-monitor.php',
+            'includes/class-robots-editor.php',
             'includes/class-ajax.php',
         ];
         
@@ -127,6 +130,21 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Job_Queue')) {
             add_filter('cron_schedules', ['SSF_Job_Queue', 'add_cron_interval']);
             add_action(SSF_Job_Queue::CRON_HOOK, ['SSF_Job_Queue', 'process_queue']);
+        }
+        
+        // Broken link checker cron
+        if (class_exists('SSF_Broken_Links')) {
+            add_action(SSF_Broken_Links::CRON_HOOK, ['SSF_Broken_Links', 'cron_scan']);
+        }
+        
+        // 404 Monitor (frontend hook)
+        if (class_exists('SSF_404_Monitor')) {
+            SSF_404_Monitor::init();
+        }
+        
+        // robots.txt editor (frontend hook)
+        if (class_exists('SSF_Robots_Editor')) {
+            SSF_Robots_Editor::init();
         }
         
         register_activation_hook(__FILE__, [$this, 'activate']);
@@ -248,6 +266,11 @@ final class Smart_SEO_Fixer {
             SSF_Job_Queue::schedule_cron();
         }
         
+        // Schedule broken link checker (daily)
+        if (class_exists('SSF_Broken_Links')) {
+            SSF_Broken_Links::schedule_cron();
+        }
+        
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -264,6 +287,10 @@ final class Smart_SEO_Fixer {
         
         if (class_exists('SSF_Job_Queue')) {
             SSF_Job_Queue::unschedule_cron();
+        }
+        
+        if (class_exists('SSF_Broken_Links')) {
+            SSF_Broken_Links::unschedule_cron();
         }
         
         flush_rewrite_rules();
@@ -388,6 +415,8 @@ final class Smart_SEO_Fixer {
             $wpdb->prefix . 'ssf_history',
             $wpdb->prefix . 'ssf_logs',
             $wpdb->prefix . 'ssf_jobs',
+            $wpdb->prefix . 'ssf_broken_links',
+            $wpdb->prefix . 'ssf_404_log',
         ];
         
         foreach ($tables_to_check as $table_name) {
@@ -435,6 +464,16 @@ final class Smart_SEO_Fixer {
         // Create jobs table
         if (class_exists('SSF_Job_Queue')) {
             SSF_Job_Queue::create_table();
+        }
+        
+        // Create broken links table
+        if (class_exists('SSF_Broken_Links')) {
+            SSF_Broken_Links::create_table();
+        }
+        
+        // Create 404 log table
+        if (class_exists('SSF_404_Monitor')) {
+            SSF_404_Monitor::create_table();
         }
     }
     

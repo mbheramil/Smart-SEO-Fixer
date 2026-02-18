@@ -41,6 +41,9 @@ $options = [
     'ssf_gsc_tokens',
     'ssf_setup_completed',
     'ssf_db_version',
+    'ssf_broken_links_last_post',
+    'ssf_robots_txt_custom',
+    'ssf_robots_txt_enabled',
 ];
 
 foreach ($options as $option) {
@@ -87,6 +90,8 @@ $tables = [
     $wpdb->prefix . 'ssf_history',
     $wpdb->prefix . 'ssf_logs',
     $wpdb->prefix . 'ssf_jobs',
+    $wpdb->prefix . 'ssf_broken_links',
+    $wpdb->prefix . 'ssf_404_log',
 ];
 foreach ($tables as $table_name) {
     $wpdb->query("DROP TABLE IF EXISTS $table_name");
@@ -100,6 +105,10 @@ if ($timestamp) {
 $timestamp = wp_next_scheduled('ssf_process_job_queue');
 if ($timestamp) {
     wp_unschedule_event($timestamp, 'ssf_process_job_queue');
+}
+$timestamp = wp_next_scheduled('ssf_check_broken_links');
+if ($timestamp) {
+    wp_unschedule_event($timestamp, 'ssf_check_broken_links');
 }
 
 // 6. Clear transients

@@ -90,6 +90,22 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_get_jobs', [$this, 'get_jobs']);
         add_action('wp_ajax_ssf_cancel_job', [$this, 'cancel_job']);
         add_action('wp_ajax_ssf_retry_job', [$this, 'retry_job']);
+        
+        // Broken Links
+        add_action('wp_ajax_ssf_get_broken_links', [$this, 'get_broken_links']);
+        add_action('wp_ajax_ssf_scan_broken_links', [$this, 'scan_broken_links']);
+        add_action('wp_ajax_ssf_recheck_broken_link', [$this, 'recheck_broken_link']);
+        add_action('wp_ajax_ssf_dismiss_broken_link', [$this, 'dismiss_broken_link']);
+        add_action('wp_ajax_ssf_undismiss_broken_link', [$this, 'undismiss_broken_link']);
+        
+        // 404 Monitor
+        add_action('wp_ajax_ssf_get_404_logs', [$this, 'get_404_logs']);
+        add_action('wp_ajax_ssf_dismiss_404', [$this, 'dismiss_404']);
+        add_action('wp_ajax_ssf_create_404_redirect', [$this, 'create_404_redirect']);
+        add_action('wp_ajax_ssf_clear_404_logs', [$this, 'clear_404_logs']);
+        
+        // robots.txt Editor
+        add_action('wp_ajax_ssf_save_robots', [$this, 'save_robots']);
     }
     
     /**
@@ -2798,6 +2814,213 @@ class SSF_Ajax {
         wp_send_json_success([
             'message' => __('Retry job created.', 'smart-seo-fixer'),
             'new_job_id' => $new_job_id,
+        ]);
+    }
+    
+    // =========================================================================
+    // Broken Links
+    // =========================================================================
+    
+    /**
+     * Get broken links list
+     */
+    public function get_broken_links() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Broken_Links')) {
+            wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Broken_Links::query([
+            'page'      => intval($_POST['page'] ?? 1),
+            'per_page'  => 20,
+            'link_type' => sanitize_key($_POST['link_type'] ?? ''),
+            'status'    => sanitize_key($_POST['status'] ?? 'active'),
+            'search'    => sanitize_text_field($_POST['search'] ?? ''),
+        ]);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Manual scan for broken links (scans 10 most recent posts)
+     */
+    public function scan_broken_links() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Broken_Links')) {
+            wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        $posts = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, post_content FROM {$wpdb->posts} 
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
+                 ORDER BY post_modified DESC LIMIT 10",
+                ...$post_types
+            )
+        );
+        
+        $total_checked = 0;
+        $total_broken = 0;
+        
+        foreach ($posts as $post) {
+            $result = SSF_Broken_Links::scan_post($post->ID, $post->post_content);
+            $total_checked += $result['checked'];
+            $total_broken += $result['broken'];
+        }
+        
+        wp_send_json_success([
+            'checked' => $total_checked,
+            'broken'  => $total_broken,
+            'posts'   => count($posts),
+        ]);
+    }
+    
+    /**
+     * Recheck a specific broken link
+     */
+    public function recheck_broken_link() {
+        $this->verify_nonce();
+        
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid ID.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Broken_Links::recheck($id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Dismiss a broken link
+     */
+    public function dismiss_broken_link() {
+        $this->verify_nonce();
+        SSF_Broken_Links::dismiss(intval($_POST['id'] ?? 0));
+        wp_send_json_success();
+    }
+    
+    /**
+     * Undismiss a broken link
+     */
+    public function undismiss_broken_link() {
+        $this->verify_nonce();
+        SSF_Broken_Links::undismiss(intval($_POST['id'] ?? 0));
+        wp_send_json_success();
+    }
+    
+    // =========================================================================
+    // 404 Monitor
+    // =========================================================================
+    
+    /**
+     * Get 404 logs
+     */
+    public function get_404_logs() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_404_Monitor')) {
+            wp_send_json_error(['message' => __('404 Monitor module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_404_Monitor::query([
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => 20,
+            'status'   => sanitize_key($_POST['status'] ?? 'active'),
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+        ]);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Dismiss a 404 entry
+     */
+    public function dismiss_404() {
+        $this->verify_nonce();
+        SSF_404_Monitor::dismiss(intval($_POST['id'] ?? 0));
+        wp_send_json_success();
+    }
+    
+    /**
+     * Create redirect from a 404 URL
+     */
+    public function create_404_redirect() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $id = intval($_POST['id'] ?? 0);
+        $redirect_to = esc_url_raw($_POST['redirect_to'] ?? '');
+        
+        if (!$id || empty($redirect_to)) {
+            wp_send_json_error(['message' => __('Missing required fields.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_404_Monitor::create_redirect($id, $redirect_to);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success(['message' => __('Redirect created successfully.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Clear all 404 logs
+     */
+    public function clear_404_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_404_Monitor::clear_all();
+        wp_send_json_success(['message' => __('All 404 logs cleared.', 'smart-seo-fixer')]);
+    }
+    
+    // =========================================================================
+    // robots.txt Editor
+    // =========================================================================
+    
+    /**
+     * Save robots.txt content
+     */
+    public function save_robots() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Robots_Editor')) {
+            wp_send_json_error(['message' => __('robots.txt Editor not available.', 'smart-seo-fixer')]);
+        }
+        
+        $content = isset($_POST['content']) ? wp_unslash($_POST['content']) : '';
+        $enabled = !empty($_POST['enabled']);
+        
+        SSF_Robots_Editor::save_content($content);
+        SSF_Robots_Editor::set_enabled($enabled);
+        
+        $warnings = SSF_Robots_Editor::validate($content);
+        
+        wp_send_json_success([
+            'message'  => __('robots.txt saved successfully.', 'smart-seo-fixer'),
+            'warnings' => $warnings,
         ]);
     }
 }

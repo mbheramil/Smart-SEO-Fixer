@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.12.0
+Stable tag: 1.13.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,23 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.13.0 =
+* NEW: Broken Link Checker - scans posts for dead links (404s, timeouts, connection errors)
+* NEW: Background cron scans 5 posts per day automatically, cycles through all content
+* NEW: Manual "Scan Now" checks 10 most recent posts on demand
+* NEW: Recheck individual links, dismiss false positives, filter by type (internal/external)
+* NEW: 404 Monitor - logs every real 404 hit on your site with hit counts and referrers
+* NEW: One-click redirect creation from 404 entries (integrates with Redirects module)
+* NEW: Smart noise filtering - ignores bots/scanners hitting common exploit paths
+* NEW: robots.txt Editor - view, edit, and manage your site's robots.txt from the plugin
+* NEW: "Load Recommended" template with optimized crawl rules and WooCommerce support
+* NEW: Real-time validation warnings (blocks-all detection, missing sitemap, etc.)
+* NEW: Physical file detection warning (if robots.txt file exists in site root)
+* NEW: Dark-themed code editor for robots.txt content
+* NEW: Dashboard navigation cards for all three new tools
+* Database: Added ssf_broken_links and ssf_404_log tables (auto-created via migration v5)
+* IMPROVED: DB Migrator updated to v5 for new tables
 
 = 1.12.0 =
 * NEW: Setup Wizard - guided first-run setup for API key, post types, and feature toggles

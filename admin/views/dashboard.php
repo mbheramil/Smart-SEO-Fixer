@@ -185,6 +185,39 @@ if (!defined('ABSPATH')) {
                         <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
                     </a>
                     
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-broken-links')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #f97316, #c2410c);">
+                            <span class="dashicons dashicons-editor-unlink"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Broken Links', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Find and fix dead links in your content', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-404-monitor')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #e11d48, #9f1239);">
+                            <span class="dashicons dashicons-dismiss"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('404 Monitor', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Track 404 errors and create redirects', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-robots')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0d9488, #115e59);">
+                            <span class="dashicons dashicons-media-text"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('robots.txt Editor', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Control how search engines crawl your site', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
                     <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-history')); ?>" class="ssf-nav-card">
                         <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
                             <span class="dashicons dashicons-backup"></span>

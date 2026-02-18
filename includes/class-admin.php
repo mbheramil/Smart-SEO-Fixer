@@ -62,6 +62,9 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-history',
             'smart-seo_page_smart-seo-fixer-debug-log',
             'smart-seo_page_smart-seo-fixer-jobs',
+            'smart-seo_page_smart-seo-fixer-broken-links',
+            'smart-seo_page_smart-seo-fixer-404-monitor',
+            'smart-seo_page_smart-seo-fixer-robots',
             'plugins',
         ];
         
@@ -238,6 +241,36 @@ class SSF_Admin {
             [$this, 'render_change_history']
         );
         
+        // Broken Links submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Broken Links', 'smart-seo-fixer'),
+            __('Broken Links', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-broken-links',
+            [$this, 'render_broken_links']
+        );
+        
+        // 404 Monitor submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('404 Monitor', 'smart-seo-fixer'),
+            __('404 Monitor', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-404-monitor',
+            [$this, 'render_404_monitor']
+        );
+        
+        // robots.txt Editor submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('robots.txt', 'smart-seo-fixer'),
+            __('robots.txt', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-robots',
+            [$this, 'render_robots_editor']
+        );
+        
         // Debug Log submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -281,6 +314,9 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-history',
             'smart-seo_page_smart-seo-fixer-debug-log',
             'smart-seo_page_smart-seo-fixer-jobs',
+            'smart-seo_page_smart-seo-fixer-broken-links',
+            'smart-seo_page_smart-seo-fixer-404-monitor',
+            'smart-seo_page_smart-seo-fixer-robots',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -406,6 +442,27 @@ class SSF_Admin {
      */
     public function render_change_history() {
         include SSF_PLUGIN_DIR . 'admin/views/change-history.php';
+    }
+    
+    /**
+     * Render Broken Links page
+     */
+    public function render_broken_links() {
+        include SSF_PLUGIN_DIR . 'admin/views/broken-links.php';
+    }
+    
+    /**
+     * Render 404 Monitor page
+     */
+    public function render_404_monitor() {
+        include SSF_PLUGIN_DIR . 'admin/views/404-monitor.php';
+    }
+    
+    /**
+     * Render robots.txt Editor page
+     */
+    public function render_robots_editor() {
+        include SSF_PLUGIN_DIR . 'admin/views/robots-editor.php';
     }
     
     /**

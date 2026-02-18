@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 4;
+    const CURRENT_VERSION = 5;
     
     /**
      * Run any pending migrations
@@ -70,6 +70,8 @@ class SSF_DB_Migrator {
             3 => [__CLASS__, 'migrate_v3_jobs'],
             // v4: Setup wizard completed flag + input validation defaults (v1.12.0)
             4 => [__CLASS__, 'migrate_v4_setup_validation'],
+            // v5: Broken links + 404 log tables (v1.13.0)
+            5 => [__CLASS__, 'migrate_v5_broken_links_404'],
         ];
     }
     
@@ -126,6 +128,18 @@ class SSF_DB_Migrator {
         $api_key = get_option('ssf_openai_api_key', '');
         if (!empty($api_key)) {
             update_option('ssf_setup_completed', true);
+        }
+    }
+    
+    /**
+     * Migration v5: Broken links and 404 log tables
+     */
+    public static function migrate_v5_broken_links_404() {
+        if (class_exists('SSF_Broken_Links')) {
+            SSF_Broken_Links::create_table();
+        }
+        if (class_exists('SSF_404_Monitor')) {
+            SSF_404_Monitor::create_table();
         }
     }
     
