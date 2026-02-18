@@ -39,6 +39,161 @@ class SSF_Admin {
         add_filter('manage_edit-post_sortable_columns', [$this, 'sortable_seo_column']);
         add_filter('manage_edit-page_sortable_columns', [$this, 'sortable_seo_column']);
         add_action('pre_get_posts', [$this, 'sort_by_seo_score']);
+        
+        // Grouped admin menu (collapsible categories in sidebar)
+        add_action('admin_head', [$this, 'admin_menu_group_css']);
+        add_action('admin_footer', [$this, 'admin_menu_group_js']);
+    }
+    
+    /**
+     * CSS for grouped admin menu (in head to prevent FOUC)
+     */
+    public function admin_menu_group_css() {
+        ?>
+        <style>
+            /* SSF grouped submenu */
+            #adminmenu .wp-submenu .ssf-menu-group-header {
+                padding: 8px 12px 4px !important;
+                color: #9ea3a8 !important;
+                font-size: 10.5px !important;
+                font-weight: 700 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.6px !important;
+                cursor: pointer !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-top: 2px !important;
+                border-top: 1px solid rgba(255,255,255,0.04) !important;
+                user-select: none !important;
+                line-height: 1.4 !important;
+                background: none !important;
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-header:first-of-type {
+                border-top: none !important;
+                margin-top: 0 !important;
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-header:hover {
+                color: #fff !important;
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-header .ssf-mg-arrow {
+                font-size: 9px;
+                opacity: 0.4;
+                transition: transform 0.15s;
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-header.collapsed .ssf-mg-arrow {
+                transform: rotate(0deg);
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-header.expanded .ssf-mg-arrow {
+                transform: rotate(90deg);
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-item {
+                transition: max-height 0.15s ease, opacity 0.15s ease;
+            }
+            #adminmenu .wp-submenu .ssf-menu-group-item.ssf-hidden {
+                display: none !important;
+            }
+        </style>
+        <?php
+    }
+    
+    /**
+     * JS for grouped admin menu (in footer after DOM ready)
+     */
+    public function admin_menu_group_js() {
+        ?>
+        <script>
+        (function($) {
+            // Find the Smart SEO top-level menu
+            var $topLink = $('#adminmenu a.menu-top[href="admin.php?page=smart-seo-fixer"]');
+            if (!$topLink.length) {
+                $topLink = $('#adminmenu a[href="admin.php?page=smart-seo-fixer"]').first().closest('li.menu-top').find('> a.menu-top');
+            }
+            var $menuLi = $topLink.closest('li.menu-top');
+            if (!$menuLi.length) return;
+            var $sub = $menuLi.find('ul.wp-submenu');
+            if (!$sub.length) return;
+
+            var groups = [
+                {
+                    label: '<?php echo esc_js(__('Analyze & Fix', 'smart-seo-fixer')); ?>',
+                    pages: ['smart-seo-fixer-analyzer','smart-seo-fixer-bulk-fix','smart-seo-fixer-posts','smart-seo-fixer-content-suggestions']
+                },
+                {
+                    label: '<?php echo esc_js(__('Technical SEO', 'smart-seo-fixer')); ?>',
+                    pages: ['smart-seo-fixer-schema','smart-seo-fixer-local','smart-seo-fixer-redirects','smart-seo-fixer-broken-links','smart-seo-fixer-404-monitor','smart-seo-fixer-robots']
+                },
+                {
+                    label: '<?php echo esc_js(__('Search & Social', 'smart-seo-fixer')); ?>',
+                    pages: ['smart-seo-fixer-search-performance','smart-seo-fixer-gsc','smart-seo-fixer-social-preview','smart-seo-fixer-keywords']
+                },
+                {
+                    label: '<?php echo esc_js(__('System', 'smart-seo-fixer')); ?>',
+                    pages: ['smart-seo-fixer-jobs','smart-seo-fixer-history','smart-seo-fixer-migration','smart-seo-fixer-wp-standards','smart-seo-fixer-performance','smart-seo-fixer-debug-log']
+                }
+            ];
+
+            // Determine current page slug from URL
+            var currentSlug = '';
+            var $currentLi = $sub.find('li.current');
+            if ($currentLi.length) {
+                var href = $currentLi.find('a').attr('href') || '';
+                var m = href.match(/page=([\w-]+)/);
+                if (m) currentSlug = m[1];
+            }
+
+            $.each(groups, function(idx, group) {
+                // Tag each item in this group
+                var $items = $();
+                var groupHasCurrent = false;
+                $.each(group.pages, function(_, slug) {
+                    var $li = $sub.find('a[href="admin.php?page=' + slug + '"]').closest('li');
+                    if ($li.length) {
+                        $li.addClass('ssf-menu-group-item ssf-group-' + idx);
+                        $items = $items.add($li);
+                        if (slug === currentSlug) groupHasCurrent = true;
+                    }
+                });
+
+                if (!$items.length) return;
+
+                // Create the group header and insert before the first item
+                var $header = $('<li class="ssf-menu-group-header" data-group="' + idx + '">'
+                    + group.label
+                    + '<span class="ssf-mg-arrow">&#9654;</span></li>');
+                $items.first().before($header);
+
+                // Restore collapsed state (auto-expand if current page is in group)
+                var stored = localStorage.getItem('ssf_mg_' + idx);
+                var collapsed = (stored === '1') && !groupHasCurrent;
+
+                if (collapsed) {
+                    $header.addClass('collapsed');
+                    $items.addClass('ssf-hidden');
+                } else {
+                    $header.addClass('expanded');
+                }
+
+                // Click to toggle
+                $header.on('click', function() {
+                    var $h = $(this);
+                    var gIdx = $h.data('group');
+                    var $gItems = $sub.find('.ssf-group-' + gIdx);
+
+                    if ($h.hasClass('expanded')) {
+                        $h.removeClass('expanded').addClass('collapsed');
+                        $gItems.addClass('ssf-hidden');
+                        localStorage.setItem('ssf_mg_' + gIdx, '1');
+                    } else {
+                        $h.removeClass('collapsed').addClass('expanded');
+                        $gItems.removeClass('ssf-hidden');
+                        localStorage.setItem('ssf_mg_' + gIdx, '0');
+                    }
+                });
+            });
+        })(jQuery);
+        </script>
+        <?php
     }
     
     /**
@@ -136,215 +291,36 @@ class SSF_Admin {
             [$this, 'render_dashboard']
         );
         
-        // SEO Analyzer submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('SEO Analyzer', 'smart-seo-fixer'),
-            __('SEO Analyzer', 'smart-seo-fixer'),
-            'edit_posts',
-            'smart-seo-fixer-analyzer',
-            [$this, 'render_analyzer']
-        );
+        // ── Analyze & Fix ──
+        add_submenu_page('smart-seo-fixer', __('SEO Analyzer', 'smart-seo-fixer'), __('SEO Analyzer', 'smart-seo-fixer'), 'edit_posts', 'smart-seo-fixer-analyzer', [$this, 'render_analyzer']);
+        add_submenu_page('smart-seo-fixer', __('Bulk AI Fix', 'smart-seo-fixer'), __('Bulk AI Fix', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-bulk-fix', [$this, 'render_bulk_fix']);
+        add_submenu_page('smart-seo-fixer', __('All Posts', 'smart-seo-fixer'), __('All Posts', 'smart-seo-fixer'), 'edit_posts', 'smart-seo-fixer-posts', [$this, 'render_posts_page']);
+        add_submenu_page('smart-seo-fixer', __('Content Suggestions', 'smart-seo-fixer'), __('Content Tips', 'smart-seo-fixer'), 'edit_posts', 'smart-seo-fixer-content-suggestions', [$this, 'render_content_suggestions']);
         
-        // Bulk AI Fix submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Bulk AI Fix', 'smart-seo-fixer'),
-            __('Bulk AI Fix', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-bulk-fix',
-            [$this, 'render_bulk_fix']
-        );
+        // ── Technical SEO ──
+        add_submenu_page('smart-seo-fixer', __('Schema', 'smart-seo-fixer'), __('Schema', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-schema', [$this, 'render_schema_page']);
+        add_submenu_page('smart-seo-fixer', __('Local SEO', 'smart-seo-fixer'), __('Local SEO', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-local', [$this, 'render_local_seo']);
+        add_submenu_page('smart-seo-fixer', __('Redirects', 'smart-seo-fixer'), __('Redirects', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-redirects', [$this, 'render_redirects_page']);
+        add_submenu_page('smart-seo-fixer', __('Broken Links', 'smart-seo-fixer'), __('Broken Links', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-broken-links', [$this, 'render_broken_links']);
+        add_submenu_page('smart-seo-fixer', __('404 Monitor', 'smart-seo-fixer'), __('404 Monitor', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-404-monitor', [$this, 'render_404_monitor']);
+        add_submenu_page('smart-seo-fixer', __('robots.txt', 'smart-seo-fixer'), __('robots.txt', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-robots', [$this, 'render_robots_editor']);
         
-        // All Posts submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('All Posts', 'smart-seo-fixer'),
-            __('All Posts', 'smart-seo-fixer'),
-            'edit_posts',
-            'smart-seo-fixer-posts',
-            [$this, 'render_posts_page']
-        );
+        // ── Search & Social ──
+        add_submenu_page('smart-seo-fixer', __('Search Performance', 'smart-seo-fixer'), __('Search Perf.', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-search-performance', [$this, 'render_search_performance']);
+        add_submenu_page('smart-seo-fixer', __('Indexability Auditor', 'smart-seo-fixer'), __('Indexability', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-gsc', [$this, 'render_gsc_page']);
+        add_submenu_page('smart-seo-fixer', __('Social Preview', 'smart-seo-fixer'), __('Social Preview', 'smart-seo-fixer'), 'edit_posts', 'smart-seo-fixer-social-preview', [$this, 'render_social_preview']);
+        add_submenu_page('smart-seo-fixer', __('Keyword Tracker', 'smart-seo-fixer'), __('Keywords', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-keywords', [$this, 'render_keyword_tracker']);
         
-        // Local SEO submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Local SEO', 'smart-seo-fixer'),
-            __('Local SEO', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-local',
-            [$this, 'render_local_seo']
-        );
+        // ── System ──
+        add_submenu_page('smart-seo-fixer', __('Background Jobs', 'smart-seo-fixer'), __('Jobs', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-jobs', [$this, 'render_job_queue']);
+        add_submenu_page('smart-seo-fixer', __('Change History', 'smart-seo-fixer'), __('History', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-history', [$this, 'render_change_history']);
+        add_submenu_page('smart-seo-fixer', __('Migration', 'smart-seo-fixer'), __('Migration', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-migration', [$this, 'render_migration']);
+        add_submenu_page('smart-seo-fixer', __('Coding Standards', 'smart-seo-fixer'), __('Code Audit', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-wp-standards', [$this, 'render_wp_standards']);
+        add_submenu_page('smart-seo-fixer', __('Performance', 'smart-seo-fixer'), __('Performance', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-performance', [$this, 'render_performance']);
+        add_submenu_page('smart-seo-fixer', __('Debug Log', 'smart-seo-fixer'), __('Debug Log', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-debug-log', [$this, 'render_debug_log']);
         
-        // Schema submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Schema', 'smart-seo-fixer'),
-            __('Schema', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-schema',
-            [$this, 'render_schema_page']
-        );
-        
-        // Redirects submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Redirects', 'smart-seo-fixer'),
-            __('Redirects', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-redirects',
-            [$this, 'render_redirects_page']
-        );
-        
-        // Search Performance submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Search Performance', 'smart-seo-fixer'),
-            __('Search Performance', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-search-performance',
-            [$this, 'render_search_performance']
-        );
-        
-        // Indexability Auditor submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Indexability Auditor', 'smart-seo-fixer'),
-            __('Indexability Audit', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-gsc',
-            [$this, 'render_gsc_page']
-        );
-        
-        // Migration submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Migration', 'smart-seo-fixer'),
-            __('Migration', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-migration',
-            [$this, 'render_migration']
-        );
-        
-        // Background Jobs submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Background Jobs', 'smart-seo-fixer'),
-            __('Background Jobs', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-jobs',
-            [$this, 'render_job_queue']
-        );
-        
-        // Change History submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Change History', 'smart-seo-fixer'),
-            __('Change History', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-history',
-            [$this, 'render_change_history']
-        );
-        
-        // Broken Links submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Broken Links', 'smart-seo-fixer'),
-            __('Broken Links', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-broken-links',
-            [$this, 'render_broken_links']
-        );
-        
-        // 404 Monitor submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('404 Monitor', 'smart-seo-fixer'),
-            __('404 Monitor', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-404-monitor',
-            [$this, 'render_404_monitor']
-        );
-        
-        // robots.txt Editor submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('robots.txt', 'smart-seo-fixer'),
-            __('robots.txt', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-robots',
-            [$this, 'render_robots_editor']
-        );
-        
-        // Social Preview submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Social Preview', 'smart-seo-fixer'),
-            __('Social Preview', 'smart-seo-fixer'),
-            'edit_posts',
-            'smart-seo-fixer-social-preview',
-            [$this, 'render_social_preview']
-        );
-        
-        // Keyword Tracker submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Keyword Tracker', 'smart-seo-fixer'),
-            __('Keyword Tracker', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-keywords',
-            [$this, 'render_keyword_tracker']
-        );
-        
-        // Content Suggestions submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Content Suggestions', 'smart-seo-fixer'),
-            __('Content Tips', 'smart-seo-fixer'),
-            'edit_posts',
-            'smart-seo-fixer-content-suggestions',
-            [$this, 'render_content_suggestions']
-        );
-        
-        // WP Coding Standards submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Coding Standards', 'smart-seo-fixer'),
-            __('Code Audit', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-wp-standards',
-            [$this, 'render_wp_standards']
-        );
-        
-        // Performance Profiler submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Performance', 'smart-seo-fixer'),
-            __('Performance', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-performance',
-            [$this, 'render_performance']
-        );
-        
-        // Debug Log submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Debug Log', 'smart-seo-fixer'),
-            __('Debug Log', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-debug-log',
-            [$this, 'render_debug_log']
-        );
-        
-        // Settings submenu
-        add_submenu_page(
-            'smart-seo-fixer',
-            __('Settings', 'smart-seo-fixer'),
-            __('Settings', 'smart-seo-fixer'),
-            'manage_options',
-            'smart-seo-fixer-settings',
-            [$this, 'render_settings']
-        );
+        // ── Always visible ──
+        add_submenu_page('smart-seo-fixer', __('Settings', 'smart-seo-fixer'), __('Settings', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-settings', [$this, 'render_settings']);
     }
     
     /**
