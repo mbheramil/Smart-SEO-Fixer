@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.15.9
+Stable tag: 1.16.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -94,10 +94,15 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 
 == Changelog ==
 
+= 1.16.0 =
+* Fix: GSC auto-match now handles `sc-domain:` properties (domain-level GSC verification)
+* Fix: Site selector dropdown now always visible in Settings when GSC is connected (was hidden for single-site accounts)
+* Shows "Select a site" prompt when no site is auto-detected
+* Shows a warning if no GSC properties are found at all
+* Better error messaging when GSC connects but site list fetch fails
+
 = 1.15.9 =
-* Fix: "Enhance with AI Suggestions" was calling non-existent method `chat_completion()` instead of `request()`
-* AI Content Tips now properly calls the OpenAI API and returns real suggestions
-* Improved error messages when AI fails (shows actual reason instead of generic message)
+* Fix: "Enhance with AI Suggestions" was calling non-existent method
 
 = 1.15.8 =
 * Fix: Force flyout link padding with !important to override WP admin CSS

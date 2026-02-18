@@ -97,12 +97,16 @@ class SSF_GSC_Client {
             $sites = $this->get_sites();
             if (!is_wp_error($sites) && !empty($sites)) {
                 $site_url = home_url('/');
+                $host = wp_parse_url($site_url, PHP_URL_HOST);
                 $matched = false;
                 foreach ($sites as $site) {
-                    if (rtrim($site['siteUrl'], '/') === rtrim($site_url, '/') 
-                        || $site['siteUrl'] === $site_url
-                        || strpos($site_url, rtrim($site['siteUrl'], '/')) === 0) {
-                        Smart_SEO_Fixer::update_option('gsc_site_url', $site['siteUrl']);
+                    $s = $site['siteUrl'];
+                    if (rtrim($s, '/') === rtrim($site_url, '/')
+                        || $s === $site_url
+                        || strpos($site_url, rtrim($s, '/')) === 0
+                        || $s === 'sc-domain:' . $host
+                        || $s === 'sc-domain:' . preg_replace('/^www\./', '', $host)) {
+                        Smart_SEO_Fixer::update_option('gsc_site_url', $s);
                         $matched = true;
                         break;
                     }
@@ -110,8 +114,14 @@ class SSF_GSC_Client {
                 if (!$matched && !empty($sites[0]['siteUrl'])) {
                     Smart_SEO_Fixer::update_option('gsc_site_url', $sites[0]['siteUrl']);
                 }
+                set_transient('ssf_gsc_success', __('Google Search Console connected successfully!', 'smart-seo-fixer'), 60);
+            } else {
+                $err_msg = is_wp_error($sites) ? $sites->get_error_message() : __('No sites found in your GSC account.', 'smart-seo-fixer');
+                set_transient('ssf_gsc_success', __('Connected to Google, but could not auto-detect site. Please select it below.', 'smart-seo-fixer'), 60);
+                if (class_exists('SSF_Logger')) {
+                    SSF_Logger::warning('GSC connected but site list failed: ' . $err_msg, 'gsc');
+                }
             }
-            set_transient('ssf_gsc_success', __('Google Search Console connected successfully!', 'smart-seo-fixer'), 60);
         }
         
         wp_redirect(admin_url('admin.php?page=smart-seo-fixer-settings&ssf_gsc_connected=1'));

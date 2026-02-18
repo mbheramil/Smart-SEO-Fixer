@@ -151,13 +151,16 @@ unset($available_post_types['attachment']);
                         <?php endif; ?>
                     </div>
                     <table class="form-table">
-                        <?php if (!empty($gsc_sites) && count($gsc_sites) > 1): ?>
+                        <?php if (!empty($gsc_sites)): ?>
                         <tr>
                             <th scope="row">
                                 <label for="gsc_site_url"><?php esc_html_e('Site Property', 'smart-seo-fixer'); ?></label>
                             </th>
                             <td>
                                 <select name="gsc_site_url" id="gsc_site_url">
+                                    <?php if (empty($gsc_site_url)): ?>
+                                        <option value=""><?php esc_html_e('— Select a site —', 'smart-seo-fixer'); ?></option>
+                                    <?php endif; ?>
                                     <?php foreach ($gsc_sites as $site): ?>
                                         <option value="<?php echo esc_attr($site['siteUrl']); ?>" <?php selected($gsc_site_url, $site['siteUrl']); ?>>
                                             <?php echo esc_html($site['siteUrl']); ?>
@@ -165,8 +168,16 @@ unset($available_post_types['attachment']);
                                     <?php endforeach; ?>
                                 </select>
                                 <p class="description">
-                                    <?php esc_html_e('Select which site property to use.', 'smart-seo-fixer'); ?>
+                                    <?php esc_html_e('Select which site property to use, then save settings.', 'smart-seo-fixer'); ?>
                                 </p>
+                            </td>
+                        </tr>
+                        <?php elseif (empty($gsc_site_url)): ?>
+                        <tr>
+                            <td colspan="2">
+                                <div class="notice notice-warning inline" style="margin: 0;">
+                                    <p><?php esc_html_e('No GSC site properties found. Make sure your site is verified in Google Search Console.', 'smart-seo-fixer'); ?></p>
+                                </div>
                             </td>
                         </tr>
                         <?php endif; ?>
