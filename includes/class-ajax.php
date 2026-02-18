@@ -50,6 +50,7 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_suggest_images', [$this, 'suggest_images']);
         
         // Google Search Console
+        add_action('wp_ajax_ssf_gsc_refresh_sites', [$this, 'gsc_refresh_sites']);
         add_action('wp_ajax_ssf_gsc_disconnect', [$this, 'gsc_disconnect']);
         add_action('wp_ajax_ssf_gsc_performance', [$this, 'gsc_performance']);
         add_action('wp_ajax_ssf_gsc_inspect_url', [$this, 'gsc_inspect_url']);
@@ -2300,6 +2301,39 @@ class SSF_Ajax {
     /**
      * Disconnect from Google Search Console
      */
+    public function gsc_refresh_sites() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+
+        try {
+            $gsc = new SSF_GSC_Client();
+            if (!$gsc->is_connected()) {
+                wp_send_json_error(['message' => __('Not connected to GSC. Please connect first.', 'smart-seo-fixer')]);
+            }
+
+            $sites = $gsc->get_sites();
+            if (is_wp_error($sites)) {
+                wp_send_json_error(['message' => $sites->get_error_message()]);
+            }
+
+            if (empty($sites)) {
+                wp_send_json_error(['message' => __('No site properties found in your GSC account. Make sure your site is verified.', 'smart-seo-fixer')]);
+            }
+
+            set_transient('ssf_gsc_sites_cache', $sites, DAY_IN_SECONDS);
+            wp_send_json_success(['sites' => $sites]);
+        } catch (\Throwable $e) {
+            wp_send_json_error(['message' => $e->getMessage()]);
+        }
+    }
+
     public function gsc_disconnect() {
         $this->verify_nonce();
         

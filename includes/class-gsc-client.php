@@ -93,9 +93,12 @@ class SSF_GSC_Client {
         if (is_wp_error($result)) {
             set_transient('ssf_gsc_error', $result->get_error_message(), 60);
         } else {
-            // Fetch and store the site URL
+            // Fetch site list and cache it
             $sites = $this->get_sites();
             if (!is_wp_error($sites) && !empty($sites)) {
+                set_transient('ssf_gsc_sites_cache', $sites, DAY_IN_SECONDS);
+
+                // Try to auto-match the current site
                 $site_url = home_url('/');
                 $host = wp_parse_url($site_url, PHP_URL_HOST);
                 $matched = false;
@@ -111,14 +114,15 @@ class SSF_GSC_Client {
                         break;
                     }
                 }
-                if (!$matched && !empty($sites[0]['siteUrl'])) {
-                    Smart_SEO_Fixer::update_option('gsc_site_url', $sites[0]['siteUrl']);
+                if ($matched) {
+                    set_transient('ssf_gsc_success', __('Google Search Console connected successfully!', 'smart-seo-fixer'), 60);
+                } else {
+                    set_transient('ssf_gsc_success', __('Connected! Please select your site property below.', 'smart-seo-fixer'), 60);
                 }
-                set_transient('ssf_gsc_success', __('Google Search Console connected successfully!', 'smart-seo-fixer'), 60);
             } else {
-                $err_msg = is_wp_error($sites) ? $sites->get_error_message() : __('No sites found in your GSC account.', 'smart-seo-fixer');
-                set_transient('ssf_gsc_success', __('Connected to Google, but could not auto-detect site. Please select it below.', 'smart-seo-fixer'), 60);
+                set_transient('ssf_gsc_success', __('Connected to Google! Please select your site property below.', 'smart-seo-fixer'), 60);
                 if (class_exists('SSF_Logger')) {
+                    $err_msg = is_wp_error($sites) ? $sites->get_error_message() : 'Empty site list';
                     SSF_Logger::warning('GSC connected but site list failed: ' . $err_msg, 'gsc');
                 }
             }
@@ -558,6 +562,7 @@ class SSF_GSC_Client {
         delete_transient('ssf_gsc_performance');
         delete_transient('ssf_gsc_queries');
         delete_transient('ssf_gsc_pages');
+        delete_transient('ssf_gsc_sites_cache');
     }
     
     /**

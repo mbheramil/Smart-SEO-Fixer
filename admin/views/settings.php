@@ -20,9 +20,16 @@ if (class_exists('SSF_GSC_Client')) {
     $gsc_connected = $gsc_client->is_connected();
     $gsc_site_url = Smart_SEO_Fixer::get_option('gsc_site_url', '');
     if ($gsc_connected) {
-        $gsc_sites_result = $gsc_client->get_sites();
-        if (!is_wp_error($gsc_sites_result)) {
-            $gsc_sites = $gsc_sites_result;
+        // Use cached site list first (fast), live fetch as fallback
+        $cached = get_transient('ssf_gsc_sites_cache');
+        if (!empty($cached) && is_array($cached)) {
+            $gsc_sites = $cached;
+        } else {
+            $gsc_sites_result = $gsc_client->get_sites();
+            if (!is_wp_error($gsc_sites_result) && !empty($gsc_sites_result)) {
+                $gsc_sites = $gsc_sites_result;
+                set_transient('ssf_gsc_sites_cache', $gsc_sites, DAY_IN_SECONDS);
+            }
         }
     }
 }
@@ -157,7 +164,7 @@ unset($available_post_types['attachment']);
                             </th>
                             <td>
                                 <?php if (!empty($gsc_sites)): ?>
-                                <select name="gsc_site_url" id="gsc_site_url">
+                                <select name="gsc_site_url" id="gsc_site_url" style="min-width: 300px;">
                                     <?php if (empty($gsc_site_url)): ?>
                                         <option value=""><?php esc_html_e('— Select a site —', 'smart-seo-fixer'); ?></option>
                                     <?php endif; ?>
@@ -167,17 +174,31 @@ unset($available_post_types['attachment']);
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                                <button type="button" class="button button-small" id="ssf-gsc-refresh-sites" style="vertical-align: middle;">
+                                    <span class="dashicons dashicons-update" style="vertical-align: text-bottom; font-size: 16px; width: 16px; height: 16px;"></span>
+                                    <?php esc_html_e('Refresh', 'smart-seo-fixer'); ?>
+                                </button>
                                 <p class="description">
                                     <?php esc_html_e('Select which site property to use, then save settings.', 'smart-seo-fixer'); ?>
                                 </p>
                                 <?php else: ?>
-                                <input type="text" name="gsc_site_url" id="gsc_site_url"
-                                       value="<?php echo esc_attr($gsc_site_url); ?>"
-                                       class="regular-text"
-                                       placeholder="<?php esc_attr_e('e.g. https://example.com/ or sc-domain:example.com', 'smart-seo-fixer'); ?>" />
-                                <p class="description" style="color: #b45309;">
-                                    <?php esc_html_e('Could not load site list from GSC. Enter your site property URL manually and save settings.', 'smart-seo-fixer'); ?>
-                                </p>
+                                <div style="margin-bottom: 8px;">
+                                    <button type="button" class="button button-primary" id="ssf-gsc-refresh-sites">
+                                        <span class="dashicons dashicons-update" style="vertical-align: text-bottom;"></span>
+                                        <?php esc_html_e('Load Site List', 'smart-seo-fixer'); ?>
+                                    </button>
+                                    <span id="ssf-gsc-refresh-status" style="margin-left: 8px; color: #666;"></span>
+                                </div>
+                                <div id="ssf-gsc-sites-dropdown" style="display: none; margin-bottom: 8px;"></div>
+                                <details style="margin-top: 8px;">
+                                    <summary style="cursor: pointer; color: #666; font-size: 12px;"><?php esc_html_e('Or enter site URL manually', 'smart-seo-fixer'); ?></summary>
+                                    <div style="margin-top: 8px;">
+                                        <input type="text" name="gsc_site_url" id="gsc_site_url"
+                                               value="<?php echo esc_attr($gsc_site_url); ?>"
+                                               class="regular-text"
+                                               placeholder="<?php esc_attr_e('e.g. https://example.com/ or sc-domain:example.com', 'smart-seo-fixer'); ?>" />
+                                    </div>
+                                </details>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -582,6 +603,39 @@ jQuery(document).ready(function($) {
         $('#homepage-desc-count').text($(this).val().length);
     });
     
+    // GSC Refresh Sites
+    $('#ssf-gsc-refresh-sites').on('click', function() {
+        var $btn = $(this).prop('disabled', true);
+        var $status = $('#ssf-gsc-refresh-status').text('Loading sites from Google...');
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_gsc_refresh_sites',
+            nonce: ssfAdmin.nonce
+        }, function(r) {
+            if (r.success && r.data.sites && r.data.sites.length) {
+                var html = '<select name="gsc_site_url" id="gsc_site_url" style="min-width:300px;">';
+                html += '<option value="">— Select a site —</option>';
+                r.data.sites.forEach(function(s) {
+                    html += '<option value="' + s.siteUrl + '">' + s.siteUrl + '</option>';
+                });
+                html += '</select>';
+                var $target = $('#ssf-gsc-sites-dropdown');
+                if ($target.length) {
+                    $target.html(html).show();
+                    $status.text(r.data.sites.length + ' site(s) found. Select one and save settings.');
+                } else {
+                    $('select#gsc_site_url').replaceWith(html);
+                    $status.text('Refreshed! ' + r.data.sites.length + ' site(s) found.');
+                }
+            } else {
+                $status.text(r.data?.message || 'No sites found. Check your GSC account.');
+            }
+            $btn.prop('disabled', false);
+        }).fail(function() {
+            $status.text('Network error. Please try again.');
+            $btn.prop('disabled', false);
+        });
+    });
+
     // GSC Disconnect
     $('#ssf-gsc-disconnect').on('click', function() {
         if (!confirm('<?php esc_html_e('Disconnect Google Search Console?', 'smart-seo-fixer'); ?>')) return;

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.2
+Stable tag: 1.16.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -94,9 +94,15 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 
 == Changelog ==
 
+= 1.16.3 =
+* New: GSC site list is cached after OAuth for reliable dropdown loading
+* New: "Load Site List" / "Refresh" button to fetch sites from GSC on demand via AJAX
+* If dropdown loads → select your site and save
+* If dropdown fails → manual text input available as fallback
+* Site cache cleared on disconnect
+
 = 1.16.2 =
 * Fix: GSC `sc-domain:` site URLs were being destroyed by `esc_url_raw()` on save
-* Settings now correctly saves both URL prefix (`https://...`) and domain property (`sc-domain:...`) formats
 
 = 1.16.1 =
 * Fix: Site Property field now ALWAYS shows when GSC is connected
