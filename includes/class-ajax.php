@@ -577,9 +577,12 @@ class SSF_Ajax {
             $settings['post_types'] = $v ? SSF_Validator::post_types($_POST['post_types']) : array_map('sanitize_text_field', $_POST['post_types']);
         }
         
-        // Handle GSC site URL selection
+        // Handle GSC site URL selection (can be URL or sc-domain: format)
         if (isset($_POST['gsc_site_url'])) {
-            $settings['gsc_site_url'] = esc_url_raw($_POST['gsc_site_url']);
+            $val = sanitize_text_field($_POST['gsc_site_url']);
+            if (strpos($val, 'sc-domain:') === 0 || filter_var($val, FILTER_VALIDATE_URL)) {
+                $settings['gsc_site_url'] = $val;
+            }
         }
         
         // Preserve existing GSC credentials if not submitted (connected state hides the fields)
