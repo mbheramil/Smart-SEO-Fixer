@@ -87,21 +87,26 @@ class SSF_Admin {
             .ssf-flyout-trigger.ssf-fly-open > .ssf-flyout-panel {
                 display: block;
             }
-            .ssf-flyout-panel a {
-                display: block;
-                padding: 6px 20px;
+            .ssf-flyout-panel a,
+            #adminmenu .ssf-flyout-panel a {
+                display: block !important;
+                padding: 7px 24px !important;
                 color: #c3c4c7 !important;
                 text-decoration: none !important;
-                font-size: 13px;
-                line-height: 1.4;
+                font-size: 13px !important;
+                line-height: 1.5 !important;
                 white-space: nowrap;
+                margin: 0 !important;
             }
             .ssf-flyout-panel a:hover,
-            .ssf-flyout-panel a:focus {
+            .ssf-flyout-panel a:focus,
+            #adminmenu .ssf-flyout-panel a:hover,
+            #adminmenu .ssf-flyout-panel a:focus {
                 color: #72aee6 !important;
-                background: transparent;
+                background: transparent !important;
             }
-            .ssf-flyout-panel a.ssf-fly-current {
+            .ssf-flyout-panel a.ssf-fly-current,
+            #adminmenu .ssf-flyout-panel a.ssf-fly-current {
                 color: #fff !important;
                 font-weight: 600;
             }
