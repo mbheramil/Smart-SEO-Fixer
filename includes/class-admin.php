@@ -71,18 +71,16 @@ class SSF_Admin {
             }
             #adminmenu .wp-submenu .ssf-flyout-trigger:hover .ssf-fly-arrow { opacity: 1; }
             
-            /* Native WP-style flyout panel */
+            /* Flyout panel — matches native WP admin submenu */
             .ssf-flyout-panel {
                 display: none;
                 position: absolute;
                 left: 100%;
                 top: -7px;
-                min-width: 190px;
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                border-left: none;
-                box-shadow: 0 3px 5px rgba(0,0,0,0.2);
-                padding: 7px 0;
+                min-width: 160px;
+                background: #2c3338;
+                box-shadow: 0 3px 5px rgba(0,0,0,.2);
+                padding: 5px 0;
                 z-index: 10000;
             }
             .ssf-flyout-trigger:hover > .ssf-flyout-panel,
@@ -91,19 +89,20 @@ class SSF_Admin {
             }
             .ssf-flyout-panel a {
                 display: block;
-                padding: 5px 12px;
-                color: #50575e !important;
+                padding: 6px 12px;
+                color: #c3c4c7 !important;
                 text-decoration: none !important;
                 font-size: 13px;
-                line-height: 1.6;
+                line-height: 1.4;
                 white-space: nowrap;
             }
-            .ssf-flyout-panel a:hover {
-                color: #135e96 !important;
-                background: #f0f0f1;
+            .ssf-flyout-panel a:hover,
+            .ssf-flyout-panel a:focus {
+                color: #72aee6 !important;
+                background: transparent;
             }
             .ssf-flyout-panel a.ssf-fly-current {
-                color: #135e96 !important;
+                color: #fff !important;
                 font-weight: 600;
             }
             
