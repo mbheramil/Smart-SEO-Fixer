@@ -39,13 +39,17 @@ class SSF_Content_Suggestions {
         $source = 'rules';
         
         if ($mode === 'ai') {
-            // AI-only mode (called as second async request)
-            if (class_exists('SSF_OpenAI')) {
-                $openai = new SSF_OpenAI();
-                if ($openai->is_configured()) {
-                    $all = self::ai_suggestions($post, $content);
-                    $source = 'ai';
-                }
+            if (!class_exists('SSF_OpenAI')) {
+                return new \WP_Error('no_openai', __('OpenAI module not available.', 'smart-seo-fixer'));
+            }
+            $openai = new SSF_OpenAI();
+            if (!$openai->is_configured()) {
+                return new \WP_Error('no_api_key', __('OpenAI API key not configured. Go to Settings to add it.', 'smart-seo-fixer'));
+            }
+            $all = self::ai_suggestions($post, $content);
+            $source = 'ai';
+            if (empty($all)) {
+                return new \WP_Error('ai_empty', __('AI analysis returned no suggestions for this content.', 'smart-seo-fixer'));
             }
         } else {
             // Rules mode (fast, instant)
@@ -295,10 +299,10 @@ class SSF_Content_Suggestions {
         $prompt .= "Return JSON array with objects having: category (content/engagement/topical), priority (high/medium/low), title (short label), description (1-2 sentence actionable tip). Only return the JSON array, no other text.";
         
         $openai = new SSF_OpenAI();
-        $response = $openai->chat_completion([
+        $response = $openai->request([
             ['role' => 'system', 'content' => 'You are an expert SEO content strategist. Return valid JSON only.'],
             ['role' => 'user', 'content' => $prompt],
-        ], 0.4);
+        ], 500, 0.4);
         
         if (is_wp_error($response)) {
             if (class_exists('SSF_Logger')) {

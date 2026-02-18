@@ -176,8 +176,10 @@ jQuery(document).ready(function($) {
             // Update meta
             var totalCount = $('#ssf-cs-list .ssf-cs-card').length;
             $('#ssf-cs-meta').text(totalCount + ' suggestions · Rules + AI');
-        }).fail(function() {
-            $('#ssf-cs-ai-status').text('AI request failed. Check your OpenAI API key in Settings.');
+        }).fail(function(xhr) {
+            var msg = 'Network request failed.';
+            try { var r = JSON.parse(xhr.responseText); if (r.data && r.data.message) msg = r.data.message; } catch(e) {}
+            $('#ssf-cs-ai-status').text(msg);
             $btn.prop('disabled', false).css('opacity', '1');
         });
     });
