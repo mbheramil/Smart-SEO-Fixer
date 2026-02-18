@@ -67,6 +67,9 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-robots',
             'smart-seo_page_smart-seo-fixer-social-preview',
             'smart-seo_page_smart-seo-fixer-keywords',
+            'smart-seo_page_smart-seo-fixer-content-suggestions',
+            'smart-seo_page_smart-seo-fixer-wp-standards',
+            'smart-seo_page_smart-seo-fixer-performance',
             'plugins',
         ];
         
@@ -293,6 +296,36 @@ class SSF_Admin {
             [$this, 'render_keyword_tracker']
         );
         
+        // Content Suggestions submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Content Suggestions', 'smart-seo-fixer'),
+            __('Content Tips', 'smart-seo-fixer'),
+            'edit_posts',
+            'smart-seo-fixer-content-suggestions',
+            [$this, 'render_content_suggestions']
+        );
+        
+        // WP Coding Standards submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Coding Standards', 'smart-seo-fixer'),
+            __('Code Audit', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-wp-standards',
+            [$this, 'render_wp_standards']
+        );
+        
+        // Performance Profiler submenu
+        add_submenu_page(
+            'smart-seo-fixer',
+            __('Performance', 'smart-seo-fixer'),
+            __('Performance', 'smart-seo-fixer'),
+            'manage_options',
+            'smart-seo-fixer-performance',
+            [$this, 'render_performance']
+        );
+        
         // Debug Log submenu
         add_submenu_page(
             'smart-seo-fixer',
@@ -341,6 +374,9 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-robots',
             'smart-seo_page_smart-seo-fixer-social-preview',
             'smart-seo_page_smart-seo-fixer-keywords',
+            'smart-seo_page_smart-seo-fixer-content-suggestions',
+            'smart-seo_page_smart-seo-fixer-wp-standards',
+            'smart-seo_page_smart-seo-fixer-performance',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -501,6 +537,27 @@ class SSF_Admin {
      */
     public function render_keyword_tracker() {
         include SSF_PLUGIN_DIR . 'admin/views/keyword-tracker.php';
+    }
+    
+    /**
+     * Render Content Suggestions page
+     */
+    public function render_content_suggestions() {
+        include SSF_PLUGIN_DIR . 'admin/views/content-suggestions.php';
+    }
+    
+    /**
+     * Render WP Coding Standards page
+     */
+    public function render_wp_standards() {
+        include SSF_PLUGIN_DIR . 'admin/views/wp-standards.php';
+    }
+    
+    /**
+     * Render Performance Profiler page
+     */
+    public function render_performance() {
+        include SSF_PLUGIN_DIR . 'admin/views/performance.php';
     }
     
     /**

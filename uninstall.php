@@ -44,6 +44,7 @@ $options = [
     'ssf_broken_links_last_post',
     'ssf_robots_txt_custom',
     'ssf_robots_txt_enabled',
+    'ssf_perf_history',
 ];
 
 foreach ($options as $option) {

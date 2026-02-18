@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.14.0
+ * Version: 1.15.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.14.0');
+define('SSF_VERSION', '1.15.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -101,6 +101,9 @@ final class Smart_SEO_Fixer {
             'includes/class-readability.php',
             'includes/class-social-preview.php',
             'includes/class-keyword-tracker.php',
+            'includes/class-content-suggestions.php',
+            'includes/class-wp-standards.php',
+            'includes/class-performance.php',
             'includes/class-ajax.php',
         ];
         
@@ -153,6 +156,12 @@ final class Smart_SEO_Fixer {
         // robots.txt editor (frontend hook)
         if (class_exists('SSF_Robots_Editor')) {
             SSF_Robots_Editor::init();
+        }
+        
+        // Performance profiler (record plugin load metrics)
+        if (class_exists('SSF_Performance') && is_admin()) {
+            SSF_Performance::start();
+            add_action('wp_loaded', ['SSF_Performance', 'end'], 9999);
         }
         
         register_activation_hook(__FILE__, [$this, 'activate']);

@@ -240,6 +240,39 @@ if (!defined('ABSPATH')) {
                         <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
                     </a>
                     
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-content-suggestions')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <span class="dashicons dashicons-lightbulb"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Content Tips', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('AI-powered content improvement suggestions per post', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-wp-standards')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
+                            <span class="dashicons dashicons-editor-code"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Code Audit', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('WordPress coding standards self-check for plugin quality', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-performance')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #14b8a6, #0d9488);">
+                            <span class="dashicons dashicons-performance"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Performance', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Plugin load time, memory, queries, and environment info', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
                     <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-history')); ?>" class="ssf-nav-card">
                         <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
                             <span class="dashicons dashicons-backup"></span>

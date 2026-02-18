@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.14.0
+Stable tag: 1.15.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,20 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.15.0 =
+* NEW: Content Suggestions - AI-powered content improvement tips per post (structure, SEO, engagement, topical depth)
+* NEW: Rule-based analysis engine - headings, images, alt text, internal/external links, keyword density, meta, lists
+* NEW: AI analysis layer - OpenAI-powered content gap analysis when API key is configured
+* NEW: WordPress Coding Standards Checker - self-audit plugin code against WP best practices
+* NEW: Detects direct DB queries without prepare, unsanitized superglobals, missing ABSPATH checks, deprecated functions
+* NEW: Code audit scores with file-by-file breakdown, expandable issue details with severity and line numbers
+* NEW: Performance Profiler - tracks plugin load time (ms), DB queries, memory usage (KB), peak memory (MB)
+* NEW: Performance history chart with rolling 200-sample trend visualization (Chart.js)
+* NEW: Environment info panel - PHP/WP/MySQL versions, memory limits, active plugins, published posts
+* NEW: Plugin database tables panel - row counts, data size, index size per table
+* NEW: Three new dashboard navigation cards (Content Tips, Code Audit, Performance)
+* Improvement: Performance data recorded per admin page load with automatic cleanup
 
 = 1.14.0 =
 * NEW: Content Readability Scoring - Flesch-Kincaid Reading Ease, grade level, sentence/paragraph analysis

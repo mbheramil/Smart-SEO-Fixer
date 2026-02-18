@@ -117,6 +117,16 @@ class SSF_Ajax {
         // Keyword Tracker
         add_action('wp_ajax_ssf_get_tracked_keywords', [$this, 'get_tracked_keywords']);
         add_action('wp_ajax_ssf_get_keyword_history', [$this, 'get_keyword_history']);
+        
+        // Content Suggestions
+        add_action('wp_ajax_ssf_content_suggestions', [$this, 'content_suggestions']);
+        
+        // WP Coding Standards
+        add_action('wp_ajax_ssf_wp_standards_audit', [$this, 'wp_standards_audit']);
+        
+        // Performance Profiler
+        add_action('wp_ajax_ssf_performance_data', [$this, 'performance_data']);
+        add_action('wp_ajax_ssf_performance_clear', [$this, 'performance_clear']);
     }
     
     /**
@@ -3168,6 +3178,88 @@ class SSF_Ajax {
         
         $history = SSF_Keyword_Tracker::get_keyword_history($keyword, $days);
         wp_send_json_success($history);
+    }
+    
+    /**
+     * Content Suggestions for a post
+     */
+    public function content_suggestions() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Content_Suggestions')) {
+            wp_send_json_error(['message' => __('Content Suggestions module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Post ID required.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Content_Suggestions::generate($post_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * WP Coding Standards audit
+     */
+    public function wp_standards_audit() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_WP_Standards')) {
+            wp_send_json_error(['message' => __('WP Standards module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_WP_Standards::audit();
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Performance profiler data
+     */
+    public function performance_data() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Performance')) {
+            wp_send_json_error(['message' => __('Performance module not available.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success([
+            'latest'      => SSF_Performance::get_latest(),
+            'history'     => SSF_Performance::get_history(50),
+            'averages'    => SSF_Performance::get_averages(),
+            'environment' => SSF_Performance::get_environment(),
+        ]);
+    }
+    
+    /**
+     * Clear performance history
+     */
+    public function performance_clear() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Performance')) {
+            wp_send_json_error(['message' => __('Performance module not available.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_Performance::clear_history();
+        wp_send_json_success(['message' => __('Performance history cleared.', 'smart-seo-fixer')]);
     }
 }
 
