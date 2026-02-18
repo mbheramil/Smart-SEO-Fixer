@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.15.6
+Stable tag: 1.15.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -94,9 +94,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 
 == Changelog ==
 
+= 1.15.7 =
+* Fix: Flyout panel text padding increased — items no longer cramped against the container edges
+* Now matches the native WP submenu spacing
+
 = 1.15.6 =
 * Improvement: Flyout panels now match native WP admin submenu styling (dark background, same colors as the sidebar)
-* Colors, shadows, hover states now identical to the built-in WordPress submenu flyout
 
 = 1.15.5 =
 * Improvement: Flyout menu panels styling update

@@ -80,7 +80,7 @@ class SSF_Admin {
                 min-width: 160px;
                 background: #2c3338;
                 box-shadow: 0 3px 5px rgba(0,0,0,.2);
-                padding: 5px 0;
+                padding: 7px 0;
                 z-index: 10000;
             }
             .ssf-flyout-trigger:hover > .ssf-flyout-panel,
@@ -89,7 +89,7 @@ class SSF_Admin {
             }
             .ssf-flyout-panel a {
                 display: block;
-                padding: 6px 12px;
+                padding: 6px 20px;
                 color: #c3c4c7 !important;
                 text-decoration: none !important;
                 font-size: 13px;
