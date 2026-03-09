@@ -97,7 +97,7 @@ class SSF_Setup_Wizard {
                 $access_key = sanitize_text_field($_POST['bedrock_access_key'] ?? '');
                 $secret_key = sanitize_text_field($_POST['bedrock_secret_key'] ?? '');
                 $region     = sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1');
-                $model      = sanitize_text_field($_POST['bedrock_model'] ?? 'anthropic.claude-sonnet-4-6-20260301-v1:0');
+                $model      = sanitize_text_field($_POST['bedrock_model'] ?? 'anthropic.claude-sonnet-4-6');
                 
                 if (!empty($access_key)) {
                     update_option('ssf_bedrock_access_key', $access_key);
@@ -231,8 +231,8 @@ class SSF_Setup_Wizard {
                     <div class="ssf-wizard-field">
                         <label for="ssf-wiz-model"><?php esc_html_e('Claude Model', 'smart-seo-fixer'); ?></label>
                         <select id="ssf-wiz-model" class="ssf-wizard-input">
-                            <option value="anthropic.claude-sonnet-4-6-20260301-v1:0" selected><?php esc_html_e('Claude Sonnet 4.6 (Recommended for SEO)', 'smart-seo-fixer'); ?></option>
-                            <option value="anthropic.claude-sonnet-4-5-20251022-v1:0"><?php esc_html_e('Claude Sonnet 4.5', 'smart-seo-fixer'); ?></option>
+                            <option value="anthropic.claude-sonnet-4-6" selected><?php esc_html_e('Claude Sonnet 4.6 (Recommended for SEO)', 'smart-seo-fixer'); ?></option>
+                            <option value="anthropic.claude-sonnet-4-5"><?php esc_html_e('Claude Sonnet 4.5', 'smart-seo-fixer'); ?></option>
                             <option value="anthropic.claude-3-5-sonnet-20241022-v2:0"><?php esc_html_e('Claude 3.5 Sonnet v2', 'smart-seo-fixer'); ?></option>
                             <option value="anthropic.claude-3-5-haiku-20241022-v1:0"><?php esc_html_e('Claude 3.5 Haiku (Fast & Affordable)', 'smart-seo-fixer'); ?></option>
                         </select>

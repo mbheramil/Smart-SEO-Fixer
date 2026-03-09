@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.9
+Stable tag: 1.16.10
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.10 =
+* Fix: Correct AWS Bedrock model ID for Claude Sonnet 4.6 — now uses `anthropic.claude-sonnet-4-6` (removed wrong date suffix and `us.` prefix)
+* Fix: All Claude 4.x model IDs in dropdown updated to simplified format (e.g. `anthropic.claude-sonnet-4-6`)
+* New: Custom model ID input field — select "Custom model ID" to paste any model ID directly from the Bedrock Model Catalog
 
 = 1.16.9 =
 * Fix: Test Connection error guidance now explains Anthropic use case approval requirement (required for first-time Claude model users via AWS)

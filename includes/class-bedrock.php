@@ -38,7 +38,7 @@ class SSF_Bedrock {
      * Bedrock model ID (e.g. anthropic.claude-3-5-haiku-20241022-v1:0)
      */
     private function get_model() {
-        return Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6-20260301-v1:0');
+        return Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-sonnet-4-6');
     }
 
     /**
