@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.10
+Stable tag: 1.16.11
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.11 =
+* Fix: DB migration (v7) automatically corrects any stale Bedrock model ID saved in the database with the old wrong format
+* Fix: Custom model ID input now correctly passed to Test Connection and saved to DB
+* Fix: Show/hide custom model input works on page load and on dropdown change
 
 = 1.16.10 =
 * Fix: Correct AWS Bedrock model ID for Claude Sonnet 4.6 — now uses `anthropic.claude-sonnet-4-6` (removed wrong date suffix and `us.` prefix)

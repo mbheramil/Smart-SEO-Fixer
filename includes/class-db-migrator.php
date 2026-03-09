@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 6;
+    const CURRENT_VERSION = 7;
     
     /**
      * Run any pending migrations
@@ -74,6 +74,8 @@ class SSF_DB_Migrator {
             5 => [__CLASS__, 'migrate_v5_broken_links_404'],
             // v6: Keyword tracking table (v1.14.0)
             6 => [__CLASS__, 'migrate_v6_keyword_tracking'],
+            // v7: Fix stale Bedrock model IDs saved with wrong date suffix or us. prefix (v1.16.10)
+            7 => [__CLASS__, 'migrate_v7_fix_bedrock_model_id'],
         ];
     }
     
@@ -153,7 +155,32 @@ class SSF_DB_Migrator {
             SSF_Keyword_Tracker::create_table();
         }
     }
-    
+
+    /**
+     * Migration v7: Replace stale Bedrock model IDs that had wrong date suffixes or us. prefix.
+     * Maps every old wrong ID → correct simplified ID.
+     */
+    public static function migrate_v7_fix_bedrock_model_id() {
+        $stale_map = [
+            'us.anthropic.claude-sonnet-4-6-20260301-v1:0' => 'anthropic.claude-sonnet-4-6',
+            'us.anthropic.claude-opus-4-6-20260301-v1:0'   => 'anthropic.claude-opus-4-6',
+            'us.anthropic.claude-sonnet-4-5-20251022-v1:0' => 'anthropic.claude-sonnet-4-5',
+            'us.anthropic.claude-haiku-4-5-20251022-v1:0'  => 'anthropic.claude-haiku-4-5',
+            'anthropic.claude-sonnet-4-6-20260301-v1:0'    => 'anthropic.claude-sonnet-4-6',
+            'anthropic.claude-opus-4-6-20260301-v1:0'      => 'anthropic.claude-opus-4-6',
+            'anthropic.claude-sonnet-4-5-20251022-v1:0'    => 'anthropic.claude-sonnet-4-5',
+            'anthropic.claude-haiku-4-5-20251022-v1:0'     => 'anthropic.claude-haiku-4-5',
+        ];
+
+        $opts = get_option('smart_seo_fixer_options', []);
+        $current_model = $opts['bedrock_model'] ?? '';
+
+        if (isset($stale_map[$current_model])) {
+            $opts['bedrock_model'] = $stale_map[$current_model];
+            update_option('smart_seo_fixer_options', $opts);
+        }
+    }
+
     /**
      * Get current DB version
      */

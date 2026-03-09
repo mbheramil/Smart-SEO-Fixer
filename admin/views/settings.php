@@ -673,6 +673,15 @@ jQuery(document).ready(function($) {
         }
     });
 
+    // Show/hide custom model input
+    $('#bedrock_model').on('change', function() {
+        if ($(this).val() === 'custom') {
+            $('#ssf-custom-model-wrap').show();
+        } else {
+            $('#ssf-custom-model-wrap').hide();
+        }
+    });
+
     // Enable Test Connection button when credentials are typed
     $('#bedrock_access_key, #bedrock_secret_key').on('input', function() {
         var hasKey    = $('#bedrock_access_key').val().trim().length > 0;
@@ -697,7 +706,7 @@ jQuery(document).ready(function($) {
             access_key: $('#bedrock_access_key').val(),
             secret_key: $('#bedrock_secret_key').val(),
             region:     $('#bedrock_region').val(),
-            model:      $('#bedrock_model').val()
+            model:      $('#bedrock_model').val() === 'custom' ? $('#bedrock_model_custom').val() : $('#bedrock_model').val()
         }, function(r) {
             $btn.prop('disabled', false);
             $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
@@ -719,8 +728,9 @@ jQuery(document).ready(function($) {
                         + '<strong>Two things to check:</strong><br>'
                         + '1. <strong>Anthropic use case approval</strong> — For Claude models, AWS requires first-time users to submit use case details. '
                         + 'Go to <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank" style="color:#7f1d1d;text-decoration:underline;">Bedrock Model Catalog</a>, '
-                        + 'find the Claude model, click it, and look for a <strong>"Submit use case"</strong> or <strong>"Request access"</strong> button. Complete that form first.<br>'
-                        + '2. <strong>Wrong region</strong> — Cross-region models (Claude 4.x) require the <code>us.</code> prefix and must be invoked through a US region (us-east-1 or us-west-2). Make sure your selected region matches.';
+                        + 'find the Claude model, click it, and copy the exact <strong>Model ID</strong> shown on the detail page. '
+                        + 'Paste it into the <strong>Custom model ID</strong> field in Settings.<br>'
+                        + '2. <strong>Wrong region</strong> — Make sure the region you selected matches where the model is available (typically us-east-1 or us-west-2).';
                 } else if (msg.toLowerCase().indexOf('signature') !== -1) {
                     detail = msg + '<br><br><strong>Check that your Secret Access Key is correct.</strong>';
                 } else if (msg.toLowerCase().indexOf('credentials') !== -1 || msg.toLowerCase().indexOf('access denied') !== -1) {
