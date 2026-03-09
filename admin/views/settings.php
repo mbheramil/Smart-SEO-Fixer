@@ -168,9 +168,16 @@ unset($available_post_types['attachment']);
                     <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
                         <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
                             <span class="dashicons dashicons-info" style="font-size:16px;"></span>
-                            <?php esc_html_e('IAM Permissions', 'smart-seo-fixer'); ?>
+                            <?php esc_html_e('Before you start', 'smart-seo-fixer'); ?>
                         </p>
                         <p style="margin:0 0 6px;font-size:12px;color:#1e3a5f;">
+                            <strong><?php esc_html_e('Anthropic use case approval (required for Claude models):', 'smart-seo-fixer'); ?></strong>
+                            <?php esc_html_e('First-time users must submit use case details to Anthropic via AWS before Claude models work. Go to', 'smart-seo-fixer'); ?>
+                            <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank"><?php esc_html_e('Bedrock Model Catalog', 'smart-seo-fixer'); ?></a>,
+                            <?php esc_html_e('click on Claude Sonnet 4.6, and complete the use case form if prompted.', 'smart-seo-fixer'); ?>
+                        </p>
+                        <p style="margin:0 0 6px;font-size:12px;color:#1e3a5f;">
+                            <strong><?php esc_html_e('IAM permissions:', 'smart-seo-fixer'); ?></strong>
                             <?php esc_html_e('If you already have AmazonBedrockFullAccess attached to your IAM user, you\'re all set — no extra permissions needed.', 'smart-seo-fixer'); ?>
                         </p>
                         <p style="margin:0;font-size:12px;color:#1e3a5f;">
@@ -682,10 +689,11 @@ jQuery(document).ready(function($) {
                 // Friendly guidance for the most common errors
                 if (msg.toLowerCase().indexOf('model identifier is invalid') !== -1 || msg.toLowerCase().indexOf('validationexception') !== -1) {
                     detail = msg + '<br><br>'
-                        + '<strong>This model is not enabled in your AWS account.</strong><br>'
-                        + 'Go to <a href="https://console.aws.amazon.com/bedrock/home#/modelaccess" target="_blank" style="color:#7f1d1d;text-decoration:underline;">AWS Bedrock → Model Access</a>, '
-                        + 'find the model in the list, click <strong>Manage model access</strong>, check the box, and click <strong>Save changes</strong>. '
-                        + 'It takes about 1 minute to activate.';
+                        + '<strong>Two things to check:</strong><br>'
+                        + '1. <strong>Anthropic use case approval</strong> — For Claude models, AWS requires first-time users to submit use case details. '
+                        + 'Go to <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank" style="color:#7f1d1d;text-decoration:underline;">Bedrock Model Catalog</a>, '
+                        + 'find the Claude model, click it, and look for a <strong>"Submit use case"</strong> or <strong>"Request access"</strong> button. Complete that form first.<br>'
+                        + '2. <strong>Wrong region</strong> — Cross-region models (Claude 4.x) require the <code>us.</code> prefix and must be invoked through a US region (us-east-1 or us-west-2). Make sure your selected region matches.';
                 } else if (msg.toLowerCase().indexOf('signature') !== -1) {
                     detail = msg + '<br><br><strong>Check that your Secret Access Key is correct.</strong>';
                 } else if (msg.toLowerCase().indexOf('credentials') !== -1 || msg.toLowerCase().indexOf('access denied') !== -1) {

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.8
+Stable tag: 1.16.9
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.9 =
+* Fix: Test Connection error guidance now explains Anthropic use case approval requirement (required for first-time Claude model users via AWS)
+* Fix: Info box in Bedrock settings now prominently shows the use case approval step before credentials setup
 
 = 1.16.8 =
 * Fix: Model list updated with correct cross-region inference IDs (us. prefix) for Claude 4.x models on AWS Bedrock
