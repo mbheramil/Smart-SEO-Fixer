@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.5
+Stable tag: 1.16.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.6 =
+* Fix: Replaced invalid model IDs with confirmed available AWS Bedrock model IDs (default: Claude 3.5 Sonnet v2)
+* New: AWS Bedrock connection status indicator showing connected/failed state in settings
+* New: Test Connection button that fires a real API call with current form credentials before saving
 
 = 1.16.5 =
 * Fix: AWS SigV4 signature mismatch — colon in model ID (v1:0) now correctly percent-encoded as %3A in canonical URI, resolving "signature does not match" errors

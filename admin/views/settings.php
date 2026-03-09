@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
-$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-sonnet-4-6-20260301-v1:0');
+$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-3-5-sonnet-20241022-v2:0');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -77,7 +77,20 @@ unset($available_post_types['attachment']);
                 <!-- AWS Bedrock Settings -->
                 <div id="ssf-bedrock-settings">
                     <hr style="margin:16px 0;">
-                    <h3 style="margin:0 0 4px;"><?php esc_html_e('AWS Bedrock Configuration', 'smart-seo-fixer'); ?></h3>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                        <h3 style="margin:0;"><?php esc_html_e('AWS Bedrock Configuration', 'smart-seo-fixer'); ?></h3>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span id="ssf-bedrock-status" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;
+                                <?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;' : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;'; ?>">
+                                <span id="ssf-bedrock-status-dot" style="width:8px;height:8px;border-radius:50%;background:<?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? '#16a34a' : '#9ca3af'; ?>;"></span>
+                                <span id="ssf-bedrock-status-text"><?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? esc_html__('Credentials saved', 'smart-seo-fixer') : esc_html__('Not configured', 'smart-seo-fixer'); ?></span>
+                            </span>
+                            <button type="button" class="button" id="ssf-test-bedrock" <?php echo (empty($bedrock_access) || empty($bedrock_secret)) ? 'disabled' : ''; ?>>
+                                <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
+                                <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
+                            </button>
+                        </div>
+                    </div>
                     <p class="description" style="margin:0 0 12px;">
                         <?php esc_html_e('Uses your own AWS account. Credentials are stored encrypted in WordPress options.', 'smart-seo-fixer'); ?>
                     </p>
@@ -130,14 +143,14 @@ unset($available_post_types['attachment']);
                             <td>
                                 <select name="bedrock_model" id="bedrock_model">
                                     <optgroup label="Anthropic Claude (Recommended)">
-                                        <option value="anthropic.claude-sonnet-4-6-20260301-v1:0" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-6-20260301-v1:0'); ?>>Claude Sonnet 4.6 — <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
-                                        <option value="anthropic.claude-sonnet-4-5-20251022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-5-20251022-v1:0'); ?>>Claude Sonnet 4.5</option>
-                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2</option>
+                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2 — <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
                                         <option value="anthropic.claude-3-5-haiku-20241022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-haiku-20241022-v1:0'); ?>>Claude 3.5 Haiku — <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
+                                        <option value="anthropic.claude-3-sonnet-20240229-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-sonnet-20240229-v1:0'); ?>>Claude 3 Sonnet</option>
+                                        <option value="anthropic.claude-3-haiku-20240307-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-haiku-20240307-v1:0'); ?>>Claude 3 Haiku — <?php esc_html_e('Lightweight', 'smart-seo-fixer'); ?></option>
                                     </optgroup>
                                     <optgroup label="Meta Llama">
                                         <option value="meta.llama3-70b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-70b-instruct-v1:0'); ?>>Llama 3 70B Instruct</option>
-                                        <option value="meta.llama3-8b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-8b-instruct-v1:0'); ?>>Llama 3 8B Instruct — <?php esc_html_e('Lightweight', 'smart-seo-fixer'); ?></option>
+                                        <option value="meta.llama3-8b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-8b-instruct-v1:0'); ?>>Llama 3 8B Instruct</option>
                                     </optgroup>
                                 </select>
                                 <p class="description">
@@ -147,6 +160,7 @@ unset($available_post_types['attachment']);
                             </td>
                         </tr>
                     </table>
+                    <div id="ssf-bedrock-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
                     <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
                         <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
                             <span class="dashicons dashicons-info" style="font-size:16px;"></span>
@@ -619,6 +633,59 @@ jQuery(document).ready(function($) {
             $input.attr('type', 'password');
             $btn.text('<?php esc_html_e('Show', 'smart-seo-fixer'); ?>');
         }
+    });
+
+    // Enable Test Connection button when credentials are typed
+    $('#bedrock_access_key, #bedrock_secret_key').on('input', function() {
+        var hasKey    = $('#bedrock_access_key').val().trim().length > 0;
+        var hasSecret = $('#bedrock_secret_key').val().trim().length > 0;
+        $('#ssf-test-bedrock').prop('disabled', !(hasKey && hasSecret));
+    });
+
+    // Test Bedrock Connection
+    $('#ssf-test-bedrock').on('click', function() {
+        var $btn    = $(this).prop('disabled', true);
+        var $result = $('#ssf-bedrock-test-result');
+        var $status = $('#ssf-bedrock-status');
+        var $dot    = $('#ssf-bedrock-status-dot');
+        var $text   = $('#ssf-bedrock-status-text');
+
+        $btn.find('.dashicons').removeClass('dashicons-controls-play').addClass('dashicons-update ssf-spin');
+        $result.hide();
+
+        $.post(ssfAdmin.ajax_url, {
+            action:  'ssf_test_bedrock',
+            nonce:   ssfAdmin.nonce,
+            access_key: $('#bedrock_access_key').val(),
+            secret_key: $('#bedrock_secret_key').val(),
+            region:     $('#bedrock_region').val(),
+            model:      $('#bedrock_model').val()
+        }, function(r) {
+            $btn.prop('disabled', false);
+            $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
+
+            if (r.success) {
+                $result.css({background:'#dcfce7', border:'1px solid #bbf7d0', color:'#166534'})
+                       .html('<strong>✅ Connected!</strong> Model responded: <em>' + $('<div>').text(r.data.reply).html() + '</em>')
+                       .show();
+                $status.css({background:'#dcfce7', color:'#166534', border:'1px solid #bbf7d0'});
+                $dot.css('background','#16a34a');
+                $text.text('<?php esc_html_e('Connected', 'smart-seo-fixer'); ?>');
+            } else {
+                $result.css({background:'#fef2f2', border:'1px solid #fecaca', color:'#991b1b'})
+                       .html('<strong>❌ Failed:</strong> ' + $('<div>').text(r.data.message || 'Unknown error').html())
+                       .show();
+                $status.css({background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca'});
+                $dot.css('background','#dc2626');
+                $text.text('<?php esc_html_e('Connection failed', 'smart-seo-fixer'); ?>');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false);
+            $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
+            $result.css({background:'#fef2f2', border:'1px solid #fecaca', color:'#991b1b'})
+                   .html('<strong>❌ Request failed.</strong> Check your server error log.')
+                   .show();
+        });
     });
     
     // Toggle GitHub token visibility

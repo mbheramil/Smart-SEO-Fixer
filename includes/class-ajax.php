@@ -29,6 +29,7 @@ class SSF_Ajax {
         // Save actions
         add_action('wp_ajax_ssf_save_seo_data', [$this, 'save_seo_data']);
         add_action('wp_ajax_ssf_save_settings', [$this, 'save_settings']);
+        add_action('wp_ajax_ssf_test_bedrock',  [$this, 'test_bedrock']);
         
         // Fix actions
         add_action('wp_ajax_ssf_fix_issue', [$this, 'fix_issue']);
@@ -543,6 +544,71 @@ class SSF_Ajax {
         ]);
     }
     
+    /**
+     * Test AWS Bedrock connection with the provided credentials
+     */
+    public function test_bedrock() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $access_key = sanitize_text_field($_POST['access_key'] ?? '');
+        $secret_key = sanitize_text_field($_POST['secret_key'] ?? '');
+        $region     = sanitize_text_field($_POST['region']     ?? 'us-east-1');
+        $model      = sanitize_text_field($_POST['model']      ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0');
+
+        if (empty($access_key) || empty($secret_key)) {
+            wp_send_json_error(['message' => __('Access Key and Secret Key are required.', 'smart-seo-fixer')]);
+        }
+
+        // Temporarily override options so SSF_Bedrock uses these values
+        $original = [
+            'bedrock_access_key' => Smart_SEO_Fixer::get_option('bedrock_access_key'),
+            'bedrock_secret_key' => Smart_SEO_Fixer::get_option('bedrock_secret_key'),
+            'bedrock_region'     => Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1'),
+            'bedrock_model'      => Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-3-5-sonnet-20241022-v2:0'),
+        ];
+
+        $opts = get_option('smart_seo_fixer_options', []);
+        $opts['bedrock_access_key'] = $access_key;
+        $opts['bedrock_secret_key'] = $secret_key;
+        $opts['bedrock_region']     = $region;
+        $opts['bedrock_model']      = $model;
+        update_option('smart_seo_fixer_options', $opts);
+
+        if (!class_exists('SSF_Bedrock')) {
+            // restore
+            $opts['bedrock_access_key'] = $original['bedrock_access_key'];
+            $opts['bedrock_secret_key'] = $original['bedrock_secret_key'];
+            $opts['bedrock_region']     = $original['bedrock_region'];
+            $opts['bedrock_model']      = $original['bedrock_model'];
+            update_option('smart_seo_fixer_options', $opts);
+            wp_send_json_error(['message' => __('Bedrock class not available.', 'smart-seo-fixer')]);
+        }
+
+        $bedrock = new SSF_Bedrock();
+        $result  = $bedrock->request(
+            [['role' => 'user', 'content' => 'Reply with exactly the word: CONNECTED']],
+            10,  // max_tokens — tiny test
+            0.0
+        );
+
+        // Restore original credentials
+        $opts['bedrock_access_key'] = $original['bedrock_access_key'];
+        $opts['bedrock_secret_key'] = $original['bedrock_secret_key'];
+        $opts['bedrock_region']     = $original['bedrock_region'];
+        $opts['bedrock_model']      = $original['bedrock_model'];
+        update_option('smart_seo_fixer_options', $opts);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+
+        wp_send_json_success(['reply' => trim($result)]);
+    }
+
     /**
      * Save plugin settings
      */
