@@ -98,6 +98,12 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_recheck_broken_link', [$this, 'recheck_broken_link']);
         add_action('wp_ajax_ssf_dismiss_broken_link', [$this, 'dismiss_broken_link']);
         add_action('wp_ajax_ssf_undismiss_broken_link', [$this, 'undismiss_broken_link']);
+        add_action('wp_ajax_ssf_bulk_redirect_broken_links', [$this, 'bulk_redirect_broken_links']);
+        add_action('wp_ajax_ssf_bulk_dismiss_broken_links', [$this, 'bulk_dismiss_broken_links']);
+
+        // Canonical fixer
+        add_action('wp_ajax_ssf_auto_fix_canonicals', [$this, 'auto_fix_canonicals']);
+        add_action('wp_ajax_ssf_scan_canonical_issues', [$this, 'scan_canonical_issues']);
         
         // 404 Monitor
         add_action('wp_ajax_ssf_get_404_logs', [$this, 'get_404_logs']);
@@ -304,10 +310,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Please add your API key in settings.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $result = $openai->generate_title(
@@ -356,10 +362,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Please add your API key in settings.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
@@ -400,10 +406,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Image URL required.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Please add your API key in settings.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $result = $openai->generate_alt_text($image_url, $page_context, $focus_keyword);
@@ -434,10 +440,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Please add your API key in settings.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $result = $openai->analyze_content(
@@ -476,10 +482,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Please add your API key in settings.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $result = $openai->suggest_keywords($post->post_content, $post->post_title);
@@ -516,7 +522,10 @@ class SSF_Ajax {
             'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::seo_title($_POST['seo_title'] ?? '') : sanitize_text_field($_POST['seo_title'] ?? ''),
             'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::meta_description($_POST['meta_description'] ?? '') : sanitize_textarea_field($_POST['meta_description'] ?? ''),
             'focus_keyword'    => class_exists('SSF_Validator') ? SSF_Validator::focus_keyword($_POST['focus_keyword'] ?? '') : sanitize_text_field($_POST['focus_keyword'] ?? ''),
-            'canonical_url'    => class_exists('SSF_Validator') ? SSF_Validator::url($_POST['canonical_url'] ?? '') : esc_url_raw($_POST['canonical_url'] ?? ''),
+            'canonical_url'    => $this->normalize_canonical_for_storage(
+                                       class_exists('SSF_Validator') ? SSF_Validator::url($_POST['canonical_url'] ?? '') : esc_url_raw($_POST['canonical_url'] ?? ''),
+                                       intval($_POST['post_id'] ?? 0)
+                                   ),
             'noindex'          => !empty($_POST['noindex']) ? 1 : 0,
             'nofollow'         => !empty($_POST['nofollow']) ? 1 : 0,
         ];
@@ -546,9 +555,12 @@ class SSF_Ajax {
         
         $v = class_exists('SSF_Validator');
         
-        $settings = [
-            'openai_api_key'          => $v ? SSF_Validator::api_key($_POST['openai_api_key'] ?? '') : sanitize_text_field($_POST['openai_api_key'] ?? ''),
-            'openai_model'            => sanitize_key($_POST['openai_model'] ?? 'gpt-4o-mini'),
+                $settings = [
+            'ai_provider'             => 'bedrock',
+            'bedrock_region'          => sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1'),
+            'bedrock_access_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_access_key'] ?? '') : sanitize_text_field($_POST['bedrock_access_key'] ?? ''),
+            'bedrock_secret_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_secret_key'] ?? '') : sanitize_text_field($_POST['bedrock_secret_key'] ?? ''),
+            'bedrock_model'           => sanitize_text_field($_POST['bedrock_model'] ?? 'anthropic.claude-sonnet-4-6-20260301-v1:0'),
             'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
             'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
@@ -584,6 +596,14 @@ class SSF_Ajax {
             if (strpos($val, 'sc-domain:') === 0 || filter_var($val, FILTER_VALIDATE_URL)) {
                 $settings['gsc_site_url'] = $val;
             }
+        }
+        
+        // Preserve existing Bedrock credentials if not re-submitted
+        if (empty($settings['bedrock_access_key'])) {
+            unset($settings['bedrock_access_key']);
+        }
+        if (empty($settings['bedrock_secret_key'])) {
+            unset($settings['bedrock_secret_key']);
         }
         
         // Preserve existing GSC credentials if not submitted (connected state hides the fields)
@@ -624,11 +644,11 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         $result = [];
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         switch ($issue_code) {
@@ -695,9 +715,9 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $analyzer = class_exists('SSF_Analyzer') ? new SSF_Analyzer() : null;
@@ -939,8 +959,6 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        // Get keywords from the post
-        $content = $post->post_content . ' ' . $post->post_title;
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
         
         // Find related posts
@@ -954,21 +972,55 @@ class SSF_Ajax {
         
         $related = get_posts($args);
         
+        $ai    = SSF_AI::get();
         $links = [];
+        
         foreach ($related as $related_post) {
-            // Check if not already linked in content
             $url = get_permalink($related_post->ID);
-            if (strpos($post->post_content, $url) === false) {
+            
+            // Skip if already linked in content
+            if (strpos($post->post_content, $url) !== false) {
+                continue;
+            }
+            
+            if ($ai->is_configured()) {
+                // Ask AI to find an existing phrase in this post that would serve as an anchor
+                $placement = $ai->find_internal_link_placement(
+                    $post->post_content,
+                    $related_post->post_title,
+                    $url
+                );
+                
+                if ( ! is_wp_error($placement)
+                    && ! empty($placement['found'])
+                    && ! empty($placement['anchor_text'])
+                    && stripos($post->post_content, $placement['anchor_text']) !== false
+                ) {
+                    $links[] = [
+                        'title'       => $related_post->post_title,
+                        'url'         => $url,
+                        'anchor_text' => $placement['anchor_text'],
+                    ];
+                }
+            } else {
+                // No AI configured: return link without anchor placement
                 $links[] = [
-                    'id' => $related_post->ID,
-                    'title' => $related_post->post_title,
-                    'url' => $url,
-                    'excerpt' => wp_trim_words($related_post->post_content, 15),
+                    'title'       => $related_post->post_title,
+                    'url'         => $url,
+                    'anchor_text' => '',
                 ];
+            }
+            
+            if (count($links) >= 3) {
+                break;
             }
         }
         
-        wp_send_json_success(['links' => array_slice($links, 0, 5)]);
+        if (empty($links)) {
+            wp_send_json_error(['message' => __('No suitable anchor phrases found in this content for internal linking.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success(['links' => $links]);
     }
     
     /**
@@ -989,21 +1041,27 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
-        // Use AI to suggest authoritative sources with actual URLs
-        $prompt = "Based on this content, suggest 3-5 authoritative external sources that would be good to link to for credibility and SEO.\n\n";
-        $prompt .= "For each suggestion, provide:\n";
-        $prompt .= "- 'url': a real, working URL to the authoritative source\n";
-        $prompt .= "- 'anchor': suggested anchor text for the link\n";
-        $prompt .= "- 'reason': brief reason why this source adds value\n\n";
-        $prompt .= "Only suggest well-known, established sources (Wikipedia, government sites, major publications, official documentation, etc.).\n\n";
-        $prompt .= "Format as JSON array: [{\"url\": \"https://...\", \"anchor\": \"...\", \"reason\": \"...\"}]\n\n";
-        $prompt .= "Content:\n" . wp_trim_words($post->post_content, 300);
+        // Prepare content — strip tags and limit length for the AI prompt
+        $plain_content = wp_strip_all_tags($post->post_content);
+        if (strlen($plain_content) > 2500) {
+            $plain_content = substr($plain_content, 0, 2500);
+        }
+        
+        // Use AI to suggest authoritative sources and find exact anchor phrases in the content
+        $prompt = "Analyze the following content and suggest 3 authoritative external sources to link to for credibility and SEO.\n\n";
+        $prompt .= "For each suggestion provide:\n";
+        $prompt .= "- 'url': a real, working URL to an authoritative source (Wikipedia, government site, major publication, or official documentation)\n";
+        $prompt .= "- 'anchor_text': an EXACT phrase (2-6 words) copied VERBATIM from the content below — this phrase will become the hyperlink\n";
+        $prompt .= "- 'reason': one sentence explaining why this source adds value\n\n";
+        $prompt .= "CRITICAL: 'anchor_text' must appear EXACTLY as written in the content. Do not invent or paraphrase phrases.\n\n";
+        $prompt .= "Return ONLY a JSON array: [{\"url\":\"https://...\",\"anchor_text\":\"...\",\"reason\":\"...\"}]\n\n";
+        $prompt .= "Content:\n" . $plain_content;
         
         $messages = [
             ['role' => 'system', 'content' => 'You are an SEO expert. Suggest authoritative sources with real URLs. Respond only with valid JSON array.'],
@@ -1025,7 +1083,26 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Could not parse AI response.', 'smart-seo-fixer')]);
         }
         
-        wp_send_json_success(['suggestions' => $suggestions]);
+        // Filter: only keep suggestions with a valid URL and anchor_text that exists verbatim in the content
+        $valid = [];
+        foreach ($suggestions as $s) {
+            if (empty($s['url']) || strpos($s['url'], 'http') !== 0) {
+                continue;
+            }
+            if (empty($s['anchor_text'])) {
+                continue;
+            }
+            if (stripos($post->post_content, $s['anchor_text']) === false) {
+                continue;
+            }
+            $valid[] = $s;
+        }
+        
+        if (empty($valid)) {
+            wp_send_json_error(['message' => __('Could not find suitable anchor phrases in this content for external linking.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success(['suggestions' => $valid]);
     }
     
     /**
@@ -1053,7 +1130,7 @@ class SSF_Ajax {
             wp_send_json_success(['message' => __('No images found in content.', 'smart-seo-fixer'), 'fixed' => []]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
         $fixed = [];
         $new_content = $post->post_content;
@@ -1189,10 +1266,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $prompt = "Based on this content, suggest 3-5 types of images that would enhance SEO and user engagement. Format as JSON array with 'type' (e.g., 'Hero Image', 'Infographic'), 'description' (what it should show), and 'search_term' (keyword to find similar stock photos).\n\nContent:\n" . wp_trim_words($post->post_content, 300);
@@ -1331,9 +1408,9 @@ class SSF_Ajax {
         $apply_to = sanitize_text_field($options['apply_to'] ?? 'missing');
         
         // Validate OpenAI is configured BEFORE doing any work
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings to add it.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         // Accept explicit post IDs from the frontend (preview selection)
@@ -1502,10 +1579,10 @@ class SSF_Ajax {
         $generate_keywords = !empty($options['generate_keywords']);
         $overwrite = !empty($options['overwrite']);
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
@@ -1630,10 +1707,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
@@ -1678,10 +1755,10 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post has no content to improve.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         // Send trimmed content to avoid token limits
@@ -1740,10 +1817,10 @@ class SSF_Ajax {
         }
         
         // Generate new schema
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         // Gather real site data so AI doesn't make up URLs
@@ -1893,10 +1970,10 @@ class SSF_Ajax {
             ]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         // Real site data for the AI
@@ -2084,9 +2161,9 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $logo_url = '';
@@ -2186,9 +2263,9 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('This post already has a custom schema. Use Regenerate instead.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+            wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $logo_url = '';
@@ -2459,933 +2536,391 @@ class SSF_Ajax {
         
         wp_send_json_success(['message' => __('Sitemap submitted successfully!', 'smart-seo-fixer')]);
     }
-    
-    /**
-     * Find pages not appearing in GSC search data (likely not indexed)
-     */
-    public function gsc_not_indexed() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_GSC_Client')) {
-            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $gsc = new SSF_GSC_Client();
-        
-        if (!$gsc->is_connected()) {
-            wp_send_json_error(['message' => __('Not connected to Google Search Console.', 'smart-seo-fixer')]);
-        }
-        
-        // Get all pages that appear in GSC (last 90 days for broader coverage)
-        $gsc_pages = $gsc->get_top_pages(90, 5000);
-        
-        if (is_wp_error($gsc_pages)) {
-            wp_send_json_error(['message' => $gsc_pages->get_error_message()]);
-        }
-        
-        $indexed_urls = [];
-        if (!empty($gsc_pages['rows'])) {
-            foreach ($gsc_pages['rows'] as $row) {
-                if (!empty($row['keys'][0])) {
-                    $indexed_urls[] = rtrim($row['keys'][0], '/');
-                }
-            }
-        }
-        
-        // Get all published posts/pages
-        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
-        $all_posts = get_posts([
-            'post_type'      => $post_types,
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-        ]);
-        
-        $not_indexed = [];
-        foreach ($all_posts as $post_id) {
-            $url = get_permalink($post_id);
-            $url_normalized = rtrim($url, '/');
-            
-            if (!in_array($url_normalized, $indexed_urls)) {
-                $post = get_post($post_id);
-                $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
-                $seo_desc = get_post_meta($post_id, '_ssf_meta_description', true);
-                
-                // Check for internal links in content
-                $has_internal_links = false;
-                $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
-                if (preg_match_all('/href=["\']([^"\']+)["\']/', $post->post_content, $link_matches)) {
-                    foreach ($link_matches[1] as $href) {
-                        $link_host = wp_parse_url($href, PHP_URL_HOST);
-                        if ($link_host === $site_host || (empty($link_host) && strpos($href, '/') === 0)) {
-                            $has_internal_links = true;
-                            break;
-                        }
-                    }
-                }
-                
-                // Check if any other page links TO this page
-                $has_incoming_links = false;
-                global $wpdb;
-                $incoming = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->posts} 
-                     WHERE post_status = 'publish' 
-                     AND ID != %d 
-                     AND (post_content LIKE %s OR post_content LIKE %s)
-                     LIMIT 1",
-                    $post_id,
-                    '%' . $wpdb->esc_like($url) . '%',
-                    '%' . $wpdb->esc_like(wp_parse_url($url, PHP_URL_PATH)) . '%'
-                ));
-                $has_incoming_links = intval($incoming) > 0;
-                
-                $issues = [];
-                if (empty($seo_title)) $issues[] = 'missing_title';
-                if (empty($seo_desc)) $issues[] = 'missing_description';
-                if (!$has_internal_links) $issues[] = 'no_outgoing_links';
-                if (!$has_incoming_links) $issues[] = 'no_incoming_links';
-                
-                $not_indexed[] = [
-                    'id'          => $post_id,
-                    'title'       => $post->post_title,
-                    'url'         => $url,
-                    'post_type'   => $post->post_type,
-                    'has_title'   => !empty($seo_title),
-                    'has_desc'    => !empty($seo_desc),
-                    'has_outgoing' => $has_internal_links,
-                    'has_incoming' => $has_incoming_links,
-                    'issues'      => $issues,
-                    'issue_count' => count($issues),
-                ];
-            }
-        }
-        
-        // Sort by most issues first
-        usort($not_indexed, function($a, $b) {
-            return $b['issue_count'] - $a['issue_count'];
-        });
-        
-        wp_send_json_success([
-            'total_published' => count($all_posts),
-            'total_in_gsc'    => count($indexed_urls),
-            'not_indexed'     => $not_indexed,
-            'count'           => count($not_indexed),
-        ]);
-    }
-    
-    // ========================================================================
-    // Change History & Undo
-    // ========================================================================
-    
-    /**
-     * Get change history with filters
-     */
-    public function get_history() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_History')) {
-            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $args = [
-            'page'        => intval($_POST['page'] ?? 1),
-            'per_page'    => intval($_POST['per_page'] ?? 50),
-            'action_type' => sanitize_key($_POST['action_type'] ?? '') ?: null,
-            'source'      => sanitize_key($_POST['source'] ?? '') ?: null,
-            'search'      => sanitize_text_field($_POST['search'] ?? ''),
-            'post_id'     => !empty($_POST['post_id']) ? intval($_POST['post_id']) : null,
-        ];
-        
-        $result = SSF_History::query($args);
-        
-        // Format for display
-        $items = [];
-        foreach ($result['items'] as $item) {
-            $items[] = [
-                'id'          => intval($item->id),
-                'post_id'     => intval($item->post_id),
-                'post_title'  => $item->post_title ?: __('(Deleted post)', 'smart-seo-fixer'),
-                'action_type' => $item->action_type,
-                'field_key'   => $item->field_key,
-                'old_value'   => $item->old_value,
-                'new_value'   => $item->new_value,
-                'source'      => $item->source,
-                'reverted'    => intval($item->reverted),
-                'created_at'  => $item->created_at,
-                'user_id'     => intval($item->user_id),
-            ];
-        }
-        
-        wp_send_json_success([
-            'items'       => $items,
-            'total'       => $result['total'],
-            'page'        => $result['page'],
-            'per_page'    => $result['per_page'],
-            'total_pages' => $result['total_pages'],
-        ]);
-    }
-    
-    /**
-     * Undo a change
-     */
-    public function undo_change() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_History')) {
-            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $history_id = intval($_POST['history_id'] ?? 0);
-        if (!$history_id) {
-            wp_send_json_error(['message' => __('Invalid history ID.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_History::undo($history_id);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => $result->get_error_message()]);
-        }
-        
-        wp_send_json_success(['message' => __('Change reverted successfully.', 'smart-seo-fixer')]);
-    }
-    
-    /**
-     * Get history stats
-     */
-    public function get_history_stats() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_History')) {
-            wp_send_json_error(['message' => __('History module not available.', 'smart-seo-fixer')]);
-        }
-        
-        wp_send_json_success(SSF_History::get_stats());
-    }
-    
-    // ========================================================================
-    // Debug Log
-    // ========================================================================
-    
-    /**
-     * Get logs
-     */
-    public function get_logs() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Logger')) {
-            wp_send_json_error(['message' => __('Logger module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $args = [
-            'page'     => intval($_POST['page'] ?? 1),
-            'per_page' => intval($_POST['per_page'] ?? 50),
-            'level'    => sanitize_key($_POST['level'] ?? '') ?: null,
-            'category' => sanitize_key($_POST['category'] ?? '') ?: null,
-            'search'   => sanitize_text_field($_POST['search'] ?? ''),
-        ];
-        
-        $result = SSF_Logger::query($args);
-        $counts = SSF_Logger::get_counts();
-        
-        wp_send_json_success([
-            'items'       => $result['items'],
-            'total'       => $result['total'],
-            'page'        => $result['page'],
-            'per_page'    => $result['per_page'],
-            'total_pages' => $result['total_pages'],
-            'counts'      => $counts,
-        ]);
-    }
-    
-    /**
-     * Clear all logs
-     */
-    public function clear_logs() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Logger')) {
-            wp_send_json_error(['message' => __('Logger module not available.', 'smart-seo-fixer')]);
-        }
-        
-        SSF_Logger::clear();
-        
-        wp_send_json_success(['message' => __('Logs cleared successfully.', 'smart-seo-fixer')]);
-    }
-    
-    // ========================================================================
-    // Job Queue
-    // ========================================================================
-    
-    /**
-     * Get status of a specific job (for polling)
-     */
-    public function get_job_status() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_Job_Queue')) {
-            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
-        }
-        
-        $job_id = intval($_POST['job_id'] ?? 0);
-        if (!$job_id) {
-            wp_send_json_error(['message' => __('Invalid job ID.', 'smart-seo-fixer')]);
-        }
-        
-        $job = SSF_Job_Queue::get($job_id);
-        if (!$job) {
-            wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
-        }
-        
-        $progress = $job->total_items > 0 
-            ? round(($job->processed_items / $job->total_items) * 100) 
-            : 0;
-        
-        wp_send_json_success([
-            'id'              => intval($job->id),
-            'job_type'        => $job->job_type,
-            'status'          => $job->status,
-            'total_items'     => intval($job->total_items),
-            'processed_items' => intval($job->processed_items),
-            'failed_items'    => intval($job->failed_items),
-            'progress'        => $progress,
-            'results'         => $job->results,
-            'created_at'      => $job->created_at,
-            'started_at'      => $job->started_at,
-            'completed_at'    => $job->completed_at,
-        ]);
-    }
-    
-    /**
-     * Get recent jobs list
-     */
-    public function get_jobs() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Job_Queue')) {
-            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
-        }
-        
-        $jobs = SSF_Job_Queue::get_recent(30);
-        $formatted = [];
-        
-        foreach ($jobs as $job) {
-            $progress = $job->total_items > 0 
-                ? round(($job->processed_items / $job->total_items) * 100) 
-                : 0;
-            
-            $formatted[] = [
-                'id'              => intval($job->id),
-                'job_type'        => $job->job_type,
-                'status'          => $job->status,
-                'total_items'     => intval($job->total_items),
-                'processed_items' => intval($job->processed_items),
-                'failed_items'    => intval($job->failed_items),
-                'progress'        => $progress,
-                'created_at'      => $job->created_at,
-                'started_at'      => $job->started_at,
-                'completed_at'    => $job->completed_at,
-            ];
-        }
-        
-        wp_send_json_success([
-            'jobs'         => $formatted,
-            'active_count' => SSF_Job_Queue::active_count(),
-        ]);
-    }
-    
-    /**
-     * Cancel a job
-     */
-    public function cancel_job() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Job_Queue')) {
-            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
-        }
-        
-        $job_id = intval($_POST['job_id'] ?? 0);
-        $result = SSF_Job_Queue::cancel($job_id);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => $result->get_error_message()]);
-        }
-        
-        wp_send_json_success(['message' => __('Job cancelled.', 'smart-seo-fixer')]);
-    }
-    
-    /**
-     * Retry failed items in a job
-     */
-    public function retry_job() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Job_Queue')) {
-            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
-        }
-        
-        $job_id = intval($_POST['job_id'] ?? 0);
-        $new_job_id = SSF_Job_Queue::retry_failed($job_id);
-        
-        if (is_wp_error($new_job_id)) {
-            wp_send_json_error(['message' => $new_job_id->get_error_message()]);
-        }
-        
-        wp_send_json_success([
-            'message' => __('Retry job created.', 'smart-seo-fixer'),
-            'new_job_id' => $new_job_id,
-        ]);
-    }
-    
+
     // =========================================================================
     // Broken Links
     // =========================================================================
-    
-    /**
-     * Get broken links list
-     */
+
     public function get_broken_links() {
         $this->verify_nonce();
-        
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
         if (!class_exists('SSF_Broken_Links')) {
             wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
         }
-        
+
         $result = SSF_Broken_Links::query([
             'page'      => intval($_POST['page'] ?? 1),
             'per_page'  => 20,
-            'link_type' => sanitize_key($_POST['link_type'] ?? ''),
-            'status'    => sanitize_key($_POST['status'] ?? 'active'),
+            'link_type' => sanitize_text_field($_POST['link_type'] ?? ''),
+            'status'    => sanitize_text_field($_POST['status'] ?? 'active'),
             'search'    => sanitize_text_field($_POST['search'] ?? ''),
         ]);
-        
+
         wp_send_json_success($result);
     }
-    
-    /**
-     * Manual scan for broken links (scans 10 most recent posts)
-     */
+
     public function scan_broken_links() {
         $this->verify_nonce();
-        
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
         if (!class_exists('SSF_Broken_Links')) {
             wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
         }
-        
-        global $wpdb;
+
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $posts = get_posts(['post_type' => $post_types, 'post_status' => 'publish', 'posts_per_page' => 50, 'fields' => 'ids']);
+
+        $total_checked = 0;
+        $total_broken  = 0;
+
+        foreach ($posts as $post_id) {
+            $r = SSF_Broken_Links::scan_post($post_id);
+            $total_checked += $r['checked'];
+            $total_broken  += $r['broken'];
+        }
+
+        wp_send_json_success([
+            'checked' => $total_checked,
+            'broken'  => $total_broken,
+        ]);
+    }
+
+    public function recheck_broken_link() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        if (!class_exists('SSF_Broken_Links')) {
+            wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
+        }
+
+        $id     = absint($_POST['id'] ?? 0);
+        $result = SSF_Broken_Links::recheck($id);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+
+        wp_send_json_success($result);
+    }
+
+    public function dismiss_broken_link() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        SSF_Broken_Links::dismiss(absint($_POST['id'] ?? 0));
+        wp_send_json_success();
+    }
+
+    public function undismiss_broken_link() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        SSF_Broken_Links::undismiss(absint($_POST['id'] ?? 0));
+        wp_send_json_success();
+    }
+
+    /**
+     * Bulk-redirect broken links: replace the broken URL in each post's content
+     * with the target URL specified by the user, then dismiss the records.
+     */
+    public function bulk_redirect_broken_links() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $ids        = array_map('absint', (array) ($_POST['ids'] ?? []));
+        $target_url = esc_url_raw(trim($_POST['target_url'] ?? ''));
+
+        if (empty($ids)) {
+            wp_send_json_error(['message' => __('No links selected.', 'smart-seo-fixer')]);
+        }
+
+        if (empty($target_url) || strpos($target_url, 'http') !== 0) {
+            wp_send_json_error(['message' => __('Please provide a valid destination URL.', 'smart-seo-fixer')]);
+        }
+
+        global $wpdb;
+        $table      = SSF_Broken_Links::table();
+        $redirected = 0;
+        $failed     = 0;
+
+        foreach ($ids as $id) {
+            $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
+            if (!$record) {
+                $failed++;
+                continue;
+            }
+
+            $post = get_post(intval($record->post_id));
+            if (!$post) {
+                $failed++;
+                continue;
+            }
+
+            // Replace broken URL in post content (simple string replace — handles plain text and href attributes)
+            $new_content = str_replace($record->url, $target_url, $post->post_content);
+
+            if ($new_content !== $post->post_content) {
+                wp_update_post([
+                    'ID'           => $post->ID,
+                    'post_content' => $new_content,
+                ]);
+            }
+
+            // Dismiss the broken link record (no longer needed)
+            SSF_Broken_Links::dismiss($id);
+            $redirected++;
+        }
+
+        /* translators: 1: number updated, 2: number skipped */
+        $msg = sprintf(
+            _n('%d link updated.', '%d links updated.', $redirected, 'smart-seo-fixer'),
+            $redirected
+        );
+        if ($failed > 0) {
+            $msg .= ' ' . sprintf(
+                /* translators: %d: number skipped */
+                _n('%d skipped (record not found).', '%d skipped (records not found).', $failed, 'smart-seo-fixer'),
+                $failed
+            );
+        }
+
+        wp_send_json_success(['message' => $msg, 'updated' => $redirected, 'failed' => $failed]);
+    }
+
+    /**
+     * Bulk-dismiss broken links.
+     */
+    public function bulk_dismiss_broken_links() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $ids = array_map('absint', (array) ($_POST['ids'] ?? []));
+
+        foreach ($ids as $id) {
+            SSF_Broken_Links::dismiss($id);
+        }
+
+        wp_send_json_success(['dismissed' => count($ids)]);
+    }
+
+    // =========================================================================
+    // Canonical URL Fixer
+    // =========================================================================
+
+    /**
+     * Normalize a canonical URL for storage:
+     * - Fixes scheme to match site (http → https or vice-versa)
+     * - Fixes www prefix to match site preference
+     * - Normalises trailing slash to match WordPress permalink settings
+     * - Returns empty string if the normalised value equals the post's own
+     *   permalink (makes the stored meta redundant — plugin outputs it by default)
+     */
+    private function normalize_canonical_for_storage( $url, $post_id = 0 ) {
+        if ( empty( $url ) ) return '';
+
+        $site      = home_url('/');
+        $site_p    = wp_parse_url( $site );
+        $site_scheme = $site_p['scheme'] ?? 'https';
+        $site_host   = $site_p['host']  ?? '';
+
+        $p = wp_parse_url( $url );
+        if ( empty( $p['host'] ) ) return $url; // relative — leave as-is
+
+        $url_host = $p['host'];
+
+        // 1. Correct scheme
+        $p['scheme'] = $site_scheme;
+
+        // 2. Correct www: if site host and url host differ only by www, align them
+        $site_www = strpos( $site_host, 'www.' ) === 0;
+        $url_www  = strpos( $url_host,  'www.' ) === 0;
+
+        $site_bare = $site_www ? substr( $site_host, 4 ) : $site_host;
+        $url_bare  = $url_www  ? substr( $url_host,  4 ) : $url_host;
+
+        if ( $site_bare === $url_bare ) {
+            // Same domain, just different www prefix — align to site preference
+            $p['host'] = $site_host;
+        }
+
+        // 3. Rebuild URL
+        $normalized  = $p['scheme'] . '://' . $p['host'];
+        $normalized .= $p['path'] ?? '/';
+        if ( !empty( $p['query'] )    ) $normalized .= '?' . $p['query'];
+        if ( !empty( $p['fragment'] ) ) $normalized .= '#' . $p['fragment'];
+
+        // 4. Normalise trailing slash to match WordPress permalink settings
+        $permalink_structure = get_option( 'permalink_structure', '' );
+        $wants_slash = !empty( $permalink_structure ) && substr( $permalink_structure, -1 ) === '/';
+        // Only touch paths without a file extension
+        $path_only = $p['path'] ?? '/';
+        if ( !preg_match('/\.\w{2,5}$/', $path_only) ) {
+            $normalized = $wants_slash ? trailingslashit( $normalized ) : untrailingslashit( $normalized );
+        }
+
+        // 5. If this now equals the post's own permalink, it's a redundant self-canonical — clear it
+        if ( $post_id > 0 ) {
+            $permalink = untrailingslashit( get_permalink( $post_id ) );
+            if ( untrailingslashit( $normalized ) === $permalink ) {
+                return '';
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Scan for canonical mismatches without fixing — returns a count + sample list.
+     */
+    public function scan_canonical_issues() {
+        $this->verify_nonce();
+
+        if ( !current_user_can('manage_options') ) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        global $wpdb;
+        $post_types  = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
-        
-        // Scan all published posts (manual full scan)
+
         $posts = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT ID, post_content FROM {$wpdb->posts} 
+                "SELECT ID, post_title FROM {$wpdb->posts}
                  WHERE post_status = 'publish' AND post_type IN ($placeholders)
                  ORDER BY ID ASC",
                 ...$post_types
             )
         );
-        
-        $total_checked = 0;
-        $total_broken = 0;
-        
-        // Extend execution time for full scan
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(300);
-        }
-        
-        foreach ($posts as $post) {
-            $result = SSF_Broken_Links::scan_post($post->ID, $post->post_content);
-            $total_checked += $result['checked'];
-            $total_broken += $result['broken'];
-        }
-        
-        // Reset cycle pointer so cron continues from start
-        update_option('ssf_broken_links_last_post', 0);
-        
-        wp_send_json_success([
-            'checked' => $total_checked,
-            'broken'  => $total_broken,
-            'posts'   => count($posts),
-        ]);
-    }
-    
-    /**
-     * Recheck a specific broken link
-     */
-    public function recheck_broken_link() {
-        $this->verify_nonce();
-        
-        $id = intval($_POST['id'] ?? 0);
-        if (!$id) {
-            wp_send_json_error(['message' => __('Invalid ID.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_Broken_Links::recheck($id);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => $result->get_error_message()]);
-        }
-        
-        wp_send_json_success($result);
-    }
-    
-    /**
-     * Dismiss a broken link
-     */
-    public function dismiss_broken_link() {
-        $this->verify_nonce();
-        SSF_Broken_Links::dismiss(intval($_POST['id'] ?? 0));
-        wp_send_json_success();
-    }
-    
-    /**
-     * Undismiss a broken link
-     */
-    public function undismiss_broken_link() {
-        $this->verify_nonce();
-        SSF_Broken_Links::undismiss(intval($_POST['id'] ?? 0));
-        wp_send_json_success();
-    }
-    
-    // =========================================================================
-    // 404 Monitor
-    // =========================================================================
-    
-    /**
-     * Get 404 logs
-     */
-    public function get_404_logs() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_404_Monitor')) {
-            wp_send_json_error(['message' => __('404 Monitor module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_404_Monitor::query([
-            'page'     => intval($_POST['page'] ?? 1),
-            'per_page' => 20,
-            'status'   => sanitize_key($_POST['status'] ?? 'active'),
-            'search'   => sanitize_text_field($_POST['search'] ?? ''),
-        ]);
-        
-        wp_send_json_success($result);
-    }
-    
-    /**
-     * Dismiss a 404 entry
-     */
-    public function dismiss_404() {
-        $this->verify_nonce();
-        SSF_404_Monitor::dismiss(intval($_POST['id'] ?? 0));
-        wp_send_json_success();
-    }
-    
-    /**
-     * Create redirect from a 404 URL
-     */
-    public function create_404_redirect() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        $id = intval($_POST['id'] ?? 0);
-        $redirect_to = esc_url_raw($_POST['redirect_to'] ?? '');
-        
-        if (!$id || empty($redirect_to)) {
-            wp_send_json_error(['message' => __('Missing required fields.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_404_Monitor::create_redirect($id, $redirect_to);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => $result->get_error_message()]);
-        }
-        
-        wp_send_json_success(['message' => __('Redirect created successfully.', 'smart-seo-fixer')]);
-    }
-    
-    /**
-     * Clear all 404 logs
-     */
-    public function clear_404_logs() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        SSF_404_Monitor::clear_all();
-        wp_send_json_success(['message' => __('All 404 logs cleared.', 'smart-seo-fixer')]);
-    }
-    
-    // =========================================================================
-    // robots.txt Editor
-    // =========================================================================
-    
-    /**
-     * Save robots.txt content
-     */
-    public function save_robots() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Robots_Editor')) {
-            wp_send_json_error(['message' => __('robots.txt Editor not available.', 'smart-seo-fixer')]);
-        }
-        
-        $content = isset($_POST['content']) ? wp_unslash($_POST['content']) : '';
-        $enabled = !empty($_POST['enabled']);
-        
-        SSF_Robots_Editor::save_content($content);
-        SSF_Robots_Editor::set_enabled($enabled);
-        
-        $warnings = SSF_Robots_Editor::validate($content);
-        
-        wp_send_json_success([
-            'message'  => __('robots.txt saved successfully.', 'smart-seo-fixer'),
-            'warnings' => $warnings,
-        ]);
-    }
-    
-    // =========================================================================
-    // Readability
-    // =========================================================================
-    
-    /**
-     * Analyze post readability
-     */
-    public function analyze_readability() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_Readability')) {
-            wp_send_json_error(['message' => __('Readability module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $post_id = intval($_POST['post_id'] ?? 0);
-        if (!$post_id) {
-            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
-        }
-        
-        $post = get_post($post_id);
-        if (!$post) {
-            wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_Readability::analyze($post->post_content);
-        wp_send_json_success($result);
-    }
-    
-    // =========================================================================
-    // Social Preview
-    // =========================================================================
-    
-    /**
-     * Save social preview data
-     */
-    public function save_social_data() {
-        $this->verify_nonce();
-        
-        $post_id = intval($_POST['post_id'] ?? 0);
-        if (!$post_id || !current_user_can('edit_post', $post_id)) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        $fields = [
-            'og_title'            => '_ssf_og_title',
-            'og_description'      => '_ssf_og_description',
-            'og_image'            => '_ssf_og_image',
-            'twitter_title'       => '_ssf_twitter_title',
-            'twitter_description' => '_ssf_twitter_description',
-            'twitter_image'       => '_ssf_twitter_image',
-        ];
-        
-        foreach ($fields as $post_key => $meta_key) {
-            $value = isset($_POST[$post_key]) ? sanitize_text_field($_POST[$post_key]) : '';
-            if (in_array($post_key, ['og_image', 'twitter_image'])) {
-                $value = esc_url_raw($value);
+
+        $issues  = [];
+        $healthy = 0;
+
+        foreach ( $posts as $post ) {
+            $stored = get_post_meta( $post->ID, '_ssf_canonical_url', true );
+
+            if ( empty($stored) ) {
+                $healthy++;
+                continue; // No custom canonical — plugin outputs self-canonical by default. Good.
             }
-            if (in_array($post_key, ['og_description', 'twitter_description'])) {
-                $value = sanitize_textarea_field($_POST[$post_key] ?? '');
-            }
-            
-            if (!empty($value)) {
-                update_post_meta($post_id, $meta_key, $value);
+
+            $normalized = $this->normalize_canonical_for_storage( $stored, $post->ID );
+
+            if ( $normalized !== $stored ) {
+                // Something needs fixing
+                $issues[] = [
+                    'post_id'    => $post->ID,
+                    'title'      => $post->post_title,
+                    'url'        => get_permalink( $post->ID ),
+                    'stored'     => $stored,
+                    'normalized' => $normalized,
+                    'action'     => empty($normalized) ? 'clear' : 'update',
+                ];
             } else {
-                delete_post_meta($post_id, $meta_key);
+                $healthy++;
             }
         }
-        
-        wp_send_json_success(['message' => __('Social data saved.', 'smart-seo-fixer')]);
-    }
-    
-    /**
-     * Get social preview data for a post
-     */
-    public function get_social_data() {
-        $this->verify_nonce();
-        
-        $post_id = intval($_POST['post_id'] ?? 0);
-        if (!$post_id) {
-            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Social_Preview')) {
-            wp_send_json_error(['message' => __('Social Preview module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $data = SSF_Social_Preview::get_data($post_id);
-        wp_send_json_success($data);
-    }
-    
-    // =========================================================================
-    // Keyword Tracker
-    // =========================================================================
-    
-    /**
-     * Get tracked keywords
-     */
-    public function get_tracked_keywords() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_Keyword_Tracker')) {
-            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_Keyword_Tracker::get_keywords([
-            'page'     => intval($_POST['page'] ?? 1),
-            'per_page' => 20,
-            'search'   => sanitize_text_field($_POST['search'] ?? ''),
-            'days'     => intval($_POST['days'] ?? 30),
-        ]);
-        
-        wp_send_json_success($result);
-    }
-    
-    /**
-     * Get keyword position history for chart
-     */
-    public function get_keyword_history() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_Keyword_Tracker')) {
-            wp_send_json_error(['message' => __('Keyword Tracker not available.', 'smart-seo-fixer')]);
-        }
-        
-        $keyword = sanitize_text_field($_POST['keyword'] ?? '');
-        $days = intval($_POST['days'] ?? 30);
-        
-        if (empty($keyword)) {
-            wp_send_json_error(['message' => __('Keyword required.', 'smart-seo-fixer')]);
-        }
-        
-        $history = SSF_Keyword_Tracker::get_keyword_history($keyword, $days);
-        wp_send_json_success($history);
-    }
-    
-    /**
-     * Manually trigger keyword data fetch from GSC
-     */
-    public function fetch_keywords_now() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Keyword_Tracker') || !class_exists('SSF_GSC_Client')) {
-            wp_send_json_error(['message' => __('Keyword Tracker or GSC Client not available.', 'smart-seo-fixer')]);
-        }
-        
-        try {
-        
-        $gsc = new SSF_GSC_Client();
-        if (!$gsc->is_connected()) {
-            wp_send_json_error(['message' => __('Google Search Console is not connected. Go to Settings to connect it.', 'smart-seo-fixer')]);
-        }
-        
-        $site_url = Smart_SEO_Fixer::get_option('gsc_site_url', '');
-        if (empty($site_url)) {
-            wp_send_json_error(['message' => __('No site URL configured for GSC. Check your Settings.', 'smart-seo-fixer')]);
-        }
-        
-        $date = date('Y-m-d', strtotime('-2 days'));
-        $result = $gsc->get_search_analytics([
-            'startDate'  => $date,
-            'endDate'    => $date,
-            'dimensions' => ['query', 'page'],
-            'rowLimit'   => 100,
-        ]);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => sprintf(__('GSC API error: %s', 'smart-seo-fixer'), $result->get_error_message())]);
-        }
-        
-        if (empty($result['rows'])) {
-            wp_send_json_error(['message' => sprintf(__('No keyword data available from GSC for %s. Google Search Console data has a 2-3 day delay — this is normal for new or low-traffic sites.', 'smart-seo-fixer'), $date)]);
-        }
-        
-        // Store the data
-        global $wpdb;
-        $table = SSF_Keyword_Tracker::table();
-        $count = 0;
-        
-        foreach ($result['rows'] as $row) {
-            $keyword = $row['keys'][0] ?? '';
-            $url     = $row['keys'][1] ?? '';
-            if (empty($keyword)) continue;
-            
-            $exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM $table WHERE keyword = %s AND url = %s AND tracked_date = %s",
-                $keyword, $url, $date
-            ));
-            if ($exists) continue;
-            
-            $wpdb->insert($table, [
-                'keyword'      => mb_substr($keyword, 0, 500),
-                'url'          => $url,
-                'position'     => floatval($row['position'] ?? 0),
-                'clicks'       => intval($row['clicks'] ?? 0),
-                'impressions'  => intval($row['impressions'] ?? 0),
-                'ctr'          => floatval($row['ctr'] ?? 0) * 100,
-                'tracked_date' => $date,
-                'source'       => 'gsc',
-            ]);
-            $count++;
-        }
-        
-        wp_send_json_success(['message' => sprintf(__('Fetched %d keywords from GSC for %s.', 'smart-seo-fixer'), $count, $date)]);
-        
-        } catch (\Throwable $e) {
-            wp_send_json_error(['message' => sprintf(__('PHP error: %s', 'smart-seo-fixer'), $e->getMessage())]);
-        }
-    }
-    
-    /**
-     * Content Suggestions for a post
-     */
-    public function content_suggestions() {
-        $this->verify_nonce();
-        
-        if (!class_exists('SSF_Content_Suggestions')) {
-            wp_send_json_error(['message' => __('Content Suggestions module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $post_id = intval($_POST['post_id'] ?? 0);
-        if (!$post_id) {
-            wp_send_json_error(['message' => __('Post ID required.', 'smart-seo-fixer')]);
-        }
-        
-        $mode = sanitize_text_field($_POST['mode'] ?? 'rules');
-        if (!in_array($mode, ['rules', 'ai'], true)) {
-            $mode = 'rules';
-        }
-        
-        $result = SSF_Content_Suggestions::generate($post_id, $mode);
-        
-        if (is_wp_error($result)) {
-            wp_send_json_error(['message' => $result->get_error_message()]);
-        }
-        
-        wp_send_json_success($result);
-    }
-    
-    /**
-     * WP Coding Standards audit
-     */
-    public function wp_standards_audit() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_WP_Standards')) {
-            wp_send_json_error(['message' => __('WP Standards module not available.', 'smart-seo-fixer')]);
-        }
-        
-        $result = SSF_WP_Standards::audit();
-        wp_send_json_success($result);
-    }
-    
-    /**
-     * Performance profiler data
-     */
-    public function performance_data() {
-        $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
-        }
-        
-        if (!class_exists('SSF_Performance')) {
-            wp_send_json_error(['message' => __('Performance module not available.', 'smart-seo-fixer')]);
-        }
-        
+
         wp_send_json_success([
-            'latest'      => SSF_Performance::get_latest(),
-            'history'     => SSF_Performance::get_history(50),
-            'averages'    => SSF_Performance::get_averages(),
-            'environment' => SSF_Performance::get_environment(),
+            'issues'  => array_slice($issues, 0, 20), // preview up to 20
+            'total'   => count($issues),
+            'healthy' => $healthy,
         ]);
     }
-    
+
     /**
-     * Clear performance history
+     * Auto-fix all canonical mismatches:
+     * - Wrong scheme (http when site is https)
+     * - Wrong www prefix vs site preference
+     * - Trailing-slash inconsistency
+     * - Redundant self-canonicals (custom canonical = own permalink → clear it)
      */
-    public function performance_clear() {
+    public function auto_fix_canonicals() {
         $this->verify_nonce();
-        
-        if (!current_user_can('manage_options')) {
+
+        if ( !current_user_can('manage_options') ) {
             wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
-        
-        if (!class_exists('SSF_Performance')) {
-            wp_send_json_error(['message' => __('Performance module not available.', 'smart-seo-fixer')]);
+
+        global $wpdb;
+        $post_types  = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
+        $posts = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID FROM {$wpdb->posts}
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
+                 ORDER BY ID ASC",
+                ...$post_types
+            )
+        );
+
+        $cleared = 0;
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ( $posts as $post ) {
+            $stored = get_post_meta( $post->ID, '_ssf_canonical_url', true );
+
+            if ( empty($stored) ) {
+                $skipped++;
+                continue;
+            }
+
+            $normalized = $this->normalize_canonical_for_storage( $stored, $post->ID );
+
+            if ( $normalized === $stored ) {
+                $skipped++;
+                continue; // Already correct or intentional cross-URL canonical
+            }
+
+            if ( empty($normalized) ) {
+                // Redundant self-canonical — delete it
+                delete_post_meta( $post->ID, '_ssf_canonical_url' );
+                $cleared++;
+            } else {
+                // Update to normalised version
+                update_post_meta( $post->ID, '_ssf_canonical_url', $normalized );
+                $updated++;
+            }
         }
-        
-        SSF_Performance::clear_history();
-        wp_send_json_success(['message' => __('Performance history cleared.', 'smart-seo-fixer')]);
+
+        $total_fixed = $cleared + $updated;
+
+        wp_send_json_success([
+            'fixed'   => $total_fixed,
+            'cleared' => $cleared,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'message' => $total_fixed > 0
+                ? sprintf(
+                    /* translators: 1: cleared count, 2: updated count */
+                    __('Fixed %1$d canonical issues: %2$d redundant self-canonicals removed, %3$d corrected for scheme/www.', 'smart-seo-fixer'),
+                    $total_fixed, $cleared, $updated
+                  )
+                : __('No canonical issues found — all canonicals are already correct!', 'smart-seo-fixer'),
+        ]);
     }
 }
 

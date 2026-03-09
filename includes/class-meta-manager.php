@@ -45,7 +45,12 @@ class SSF_Meta_Manager {
         // Canonical URL
         add_action('wp_head', [$this, 'output_canonical'], 4);
         
-        // Disable conflicting SEO plugins output (runs early so hooks are removed before they fire)
+        // Always suppress canonical tags from other SEO plugins — having two canonical
+        // outputs causes "Google chose different canonical than user" in Search Console.
+        // The full output suppression (titles, OG, etc.) is only done when the setting is on.
+        $this->suppress_competing_canonicals();
+        
+        // Disable ALL conflicting SEO plugins output (runs early so hooks are removed before they fire)
         if (Smart_SEO_Fixer::get_option('disable_other_seo_output', false)) {
             $this->disable_conflicting_plugins();
         }
@@ -132,6 +137,43 @@ class SSF_Meta_Manager {
         }
         
         return get_bloginfo('name');
+    }
+    
+    /**
+     * Suppress canonical output from other SEO plugins.
+     * 
+     * Unlike disable_conflicting_plugins() (which silences ALL their output and is
+     * gated by a user setting), this runs unconditionally and only targets canonical
+     * tags. Having two canonical tags on the same page is always wrong — it causes
+     * "Google chose different canonical than user" errors in Search Console even
+     * when both plugins point to the same URL, because Google interprets competing
+     * signals as ambiguity.
+     */
+    private function suppress_competing_canonicals() {
+        // Yoast SEO — filter returns false to suppress canonical tag output
+        if (defined('WPSEO_VERSION') || class_exists('WPSEO_Frontend')) {
+            add_filter('wpseo_canonical', '__return_false', 9999);
+        }
+        
+        // Rank Math — disable their canonical output
+        if (defined('RANK_MATH_VERSION') || class_exists('RankMath')) {
+            add_filter('rank_math/frontend/canonical', '__return_false', 9999);
+        }
+        
+        // All in One SEO — suppress canonical
+        if (defined('AIOSEO_VERSION')) {
+            add_filter('aioseo_canonical_url', '__return_false', 9999);
+        }
+        
+        // The SEO Framework — suppress canonical
+        if (function_exists('the_seo_framework')) {
+            add_filter('the_seo_framework_rel_canonical_output', '__return_empty_string', 9999);
+        }
+        
+        // SEOPress — suppress canonical
+        if (defined('SEOPRESS_VERSION')) {
+            add_filter('seopress_titles_canonical', '__return_false', 9999);
+        }
     }
     
     /**
@@ -519,6 +561,17 @@ class SSF_Meta_Manager {
             
             // Enforce trailing slash consistency to match WordPress permalink structure
             $canonical = $this->normalize_url_slashes($canonical);
+            
+            // Enforce scheme consistency: canonical must match the site's actual scheme.
+            // This prevents "Google chose different canonical" when a post was saved with
+            // http:// but the site now serves https:// (or vice versa after a migration).
+            $site_url   = get_option('siteurl', '');
+            $site_https = (strpos($site_url, 'https://') === 0);
+            if ($site_https && strpos($canonical, 'http://') === 0) {
+                $canonical = 'https://' . substr($canonical, 7);
+            } elseif (!$site_https && strpos($canonical, 'https://') === 0) {
+                $canonical = 'http://' . substr($canonical, 8);
+            }
             
             echo '<link rel="canonical" href="' . esc_url($canonical) . '" />' . "\n";
         }

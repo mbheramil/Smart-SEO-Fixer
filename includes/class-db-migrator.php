@@ -126,9 +126,9 @@ class SSF_DB_Migrator {
      * Migration v4: Setup wizard flag and validation defaults
      */
     public static function migrate_v4_setup_validation() {
-        // If the plugin already has an API key configured, mark setup as complete
-        $api_key = get_option('ssf_openai_api_key', '');
-        if (!empty($api_key)) {
+        // If the plugin already has Bedrock credentials configured, mark setup as complete
+        $access_key = get_option('ssf_bedrock_access_key', '');
+        if (!empty($access_key)) {
             update_option('ssf_setup_completed', true);
         }
     }

@@ -198,9 +198,9 @@ if (!defined('ABSPATH')) {
                 <h5><?php esc_html_e('Internal Links', 'smart-seo-fixer'); ?></h5>
                 <button type="button" class="button ssf-ai-tool-btn" id="ai-suggest-internal-links">
                     <span class="dashicons dashicons-admin-links"></span>
-                    <?php esc_html_e('Suggest Internal Links', 'smart-seo-fixer'); ?>
+                    <?php esc_html_e('Insert Internal Links', 'smart-seo-fixer'); ?>
                 </button>
-                <p class="description"><?php esc_html_e('Find related posts to link to', 'smart-seo-fixer'); ?></p>
+                <p class="description"><?php esc_html_e('Auto-insert related post links into content', 'smart-seo-fixer'); ?></p>
             </div>
             
             <!-- External Links -->
@@ -208,9 +208,9 @@ if (!defined('ABSPATH')) {
                 <h5><?php esc_html_e('External Links', 'smart-seo-fixer'); ?></h5>
                 <button type="button" class="button ssf-ai-tool-btn" id="ai-suggest-external-links">
                     <span class="dashicons dashicons-external"></span>
-                    <?php esc_html_e('Suggest Authority Links', 'smart-seo-fixer'); ?>
+                    <?php esc_html_e('Insert Authority Links', 'smart-seo-fixer'); ?>
                 </button>
-                <p class="description"><?php esc_html_e('Suggest authoritative sources to cite', 'smart-seo-fixer'); ?></p>
+                <p class="description"><?php esc_html_e('Auto-insert authoritative reference links into content', 'smart-seo-fixer'); ?></p>
             </div>
             
             <!-- Images -->
@@ -760,6 +760,70 @@ jQuery(document).ready(function($) {
             $btn.html(original).css({'background':'','color':'','border-color':''});
         }, 2000);
     }
+
+    /**
+     * Find anchorText in the current editor content and wrap it inline as a hyperlink.
+     * Only wraps the first occurrence that is NOT already inside an <a> tag.
+     * Returns true on success, false if the phrase was not found.
+     */
+    function ssfInjectLinkInEditor(anchorText, url, rel) {
+        if (!anchorText || !url) return false;
+
+        function doReplace(content) {
+            var idx = content.toLowerCase().indexOf(anchorText.toLowerCase());
+            if (idx === -1) return null;
+
+            // Reject if inside an existing <a> tag
+            var before    = content.substring(0, idx);
+            var lastOpen  = before.lastIndexOf('<a ');
+            var lastClose = before.lastIndexOf('</a>');
+            if (lastOpen !== -1 && (lastClose === -1 || lastClose < lastOpen)) {
+                return null;
+            }
+
+            var exact  = content.substring(idx, idx + anchorText.length);
+            var linked = '<a href="' + url + '"' + (rel ? ' rel="' + rel + '" target="_blank"' : '') + '>' + exact + '</a>';
+            return content.substring(0, idx) + linked + content.substring(idx + anchorText.length);
+        }
+
+        // TinyMCE (Classic Editor — Visual tab)
+        if (typeof tinymce !== 'undefined') {
+            var editor = tinymce.get('content');
+            if (editor && !editor.isHidden()) {
+                var newContent = doReplace(editor.getContent());
+                if (newContent) {
+                    editor.setContent(newContent);
+                    editor.undoManager.add();
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        // Plain textarea (Classic Editor — Text tab)
+        var $ta = $('#content');
+        if ($ta.length && $ta.is(':visible')) {
+            var newContent = doReplace($ta.val());
+            if (newContent) { $ta.val(newContent); return true; }
+            return false;
+        }
+
+        // Gutenberg block editor
+        if (typeof wp !== 'undefined' && wp.data) {
+            try {
+                var current    = wp.data.select('core/editor').getEditedPostContent();
+                var newContent = doReplace(current);
+                if (newContent) {
+                    wp.data.dispatch('core/editor').editPost({ content: newContent });
+                    return true;
+                }
+            } catch (e) {
+                console.error('Gutenberg inject failed:', e);
+            }
+        }
+
+        return false;
+    }
     
     // Character counters + live social previews
     $('#_ssf_seo_title').on('input', function() {
@@ -1023,7 +1087,7 @@ jQuery(document).ready(function($) {
                     html += '<p style="color:red;">❌ <?php esc_html_e('Errors:', 'smart-seo-fixer'); ?><br>' + errors.join('<br>') + '</p>';
                 }
                 if (html === '') {
-                    html = '<p><?php esc_html_e('No content was generated. Check your OpenAI API key in settings.', 'smart-seo-fixer'); ?></p>';
+                    html = '<p><?php esc_html_e('No content was generated. Check your AWS Bedrock credentials in settings.', 'smart-seo-fixer'); ?></p>';
                 }
                 
                 showAiResults(
@@ -1073,7 +1137,7 @@ jQuery(document).ready(function($) {
         processNextTask();
     });
     
-    // Suggest Internal Links — with direct insert
+    // Insert Internal Links — wrap existing phrase(s) in the content with <a> tags inline
     $('#ai-suggest-internal-links').on('click', function() {
         var $btn = $(this);
         $btn.prop('disabled', true).find('.dashicons').addClass('spin');
@@ -1086,61 +1150,28 @@ jQuery(document).ready(function($) {
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
             
             if (response.success && response.data && response.data.links && response.data.links.length) {
-                var html = '<p style="margin-bottom:8px;"><?php esc_html_e('Click "Insert" to add a link directly into your content:', 'smart-seo-fixer'); ?></p>';
+                var inserted = 0;
                 response.data.links.forEach(function(link) {
-                    html += '<div class="ssf-link-suggestion" style="display:flex; align-items:center; justify-content:space-between; padding:8px; margin-bottom:6px; background:#f9fafb; border-radius:4px;">';
-                    html += '<div class="ssf-link-info" style="flex:1;">';
-                    html += '<strong>' + link.title + '</strong><br>';
-                    html += '<small style="color:#6b7280;">' + link.url + '</small>';
-                    html += '</div>';
-                    html += '<button type="button" class="button button-primary button-small ssf-insert-link" data-url="' + link.url + '" data-title="' + link.title + '" style="margin-left:8px;"><?php esc_html_e('Insert', 'smart-seo-fixer'); ?></button>';
-                    html += '</div>';
+                    if (link.anchor_text && ssfInjectLinkInEditor(link.anchor_text, link.url)) {
+                        inserted++;
+                    }
                 });
                 
-                showAiResults('<?php esc_html_e('Internal Links', 'smart-seo-fixer'); ?>', html,
-                    '<button type="button" class="button button-primary ssf-insert-all-links"><?php esc_html_e('Insert All Links', 'smart-seo-fixer'); ?></button>');
+                if (inserted > 0) {
+                    ssfButtonSuccess($btn, inserted + ' <?php esc_html_e('link(s) added!', 'smart-seo-fixer'); ?>');
+                } else {
+                    alert('<?php esc_html_e('Anchor phrases could not be located in the editor. The post may need to be saved and reopened first.', 'smart-seo-fixer'); ?>');
+                }
             } else {
-                showAiResults('<?php esc_html_e('Internal Links', 'smart-seo-fixer'); ?>', 
-                    '<p><?php esc_html_e('No related posts found for internal linking.', 'smart-seo-fixer'); ?></p>');
+                alert(response.data && response.data.message ? response.data.message : '<?php esc_html_e('No related posts found for internal linking.', 'smart-seo-fixer'); ?>');
             }
         }).fail(function(xhr, status, error) {
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
-            showAiResults('<?php esc_html_e('Request Failed', 'smart-seo-fixer'); ?>', '<p style="color:red;">❌ ' + error + '</p>');
+            alert('<?php esc_html_e('Request failed:', 'smart-seo-fixer'); ?> ' + error);
         });
     });
     
-    // Insert single link into content
-    $(document).on('click', '.ssf-insert-link', function() {
-        var $btn = $(this);
-        var url = $btn.data('url');
-        var title = $btn.data('title');
-        var linkHtml = '\n<p><?php esc_html_e('Read more:', 'smart-seo-fixer'); ?> <a href="' + url + '">' + title + '</a></p>\n';
-        
-        if (ssfInsertContent(linkHtml)) {
-            ssfButtonSuccess($btn, '<?php esc_html_e('Inserted!', 'smart-seo-fixer'); ?>');
-        } else {
-            navigator.clipboard.writeText('<a href="' + url + '">' + title + '</a>');
-            ssfButtonSuccess($btn, '<?php esc_html_e('Copied!', 'smart-seo-fixer'); ?>');
-        }
-    });
-    
-    // Insert all links at once
-    $(document).on('click', '.ssf-insert-all-links', function() {
-        var $btn = $(this);
-        var html = '\n<h3><?php esc_html_e('Related Articles', 'smart-seo-fixer'); ?></h3>\n<ul>\n';
-        $('.ssf-insert-link').each(function() {
-            html += '<li><a href="' + $(this).data('url') + '">' + $(this).data('title') + '</a></li>\n';
-        });
-        html += '</ul>\n';
-        
-        if (ssfInsertContent(html)) {
-            ssfButtonSuccess($btn, '<?php esc_html_e('All Inserted!', 'smart-seo-fixer'); ?>');
-        } else {
-            alert('<?php esc_html_e('Could not detect editor. Please copy manually.', 'smart-seo-fixer'); ?>');
-        }
-    });
-    
-    // Suggest External Links — with direct insert
+    // Insert External Links — wrap existing phrase(s) in the content with outbound <a> tags inline
     $('#ai-suggest-external-links').on('click', function() {
         var $btn = $(this);
         $btn.prop('disabled', true).find('.dashicons').addClass('spin');
@@ -1153,53 +1184,27 @@ jQuery(document).ready(function($) {
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
             
             if (response.success && response.data && response.data.suggestions && response.data.suggestions.length) {
-                var html = '<p style="margin-bottom:8px;"><?php esc_html_e('Click "Insert" to add a reference link into your content:', 'smart-seo-fixer'); ?></p>';
+                var inserted = 0;
                 response.data.suggestions.forEach(function(s) {
-                    var hasUrl = s.url && s.url.indexOf('http') === 0;
-                    html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:8px; margin-bottom:6px; background:#f9fafb; border-radius:4px;">';
-                    html += '<div style="flex:1;">';
-                    html += '<strong>' + s.anchor + '</strong>';
-                    if (hasUrl) html += '<br><small style="color:#6b7280;">' + s.url + '</small>';
-                    html += '<br><small style="color:#9ca3af;">' + s.reason + '</small>';
-                    html += '</div>';
-                    if (hasUrl) {
-                        html += '<button type="button" class="button button-primary button-small ssf-insert-link" data-url="' + s.url + '" data-title="' + s.anchor + '" style="margin-left:8px;"><?php esc_html_e('Insert', 'smart-seo-fixer'); ?></button>';
+                    if (s.anchor_text && s.url && s.url.indexOf('http') === 0) {
+                        if (ssfInjectLinkInEditor(s.anchor_text, s.url, 'noopener noreferrer')) {
+                            inserted++;
+                        }
                     }
-                    html += '</div>';
                 });
                 
-                showAiResults('<?php esc_html_e('Authority Links', 'smart-seo-fixer'); ?>', html,
-                    '<button type="button" class="button button-primary ssf-insert-all-ext-links"><?php esc_html_e('Insert All as References', 'smart-seo-fixer'); ?></button>');
+                if (inserted > 0) {
+                    ssfButtonSuccess($btn, inserted + ' <?php esc_html_e('link(s) added!', 'smart-seo-fixer'); ?>');
+                } else {
+                    alert('<?php esc_html_e('Anchor phrases could not be located in the editor. The post may need to be saved and reopened first.', 'smart-seo-fixer'); ?>');
+                }
             } else {
-                showAiResults('<?php esc_html_e('External Links', 'smart-seo-fixer'); ?>', 
-                    '<p>' + (response.data && response.data.message ? response.data.message : '<?php esc_html_e('Could not generate suggestions.', 'smart-seo-fixer'); ?>') + '</p>');
+                alert(response.data && response.data.message ? response.data.message : '<?php esc_html_e('Could not generate external links.', 'smart-seo-fixer'); ?>');
             }
         }).fail(function(xhr, status, error) {
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
-            showAiResults('<?php esc_html_e('Request Failed', 'smart-seo-fixer'); ?>', '<p style="color:red;">❌ ' + error + '</p>');
+            alert('<?php esc_html_e('Request failed:', 'smart-seo-fixer'); ?> ' + error);
         });
-    });
-    
-    // Insert all external links as a references section
-    $(document).on('click', '.ssf-insert-all-ext-links', function() {
-        var $btn = $(this);
-        var links = [];
-        $('#ssf-ai-results .ssf-insert-link').each(function() {
-            links.push({url: $(this).data('url'), title: $(this).data('title')});
-        });
-        if (links.length === 0) return;
-        
-        var html = '\n<h3><?php esc_html_e('References', 'smart-seo-fixer'); ?></h3>\n<ul>\n';
-        links.forEach(function(l) {
-            html += '<li><a href="' + l.url + '" target="_blank" rel="noopener">' + l.title + '</a></li>\n';
-        });
-        html += '</ul>\n';
-        
-        if (ssfInsertContent(html)) {
-            ssfButtonSuccess($btn, '<?php esc_html_e('Inserted!', 'smart-seo-fixer'); ?>');
-        } else {
-            alert('<?php esc_html_e('Could not detect editor.', 'smart-seo-fixer'); ?>');
-        }
     });
     
     // Fix Image Alt Text

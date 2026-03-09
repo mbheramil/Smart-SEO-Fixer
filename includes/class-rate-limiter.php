@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 
 class SSF_Rate_Limiter {
     
-    /**
+        /**
      * Default rate limit configurations per API
      */
     private static $defaults = [
@@ -23,6 +23,12 @@ class SSF_Rate_Limiter {
             'max_retries'         => 3,
             'base_delay'          => 2,     // seconds
             'max_delay'           => 60,    // seconds
+        ],
+        'bedrock' => [
+            'requests_per_minute' => 20,    // conservative default; increase per your Bedrock quota
+            'max_retries'         => 3,
+            'base_delay'          => 2,
+            'max_delay'           => 60,
         ],
         'gsc' => [
             'requests_per_minute' => 50,
@@ -192,8 +198,12 @@ class SSF_Rate_Limiter {
             }
         }
         
-        // OpenAI-specific retryable
+                // OpenAI / Bedrock-specific retryable
         if ($error_code === 'api_error' && stripos($error_msg, 'overloaded') !== false) {
+            return true;
+        }
+        // Bedrock throttling
+        if (stripos($error_msg, 'ThrottlingException') !== false || stripos($error_msg, 'ServiceUnavailableException') !== false) {
             return true;
         }
         

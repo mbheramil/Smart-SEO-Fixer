@@ -296,9 +296,9 @@ class SSF_Job_Queue {
             return new WP_Error('not_found', 'Post not found');
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            return new WP_Error('no_api_key', 'OpenAI not configured');
+              return new WP_Error('no_api_key', SSF_AI::not_configured_message());
         }
         
         $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));

@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
- * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
- * Version: 1.16.3
+ * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
+ * Version: 1.16.4
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.16.3');
+define('SSF_VERSION', '1.16.4');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -74,8 +74,9 @@ final class Smart_SEO_Fixer {
      * Load required files
      */
     private function load_dependencies() {
-        $includes = [
-            'includes/class-openai.php',
+                $includes = [
+            'includes/class-bedrock.php',
+            'includes/class-ai.php',
             'includes/class-analyzer.php',
             'includes/class-meta-manager.php',
             'includes/class-schema.php',
@@ -173,7 +174,7 @@ final class Smart_SEO_Fixer {
      */
     public function init() {
         // Safely instantiate each class (defensive if a file failed to load)
-        if (class_exists('SSF_OpenAI'))       $this->openai       = new SSF_OpenAI();
+        if (class_exists('SSF_AI'))          $this->openai       = SSF_AI::get();
         if (class_exists('SSF_Analyzer'))     $this->analyzer      = new SSF_Analyzer();
         if (class_exists('SSF_Meta_Manager')) $this->meta_manager  = new SSF_Meta_Manager();
         if (class_exists('SSF_Schema'))       $this->schema        = new SSF_Schema();
@@ -246,8 +247,9 @@ final class Smart_SEO_Fixer {
     public function activate() {
         // Set default options
         $defaults = [
-            'openai_api_key' => '',
-            'openai_model' => 'gpt-4o-mini',
+            'ai_provider' => 'bedrock',
+            'bedrock_model' => 'anthropic.claude-sonnet-4-6-20260301-v1:0',
+            'bedrock_region' => 'us-east-1',
             'auto_meta' => false,
             'auto_alt_text' => false,
             'enable_schema' => true,
@@ -338,12 +340,12 @@ final class Smart_SEO_Fixer {
             SSF_History::set_source('cron');
         }
         
-        // Must have OpenAI configured
-        if (!class_exists('SSF_OpenAI')) {
+                // Must have AI configured
+        if (!class_exists('SSF_AI')) {
             return;
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
             return;
         }

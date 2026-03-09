@@ -18,8 +18,11 @@ global $wpdb;
 
 // 1. Remove plugin options
 $options = [
-    'ssf_openai_api_key',
-    'ssf_openai_model',
+    'ssf_ai_provider',
+    'ssf_bedrock_access_key',
+    'ssf_bedrock_secret_key',
+    'ssf_bedrock_region',
+    'ssf_bedrock_model',
     'ssf_auto_meta',
     'ssf_auto_alt_text',
     'ssf_enable_schema',

@@ -39,12 +39,12 @@ class SSF_Content_Suggestions {
         $source = 'rules';
         
         if ($mode === 'ai') {
-            if (!class_exists('SSF_OpenAI')) {
-                return new \WP_Error('no_openai', __('OpenAI module not available.', 'smart-seo-fixer'));
+            if (!class_exists('SSF_AI')) {
+                return new \WP_Error('no_ai', __('AI module not available.', 'smart-seo-fixer'));
             }
-            $openai = new SSF_OpenAI();
+            $openai = SSF_AI::get();
             if (!$openai->is_configured()) {
-                return new \WP_Error('no_api_key', __('OpenAI API key not configured. Go to Settings to add it.', 'smart-seo-fixer'));
+                return new \WP_Error('no_credentials', SSF_AI::not_configured_message());
             }
             $all = self::ai_suggestions($post, $content);
             $source = 'ai';
@@ -67,8 +67,8 @@ class SSF_Content_Suggestions {
         
         // Check if AI is available for the "enhance" button
         $has_ai = false;
-        if ($mode === 'rules' && class_exists('SSF_OpenAI')) {
-            $openai = new SSF_OpenAI();
+        if ($mode === 'rules' && class_exists('SSF_AI')) {
+            $openai = SSF_AI::get();
             $has_ai = $openai->is_configured();
         }
         
@@ -298,7 +298,7 @@ class SSF_Content_Suggestions {
         $prompt .= "Content excerpt: " . $excerpt . "\n\n";
         $prompt .= "Return JSON array with objects having: category (content/engagement/topical), priority (high/medium/low), title (short label), description (1-2 sentence actionable tip). Only return the JSON array, no other text.";
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         $response = $openai->request([
             ['role' => 'system', 'content' => 'You are an expert SEO content strategist. Return valid JSON only.'],
             ['role' => 'user', 'content' => $prompt],

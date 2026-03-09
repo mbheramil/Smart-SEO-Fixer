@@ -15,11 +15,11 @@ if (!defined('ABSPATH')) {
         <span class="ssf-version">v<?php echo esc_html(SSF_VERSION); ?></span>
     </h1>
     
-    <?php if (!Smart_SEO_Fixer::get_option('openai_api_key')): ?>
+    <?php if (class_exists('SSF_AI') && !SSF_AI::is_configured()): ?>
     <div class="ssf-notice ssf-notice-warning">
         <p>
-            <strong><?php esc_html_e('API Key Required:', 'smart-seo-fixer'); ?></strong>
-            <?php esc_html_e('Add your OpenAI API key in', 'smart-seo-fixer'); ?>
+            <strong><?php esc_html_e('AWS Bedrock Required:', 'smart-seo-fixer'); ?></strong>
+            <?php esc_html_e('Add your AWS Bedrock credentials in', 'smart-seo-fixer'); ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-settings')); ?>">
                 <?php esc_html_e('Settings', 'smart-seo-fixer'); ?>
             </a>

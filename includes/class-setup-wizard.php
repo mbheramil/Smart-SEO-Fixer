@@ -94,15 +94,22 @@ class SSF_Setup_Wizard {
         
         switch ($step) {
             case 'api_key':
-                $api_key = sanitize_text_field($_POST['openai_api_key'] ?? '');
-                $model = sanitize_text_field($_POST['openai_model'] ?? 'gpt-4o-mini');
+                $access_key = sanitize_text_field($_POST['bedrock_access_key'] ?? '');
+                $secret_key = sanitize_text_field($_POST['bedrock_secret_key'] ?? '');
+                $region     = sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1');
+                $model      = sanitize_text_field($_POST['bedrock_model'] ?? 'anthropic.claude-sonnet-4-6-20260301-v1:0');
                 
-                if (!empty($api_key)) {
-                    update_option('ssf_openai_api_key', $api_key);
+                if (!empty($access_key)) {
+                    update_option('ssf_bedrock_access_key', $access_key);
                 }
-                update_option('ssf_openai_model', $model);
+                if (!empty($secret_key)) {
+                    update_option('ssf_bedrock_secret_key', $secret_key);
+                }
+                update_option('ssf_bedrock_region', $region);
+                update_option('ssf_bedrock_model', $model);
+                update_option('ssf_ai_provider', 'bedrock');
                 
-                wp_send_json_success(['message' => __('API settings saved.', 'smart-seo-fixer')]);
+                wp_send_json_success(['message' => __('AWS Bedrock settings saved.', 'smart-seo-fixer')]);
                 break;
                 
             case 'post_types':
@@ -156,7 +163,7 @@ class SSF_Setup_Wizard {
     public function render() {
         $post_types = get_post_types(['public' => true], 'objects');
         $selected_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
-        $current_key = Smart_SEO_Fixer::get_option('openai_api_key', '');
+        $current_key = Smart_SEO_Fixer::get_option('bedrock_access_key', '');
         ?>
         <div class="ssf-wizard-wrap">
             <div class="ssf-wizard-container">
@@ -194,29 +201,42 @@ class SSF_Setup_Wizard {
                     </div>
                 </div>
                 
-                <!-- Step 1: API Key -->
+                <!-- Step 1: AWS Bedrock Credentials -->
                 <div class="ssf-wizard-panel" id="ssf-step-1">
-                    <h2><?php esc_html_e('Connect OpenAI', 'smart-seo-fixer'); ?></h2>
-                    <p class="description"><?php esc_html_e('Your OpenAI API key powers all AI features — title generation, meta descriptions, keyword suggestions, and more.', 'smart-seo-fixer'); ?></p>
+                    <h2><?php esc_html_e('Connect AWS Bedrock', 'smart-seo-fixer'); ?></h2>
+                    <p class="description"><?php esc_html_e('Your AWS Bedrock credentials power all AI features — title generation, meta descriptions, keyword suggestions, and more.', 'smart-seo-fixer'); ?></p>
                     
                     <div class="ssf-wizard-field">
-                        <label for="ssf-wiz-api-key"><?php esc_html_e('OpenAI API Key', 'smart-seo-fixer'); ?></label>
-                        <input type="password" id="ssf-wiz-api-key" value="<?php echo esc_attr($current_key); ?>" placeholder="sk-..." class="ssf-wizard-input">
-                        <p class="ssf-wizard-hint">
-                            <?php printf(
-                                __('Get your key from %s', 'smart-seo-fixer'),
-                                '<a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>'
-                            ); ?>
-                        </p>
+                        <label for="ssf-wiz-access-key"><?php esc_html_e('AWS Access Key ID', 'smart-seo-fixer'); ?></label>
+                        <input type="text" id="ssf-wiz-access-key" value="<?php echo esc_attr($current_key); ?>" placeholder="AKIA..." class="ssf-wizard-input" autocomplete="off">
                     </div>
                     
                     <div class="ssf-wizard-field">
-                        <label for="ssf-wiz-model"><?php esc_html_e('AI Model', 'smart-seo-fixer'); ?></label>
-                        <select id="ssf-wiz-model" class="ssf-wizard-input">
-                            <option value="gpt-4o-mini" selected><?php esc_html_e('GPT-4o Mini (recommended - fast & affordable)', 'smart-seo-fixer'); ?></option>
-                            <option value="gpt-4o"><?php esc_html_e('GPT-4o (highest quality, higher cost)', 'smart-seo-fixer'); ?></option>
-                            <option value="gpt-3.5-turbo"><?php esc_html_e('GPT-3.5 Turbo (budget option)', 'smart-seo-fixer'); ?></option>
+                        <label for="ssf-wiz-secret-key"><?php esc_html_e('AWS Secret Access Key', 'smart-seo-fixer'); ?></label>
+                        <input type="password" id="ssf-wiz-secret-key" placeholder="<?php esc_attr_e('Your secret access key', 'smart-seo-fixer'); ?>" class="ssf-wizard-input" autocomplete="off">
+                    </div>
+                    
+                    <div class="ssf-wizard-field">
+                        <label for="ssf-wiz-region"><?php esc_html_e('AWS Region', 'smart-seo-fixer'); ?></label>
+                        <select id="ssf-wiz-region" class="ssf-wizard-input">
+                            <option value="us-east-1">us-east-1 — US East (N. Virginia)</option>
+                            <option value="us-west-2">us-west-2 — US West (Oregon)</option>
+                            <option value="eu-west-1">eu-west-1 — EU (Ireland)</option>
+                            <option value="eu-central-1">eu-central-1 — EU (Frankfurt)</option>
+                            <option value="ap-southeast-1">ap-southeast-1 — Asia Pacific (Singapore)</option>
+                            <option value="ap-northeast-1">ap-northeast-1 — Asia Pacific (Tokyo)</option>
                         </select>
+                    </div>
+                    
+                    <div class="ssf-wizard-field">
+                        <label for="ssf-wiz-model"><?php esc_html_e('Claude Model', 'smart-seo-fixer'); ?></label>
+                        <select id="ssf-wiz-model" class="ssf-wizard-input">
+                            <option value="anthropic.claude-sonnet-4-6-20260301-v1:0" selected><?php esc_html_e('Claude Sonnet 4.6 (Recommended for SEO)', 'smart-seo-fixer'); ?></option>
+                            <option value="anthropic.claude-sonnet-4-5-20251022-v1:0"><?php esc_html_e('Claude Sonnet 4.5', 'smart-seo-fixer'); ?></option>
+                            <option value="anthropic.claude-3-5-sonnet-20241022-v2:0"><?php esc_html_e('Claude 3.5 Sonnet v2', 'smart-seo-fixer'); ?></option>
+                            <option value="anthropic.claude-3-5-haiku-20241022-v1:0"><?php esc_html_e('Claude 3.5 Haiku (Fast & Affordable)', 'smart-seo-fixer'); ?></option>
+                        </select>
+                        <p class="ssf-wizard-hint"><?php esc_html_e('Model must be enabled in your AWS Bedrock console under Model Access.', 'smart-seo-fixer'); ?></p>
                     </div>
                 </div>
                 
@@ -432,8 +452,10 @@ class SSF_Setup_Wizard {
                 
                 if (step === 1) {
                     data.step = 'api_key';
-                    data.openai_api_key = $('#ssf-wiz-api-key').val();
-                    data.openai_model = $('#ssf-wiz-model').val();
+                    data.bedrock_access_key = $('#ssf-wiz-access-key').val();
+                    data.bedrock_secret_key = $('#ssf-wiz-secret-key').val();
+                    data.bedrock_region = $('#ssf-wiz-region').val();
+                    data.bedrock_model = $('#ssf-wiz-model').val();
                 } else if (step === 2) {
                     data.step = 'post_types';
                     data.post_types = [];

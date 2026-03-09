@@ -719,7 +719,7 @@ class SSF_Admin {
             return;
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
             return;
         }
@@ -792,7 +792,7 @@ class SSF_Admin {
             }
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if ($openai->is_configured()) {
             // Use AI to generate alt text
             $focus_keyword = '';

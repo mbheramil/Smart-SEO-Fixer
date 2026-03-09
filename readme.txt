@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.3
+Stable tag: 1.16.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,16 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.4 =
+* Fix: Canonical URL scheme now always matches site HTTPS/HTTP setting (prevents "Google chose different canonical" in Search Console)
+* Fix: WordPress default `rel_canonical` removal now also hooks on `template_redirect` as a fallback for page builders and caching plugins
+* Fix: Canonical output from Yoast, Rank Math, AIOSEO, The SEO Framework, and SEOPress is now always suppressed unconditionally (not just when "disable other SEO output" is on)
+* New: Inline anchor wrapping for internal/external link suggestions (finds phrase in content and wraps with `<a>` tag)
+* New: Broken links bulk redirect — select multiple broken links and redirect them all to a chosen URL
+* New: All missing broken-link AJAX handlers implemented (get, scan, recheck, dismiss, undismiss)
+* New: Canonical Health scanner in Search Performance — scan and auto-fix stored canonicals site-wide
+* Fix: Canonical URL normalized (scheme + trailing slash) on save via meta box
 
 = 1.16.3 =
 * New: GSC site list is cached after OAuth for reliable dropdown loading

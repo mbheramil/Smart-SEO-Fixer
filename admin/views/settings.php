@@ -7,8 +7,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$openai_api_key = Smart_SEO_Fixer::get_option('openai_api_key');
-$openai_model = Smart_SEO_Fixer::get_option('openai_model', 'gpt-4o-mini');
+$bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
+$bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
+$bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
+$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-sonnet-4-6-20260301-v1:0');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -62,63 +64,100 @@ unset($available_post_types['attachment']);
     </h1>
     
     <form id="ssf-settings-form" class="ssf-settings-form">
-        <!-- OpenAI Settings -->
+                <!-- AI Provider Settings -->
         <div class="ssf-card">
             <div class="ssf-card-header">
                 <h2>
                     <span class="dashicons dashicons-cloud"></span>
-                    <?php esc_html_e('OpenAI Configuration', 'smart-seo-fixer'); ?>
+                    <?php esc_html_e('AI Provider', 'smart-seo-fixer'); ?>
                 </h2>
             </div>
             <div class="ssf-card-body">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="openai_api_key"><?php esc_html_e('API Key', 'smart-seo-fixer'); ?></label>
-                        </th>
-                        <td>
-                            <input type="password" 
-                                   name="openai_api_key" 
-                                   id="openai_api_key" 
-                                   value="<?php echo esc_attr($openai_api_key); ?>" 
-                                   class="regular-text"
-                                   autocomplete="off">
-                            <button type="button" class="button" id="toggle-api-key">
-                                <?php esc_html_e('Show', 'smart-seo-fixer'); ?>
-                            </button>
-                            <p class="description">
-                                <?php esc_html_e('Enter your OpenAI API key.', 'smart-seo-fixer'); ?>
-                                <a href="https://platform.openai.com/api-keys" target="_blank">
-                                    <?php esc_html_e('Get your API key', 'smart-seo-fixer'); ?>
-                                </a>
-                            </p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="openai_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label>
-                        </th>
-                        <td>
-                            <select name="openai_model" id="openai_model">
-                                <option value="gpt-4o-mini" <?php selected($openai_model, 'gpt-4o-mini'); ?>>
-                                    GPT-4o Mini (<?php esc_html_e('Recommended - Fast & Affordable', 'smart-seo-fixer'); ?>)
-                                </option>
-                                <option value="gpt-4o" <?php selected($openai_model, 'gpt-4o'); ?>>
-                                    GPT-4o (<?php esc_html_e('Most Capable', 'smart-seo-fixer'); ?>)
-                                </option>
-                                <option value="gpt-4-turbo" <?php selected($openai_model, 'gpt-4-turbo'); ?>>
-                                    GPT-4 Turbo
-                                </option>
-                                <option value="gpt-3.5-turbo" <?php selected($openai_model, 'gpt-3.5-turbo'); ?>>
-                                    GPT-3.5 Turbo (<?php esc_html_e('Budget Option', 'smart-seo-fixer'); ?>)
-                                </option>
-                            </select>
-                            <p class="description">
-                                <?php esc_html_e('Select the AI model to use for content generation.', 'smart-seo-fixer'); ?>
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+                <input type="hidden" name="ai_provider" value="bedrock">
+                <!-- AWS Bedrock Settings -->
+                <div id="ssf-bedrock-settings">
+                    <hr style="margin:16px 0;">
+                    <h3 style="margin:0 0 4px;"><?php esc_html_e('AWS Bedrock Configuration', 'smart-seo-fixer'); ?></h3>
+                    <p class="description" style="margin:0 0 12px;">
+                        <?php esc_html_e('Uses your own AWS account. Credentials are stored encrypted in WordPress options.', 'smart-seo-fixer'); ?>
+                    </p>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="bedrock_access_key"><?php esc_html_e('Access Key ID', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <input type="text" name="bedrock_access_key" id="bedrock_access_key"
+                                       value="<?php echo esc_attr($bedrock_access); ?>"
+                                       class="regular-text" autocomplete="off"
+                                       placeholder="AKIA...">
+                                <p class="description"><?php esc_html_e('Your AWS IAM Access Key ID with Bedrock permissions.', 'smart-seo-fixer'); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="bedrock_secret_key"><?php esc_html_e('Secret Access Key', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <input type="password" name="bedrock_secret_key" id="bedrock_secret_key"
+                                       value="<?php echo esc_attr($bedrock_secret); ?>"
+                                       class="regular-text" autocomplete="off">
+                                <button type="button" class="button" id="toggle-bedrock-secret"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
+                                <p class="description"><?php esc_html_e('Your AWS IAM Secret Access Key.', 'smart-seo-fixer'); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="bedrock_region"><?php esc_html_e('AWS Region', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <select name="bedrock_region" id="bedrock_region">
+                                    <?php
+                                    $regions = [
+                                        'us-east-1'      => 'US East (N. Virginia)',
+                                        'us-west-2'      => 'US West (Oregon)',
+                                        'eu-west-1'      => 'EU (Ireland)',
+                                        'eu-central-1'   => 'EU (Frankfurt)',
+                                        'ap-southeast-1' => 'Asia Pacific (Singapore)',
+                                        'ap-northeast-1' => 'Asia Pacific (Tokyo)',
+                                    ];
+                                    foreach ($regions as $code => $label):
+                                    ?>
+                                    <option value="<?php echo esc_attr($code); ?>" <?php selected($bedrock_region, $code); ?>>
+                                        <?php echo esc_html($code . ' — ' . $label); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description"><?php esc_html_e('Select the AWS region where Bedrock is enabled on your account.', 'smart-seo-fixer'); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="bedrock_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <select name="bedrock_model" id="bedrock_model">
+                                    <optgroup label="Anthropic Claude (Recommended)">
+                                        <option value="anthropic.claude-sonnet-4-6-20260301-v1:0" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-6-20260301-v1:0'); ?>>Claude Sonnet 4.6 — <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
+                                        <option value="anthropic.claude-sonnet-4-5-20251022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-5-20251022-v1:0'); ?>>Claude Sonnet 4.5</option>
+                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2</option>
+                                        <option value="anthropic.claude-3-5-haiku-20241022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-haiku-20241022-v1:0'); ?>>Claude 3.5 Haiku — <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
+                                    </optgroup>
+                                    <optgroup label="Meta Llama">
+                                        <option value="meta.llama3-70b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-70b-instruct-v1:0'); ?>>Llama 3 70B Instruct</option>
+                                        <option value="meta.llama3-8b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-8b-instruct-v1:0'); ?>>Llama 3 8B Instruct — <?php esc_html_e('Lightweight', 'smart-seo-fixer'); ?></option>
+                                    </optgroup>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e('Model must be enabled in your AWS Bedrock console under Model Access.', 'smart-seo-fixer'); ?>
+                                    <a href="https://console.aws.amazon.com/bedrock/home#/modelaccess" target="_blank"><?php esc_html_e('Manage model access →', 'smart-seo-fixer'); ?></a>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
+                        <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
+                            <span class="dashicons dashicons-info" style="font-size:16px;"></span>
+                            <?php esc_html_e('Required IAM permissions:', 'smart-seo-fixer'); ?>
+                        </p>
+                        <code style="font-size:12px;color:#1e3a5f;">bedrock:InvokeModel, bedrock:ListFoundationModels</code>
+                        <p style="margin:8px 0 0;font-size:12px;color:#1e3a5f;">
+                            <?php esc_html_e('Attach these permissions to the IAM user whose credentials you enter above.', 'smart-seo-fixer'); ?>
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -566,11 +605,10 @@ unset($available_post_types['attachment']);
 
 <script>
 jQuery(document).ready(function($) {
-    // Toggle API key visibility
-    $('#toggle-api-key').on('click', function() {
-        var $input = $('#openai_api_key');
+        // Toggle Bedrock secret visibility
+    $('#toggle-bedrock-secret').on('click', function() {
+        var $input = $('#bedrock_secret_key');
         var $btn = $(this);
-        
         if ($input.attr('type') === 'password') {
             $input.attr('type', 'text');
             $btn.text('<?php esc_html_e('Hide', 'smart-seo-fixer'); ?>');

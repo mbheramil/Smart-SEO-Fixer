@@ -159,6 +159,70 @@ if (class_exists('SSF_GSC_Client')) {
             </div>
         </div>
         
+        <!-- ============================================================ -->
+        <!-- Canonical Health — always visible, no GSC required           -->
+        <!-- ============================================================ -->
+        <div class="ssf-card" style="margin-top: 24px;">
+            <div class="ssf-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>
+                    <span class="dashicons dashicons-admin-links" style="color: #7c3aed;"></span>
+                    <?php esc_html_e('Canonical URL Health', 'smart-seo-fixer'); ?>
+                </h2>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="button" id="ssf-canonical-scan">
+                        <span class="dashicons dashicons-search" style="vertical-align: text-bottom;"></span>
+                        <?php esc_html_e('Scan', 'smart-seo-fixer'); ?>
+                    </button>
+                    <button type="button" class="button button-primary" id="ssf-canonical-fix" style="display:none;">
+                        <span class="dashicons dashicons-yes-alt" style="vertical-align: text-bottom;"></span>
+                        <?php esc_html_e('Fix All Issues', 'smart-seo-fixer'); ?>
+                    </button>
+                </div>
+            </div>
+            <div class="ssf-card-body">
+                <p class="description" style="margin: 0 0 12px;" id="ssf-canonical-desc">
+                    <?php esc_html_e('Scans for canonical URL issues: wrong scheme (http/https), wrong www prefix, and redundant self-canonicals. These cause the "Google chose different canonical" GSC warning.', 'smart-seo-fixer'); ?>
+                </p>
+
+                <div id="ssf-canonical-loading" style="display:none; text-align:center; padding:30px;">
+                    <span class="spinner is-active" style="float:none;"></span>
+                </div>
+
+                <div id="ssf-canonical-results" style="display:none;">
+                    <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+                        <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:14px 20px; text-align:center; min-width:120px;">
+                            <div style="font-size:24px; font-weight:700; color:#b45309;" id="ssf-canonical-count">0</div>
+                            <div style="font-size:11px; color:#92400e; font-weight:600;"><?php esc_html_e('Issues Found', 'smart-seo-fixer'); ?></div>
+                        </div>
+                        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:14px 20px; text-align:center; min-width:120px;">
+                            <div style="font-size:24px; font-weight:700; color:#16a34a;" id="ssf-canonical-healthy">0</div>
+                            <div style="font-size:11px; color:#15803d; font-weight:600;"><?php esc_html_e('Healthy', 'smart-seo-fixer'); ?></div>
+                        </div>
+                    </div>
+
+                    <div id="ssf-canonical-table-wrap" style="display:none;">
+                        <table class="wp-list-table widefat striped">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e('Page', 'smart-seo-fixer'); ?></th>
+                                    <th><?php esc_html_e('Stored Canonical', 'smart-seo-fixer'); ?></th>
+                                    <th><?php esc_html_e('Fix', 'smart-seo-fixer'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ssf-canonical-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="ssf-canonical-clean" style="display:none; text-align:center; padding:24px;">
+                        <span class="dashicons dashicons-yes-alt" style="font-size:40px; color:#16a34a; width:40px; height:40px;"></span>
+                        <p style="color:#15803d; font-weight:600; margin-top:8px;">
+                            <?php esc_html_e('All canonical URLs are correct — no issues found!', 'smart-seo-fixer'); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Pages Not Indexed -->
         <div class="ssf-card" style="margin-top: 24px;">
             <div class="ssf-card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -229,7 +293,6 @@ if (class_exists('SSF_GSC_Client')) {
                 </div>
             </div>
         </div>
-        
     <?php endif; ?>
 </div>
 
@@ -674,6 +737,94 @@ jQuery(document).ready(function($) {
         } else {
             $btn.text('<?php esc_html_e('Nothing to fix', 'smart-seo-fixer'); ?>');
         }
+    });
+
+    // =====================================================
+    // Canonical Health Scanner
+    // =====================================================
+
+    function renderCanonicalIssues(issues) {
+        if (!issues.length) return '';
+        var html = '';
+        issues.forEach(function(item) {
+            var actionLabel = item.action === 'clear'
+                ? '<span style="background:#f0fdf4;color:#15803d;padding:2px 8px;border-radius:4px;font-size:11px;"><?php esc_html_e('Remove redundant self-canonical', 'smart-seo-fixer'); ?></span>'
+                : '<span style="background:#eff6ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;"><?php esc_html_e('Fix scheme/www mismatch', 'smart-seo-fixer'); ?></span>';
+            var newVal = item.action === 'clear'
+                ? '<em style="color:#9ca3af;"><?php esc_html_e('(will use self-canonical)', 'smart-seo-fixer'); ?></em>'
+                : '<code style="font-size:11px;">' + $('<span>').text(item.normalized).html() + '</code>';
+            html += '<tr>';
+            html += '<td><a href="' + $('<span>').text(item.url).html() + '" target="_blank">' + $('<span>').text(item.title).html() + '</a></td>';
+            html += '<td><code style="font-size:11px;word-break:break-all;">' + $('<span>').text(item.stored).html() + '</code>'
+                  + '<div style="margin-top:4px;color:#6b7280;font-size:11px;">→ ' + newVal + '</div></td>';
+            html += '<td>' + actionLabel + '</td>';
+            html += '</tr>';
+        });
+        return html;
+    }
+
+    $('#ssf-canonical-scan').on('click', function() {
+        var $btn = $(this).prop('disabled', true);
+        $('#ssf-canonical-fix').hide();
+        $('#ssf-canonical-loading').show();
+        $('#ssf-canonical-results').hide();
+        $('#ssf-canonical-clean').hide();
+        $('#ssf-canonical-table-wrap').hide();
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_scan_canonical_issues',
+            nonce: ssfAdmin.nonce
+        }, function(response) {
+            $btn.prop('disabled', false);
+            $('#ssf-canonical-loading').hide();
+
+            if (!response.success) {
+                alert(response.data?.message || '<?php esc_html_e('Scan failed.', 'smart-seo-fixer'); ?>');
+                return;
+            }
+
+            var d = response.data;
+            $('#ssf-canonical-count').text(d.total);
+            $('#ssf-canonical-healthy').text(d.healthy);
+            $('#ssf-canonical-results').show();
+
+            if (d.total === 0) {
+                $('#ssf-canonical-clean').show();
+                $('#ssf-canonical-table-wrap').hide();
+            } else {
+                $('#ssf-canonical-tbody').html(renderCanonicalIssues(d.issues));
+                $('#ssf-canonical-table-wrap').show();
+                $('#ssf-canonical-fix').show();
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false);
+            $('#ssf-canonical-loading').hide();
+            alert('<?php esc_html_e('Request failed. Please try again.', 'smart-seo-fixer'); ?>');
+        });
+    });
+
+    $('#ssf-canonical-fix').on('click', function() {
+        if (!confirm('<?php esc_html_e('Fix all canonical issues now? This will update your database. You can undo individual changes from Edit Post.', 'smart-seo-fixer'); ?>')) return;
+
+        var $btn = $(this).prop('disabled', true).text('<?php esc_html_e('Fixing...', 'smart-seo-fixer'); ?>');
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_auto_fix_canonicals',
+            nonce: ssfAdmin.nonce
+        }, function(response) {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-yes-alt" style="vertical-align:text-bottom;"></span> <?php esc_html_e('Fix All Issues', 'smart-seo-fixer'); ?>');
+
+            if (response.success) {
+                alert(response.data.message);
+                // Trigger a re-scan to show updated state
+                $('#ssf-canonical-scan').trigger('click');
+            } else {
+                alert(response.data?.message || '<?php esc_html_e('Something went wrong.', 'smart-seo-fixer'); ?>');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-yes-alt" style="vertical-align:text-bottom;"></span> <?php esc_html_e('Fix All Issues', 'smart-seo-fixer'); ?>');
+            alert('<?php esc_html_e('Request failed. Please try again.', 'smart-seo-fixer'); ?>');
+        });
     });
 });
 </script>

@@ -42,8 +42,12 @@ class SSF_Search_Console {
             // Strip UTM parameters from our canonical output only
             add_filter('ssf_canonical_url', [$this, 'strip_tracking_params']);
             
-            // Remove default WordPress canonical (let meta-manager handle it)
+            // Remove default WordPress canonical (let meta-manager handle it).
+            // Hooked on 'wp' (fires before wp_head) AND on 'template_redirect' as a
+            // belt-and-suspenders fallback for edge cases (page builders, caching plugins)
+            // where the 'wp' hook may not fire in the expected order.
             add_action('wp', [$this, 'remove_default_canonical']);
+            add_action('template_redirect', [$this, 'remove_default_canonical'], 1);
             
             // Fix sitemap URLs to match canonical format
             add_filter('ssf_sitemap_url', [$this, 'normalize_sitemap_url']);
@@ -781,12 +785,12 @@ class SSF_Search_Console {
                 if ($post_id <= 0) {
                     wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
                 }
-                if (!class_exists('SSF_OpenAI')) {
-                    wp_send_json_error(['message' => __('OpenAI module not available.', 'smart-seo-fixer')]);
+                if (!class_exists('SSF_AI')) {
+                    wp_send_json_error(['message' => __('AI module not available.', 'smart-seo-fixer')]);
                 }
-                $openai = new SSF_OpenAI();
+                $openai = SSF_AI::get();
                 if (!$openai->is_configured()) {
-                    wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings.', 'smart-seo-fixer')]);
+                      wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
                 }
                 $post = get_post($post_id);
                 if (!$post) {
@@ -848,10 +852,10 @@ class SSF_Search_Console {
                 break;
                 
             case 'generate_unique_title':
-                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
-                    $openai = new SSF_OpenAI();
+                if ($post_id > 0 && class_exists('SSF_AI')) {
+                    $openai = SSF_AI::get();
                     if (!$openai->is_configured()) {
-                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+                        wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
                     }
                     $post = get_post($post_id);
                     if (!$post) {
@@ -900,10 +904,10 @@ class SSF_Search_Console {
                 break;
                 
             case 'generate_unique_desc':
-                if ($post_id > 0 && class_exists('SSF_OpenAI')) {
-                    $openai = new SSF_OpenAI();
+                if ($post_id > 0 && class_exists('SSF_AI')) {
+                    $openai = SSF_AI::get();
                     if (!$openai->is_configured()) {
-                        wp_send_json_error(['message' => __('OpenAI API key not configured.', 'smart-seo-fixer')]);
+                        wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
                     }
                     $post = get_post($post_id);
                     if (!$post) {
@@ -981,13 +985,13 @@ class SSF_Search_Console {
             wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
         }
         
-        if (!class_exists('SSF_OpenAI')) {
-            wp_send_json_error(['message' => __('OpenAI module not available.', 'smart-seo-fixer')]);
+        if (!class_exists('SSF_AI')) {
+            wp_send_json_error(['message' => __('AI module not available.', 'smart-seo-fixer')]);
         }
         
-        $openai = new SSF_OpenAI();
+        $openai = SSF_AI::get();
         if (!$openai->is_configured()) {
-            wp_send_json_error(['message' => __('OpenAI API key not configured. Go to Settings.', 'smart-seo-fixer')]);
+                      wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
         $orphan_post = get_post($orphan_id);
