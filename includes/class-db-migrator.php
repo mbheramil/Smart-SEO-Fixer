@@ -157,34 +157,13 @@ class SSF_DB_Migrator {
     }
 
     /**
-     * Migration v7: Replace stale Bedrock model IDs that had wrong date suffixes or us. prefix.
-     * Maps every old wrong ID → correct simplified ID.
+     * Migration v7: Force bedrock_model to the correct hardcoded value.
+     * Model selection has been removed from the UI — always use us.anthropic.claude-sonnet-4-6.
      */
     public static function migrate_v7_fix_bedrock_model_id() {
-        $stale_map = [
-            // Old date-suffixed IDs → correct cross-region profile ID
-            'us.anthropic.claude-sonnet-4-6-20260301-v1:0' => 'us.anthropic.claude-sonnet-4-6',
-            'us.anthropic.claude-opus-4-6-20260301-v1:0'   => 'us.anthropic.claude-opus-4-6',
-            'us.anthropic.claude-sonnet-4-5-20251022-v1:0' => 'us.anthropic.claude-sonnet-4-5',
-            'us.anthropic.claude-haiku-4-5-20251022-v1:0'  => 'us.anthropic.claude-haiku-4-5',
-            'anthropic.claude-sonnet-4-6-20260301-v1:0'    => 'us.anthropic.claude-sonnet-4-6',
-            'anthropic.claude-opus-4-6-20260301-v1:0'      => 'us.anthropic.claude-opus-4-6',
-            'anthropic.claude-sonnet-4-5-20251022-v1:0'    => 'us.anthropic.claude-sonnet-4-5',
-            'anthropic.claude-haiku-4-5-20251022-v1:0'     => 'us.anthropic.claude-haiku-4-5',
-            // Bare catalog IDs (no us. prefix) → cross-region profile IDs
-            'anthropic.claude-sonnet-4-6'                  => 'us.anthropic.claude-sonnet-4-6',
-            'anthropic.claude-opus-4-6'                    => 'us.anthropic.claude-opus-4-6',
-            'anthropic.claude-sonnet-4-5'                  => 'us.anthropic.claude-sonnet-4-5',
-            'anthropic.claude-haiku-4-5'                   => 'us.anthropic.claude-haiku-4-5',
-        ];
-
         $opts = get_option('smart_seo_fixer_options', []);
-        $current_model = $opts['bedrock_model'] ?? '';
-
-        if (isset($stale_map[$current_model])) {
-            $opts['bedrock_model'] = $stale_map[$current_model];
-            update_option('smart_seo_fixer_options', $opts);
-        }
+        $opts['bedrock_model'] = 'us.anthropic.claude-sonnet-4-6';
+        update_option('smart_seo_fixer_options', $opts);
     }
 
     /**

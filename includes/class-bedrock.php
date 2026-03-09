@@ -35,10 +35,10 @@ class SSF_Bedrock {
     }
 
     /**
-     * Bedrock model ID (e.g. anthropic.claude-3-5-haiku-20241022-v1:0)
+     * Bedrock model ID — hardcoded to Claude Sonnet 4.6 cross-region inference profile
      */
     private function get_model() {
-        return Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6');
+        return 'us.anthropic.claude-sonnet-4-6';
     }
 
     /**

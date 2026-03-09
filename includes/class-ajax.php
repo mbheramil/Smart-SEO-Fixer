@@ -557,7 +557,7 @@ class SSF_Ajax {
         $access_key = sanitize_text_field($_POST['access_key'] ?? '');
         $secret_key = sanitize_text_field($_POST['secret_key'] ?? '');
         $region     = sanitize_text_field($_POST['region']     ?? 'us-east-1');
-        $model      = sanitize_text_field($_POST['model']      ?? 'us.anthropic.claude-sonnet-4-6');
+        $model      = 'us.anthropic.claude-sonnet-4-6';
 
         if (empty($access_key) || empty($secret_key)) {
             wp_send_json_error(['message' => __('Access Key and Secret Key are required.', 'smart-seo-fixer')]);
@@ -626,9 +626,7 @@ class SSF_Ajax {
             'bedrock_region'          => sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1'),
             'bedrock_access_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_access_key'] ?? '') : sanitize_text_field($_POST['bedrock_access_key'] ?? ''),
             'bedrock_secret_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_secret_key'] ?? '') : sanitize_text_field($_POST['bedrock_secret_key'] ?? ''),
-            'bedrock_model'           => (($_POST['bedrock_model'] ?? '') === 'custom')
-                                          ? sanitize_text_field($_POST['bedrock_model_custom'] ?? 'us.anthropic.claude-sonnet-4-6')
-                                          : sanitize_text_field($_POST['bedrock_model'] ?? 'us.anthropic.claude-sonnet-4-6'),
+            'bedrock_model'           => 'us.anthropic.claude-sonnet-4-6',
             'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
             'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,

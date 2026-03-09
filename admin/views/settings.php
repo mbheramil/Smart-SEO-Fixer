@@ -10,7 +10,6 @@ if (!defined('ABSPATH')) {
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
-$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -138,58 +137,7 @@ unset($available_post_types['attachment']);
                                 <p class="description"><?php esc_html_e('Select the AWS region where Bedrock is enabled on your account.', 'smart-seo-fixer'); ?></p>
                             </td>
                         </tr>
-                        <tr>
-                            <th scope="row"><label for="bedrock_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
-                            <td>
-                                <?php
-                                // Detect if current saved model is a custom (not in our preset list) ID
-                                $preset_ids = [
-                                    'us.anthropic.claude-sonnet-4-6',
-                                    'us.anthropic.claude-opus-4-6',
-                                    'us.anthropic.claude-sonnet-4-5',
-                                    'us.anthropic.claude-haiku-4-5',
-                                    'anthropic.claude-3-5-sonnet-20241022-v2:0',
-                                    'anthropic.claude-3-5-haiku-20241022-v1:0',
-                                    'meta.llama3-70b-instruct-v1:0',
-                                    'meta.llama3-8b-instruct-v1:0',
-                                ];
-                                $is_custom = !empty($bedrock_model) && !in_array($bedrock_model, $preset_ids, true);
-                                ?>
-                                <select name="bedrock_model" id="bedrock_model">
-                                    <optgroup label="Anthropic Claude 4 (Latest)">
-                                        <option value="us.anthropic.claude-sonnet-4-6" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-6'); ?>>Claude Sonnet 4.6 &mdash; <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
-                                        <option value="us.anthropic.claude-opus-4-6" <?php selected($bedrock_model, 'us.anthropic.claude-opus-4-6'); ?>>Claude Opus 4.6 &mdash; <?php esc_html_e('Most Powerful', 'smart-seo-fixer'); ?></option>
-                                        <option value="us.anthropic.claude-sonnet-4-5" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-5'); ?>>Claude Sonnet 4.5</option>
-                                        <option value="us.anthropic.claude-haiku-4-5" <?php selected($bedrock_model, 'us.anthropic.claude-haiku-4-5'); ?>>Claude Haiku 4.5 &mdash; <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
-                                    </optgroup>
-                                    <optgroup label="Anthropic Claude 3.5 (Stable)">
-                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2</option>
-                                        <option value="anthropic.claude-3-5-haiku-20241022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-haiku-20241022-v1:0'); ?>>Claude 3.5 Haiku</option>
-                                    </optgroup>
-                                    <optgroup label="Meta Llama">
-                                        <option value="meta.llama3-70b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-70b-instruct-v1:0'); ?>>Llama 3 70B Instruct</option>
-                                        <option value="meta.llama3-8b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-8b-instruct-v1:0'); ?>>Llama 3 8B Instruct</option>
-                                    </optgroup>
-                                    <optgroup label="Other">
-                                        <option value="custom" <?php selected($is_custom, true); ?>><?php esc_html_e('Custom model ID (enter below)', 'smart-seo-fixer'); ?></option>
-                                    </optgroup>
-                                </select>
-                                <div id="ssf-custom-model-wrap" style="margin-top:8px;<?php echo $is_custom ? '' : 'display:none;'; ?>">
-                                    <input type="text" id="bedrock_model_custom" name="bedrock_model_custom"
-                                           value="<?php echo $is_custom ? esc_attr($bedrock_model) : ''; ?>"
-                                           class="regular-text" placeholder="e.g. us.anthropic.claude-sonnet-4-6"
-                                           style="font-family:monospace;font-size:12px;">
-                                    <p class="description" style="margin-top:4px;">
-                                        <?php esc_html_e('Paste the exact Model ID from the', 'smart-seo-fixer'); ?>
-                                        <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank"><?php esc_html_e('Bedrock Model Catalog', 'smart-seo-fixer'); ?></a>
-                                        <?php esc_html_e('— click any model → copy the "Model ID" shown on the detail page.', 'smart-seo-fixer'); ?>
-                                    </p>
-                                </div>
-                                <p class="description" style="margin-top:6px;">
-                                    <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank"><?php esc_html_e('Browse model catalog →', 'smart-seo-fixer'); ?></a>
-                                </p>
-                            </td>
-                        </tr>
+
                     </table>
                     <div id="ssf-bedrock-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
                     <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
@@ -673,15 +621,6 @@ jQuery(document).ready(function($) {
         }
     });
 
-    // Show/hide custom model input
-    $('#bedrock_model').on('change', function() {
-        if ($(this).val() === 'custom') {
-            $('#ssf-custom-model-wrap').show();
-        } else {
-            $('#ssf-custom-model-wrap').hide();
-        }
-    });
-
     // Enable Test Connection button when credentials are typed
     $('#bedrock_access_key, #bedrock_secret_key').on('input', function() {
         var hasKey    = $('#bedrock_access_key').val().trim().length > 0;
@@ -706,7 +645,7 @@ jQuery(document).ready(function($) {
             access_key: $('#bedrock_access_key').val(),
             secret_key: $('#bedrock_secret_key').val(),
             region:     $('#bedrock_region').val(),
-            model:      $('#bedrock_model').val() === 'custom' ? $('#bedrock_model_custom').val() : $('#bedrock_model').val()
+            model:      'us.anthropic.claude-sonnet-4-6'
         }, function(r) {
             $btn.prop('disabled', false);
             $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
@@ -724,13 +663,7 @@ jQuery(document).ready(function($) {
 
                 // Friendly guidance for the most common errors
                 if (msg.toLowerCase().indexOf('model identifier is invalid') !== -1 || msg.toLowerCase().indexOf('validationexception') !== -1) {
-                    detail = msg + '<br><br>'
-                        + '<strong>Two things to check:</strong><br>'
-                        + '1. <strong>Anthropic use case approval</strong> — For Claude models, AWS requires first-time users to submit use case details. '
-                        + 'Go to <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank" style="color:#7f1d1d;text-decoration:underline;">Bedrock Model Catalog</a>, '
-                        + 'find the Claude model, click it, and copy the exact <strong>Model ID</strong> shown on the detail page. '
-                        + 'Paste it into the <strong>Custom model ID</strong> field in Settings.<br>'
-                        + '2. <strong>Wrong region</strong> — Make sure the region you selected matches where the model is available (typically us-east-1 or us-west-2).';
+                    detail = msg + '<br><br><strong>Make sure your AWS Region is set to us-east-1 or us-west-2 (required for Claude Sonnet 4.6).</strong>';
                 } else if (msg.toLowerCase().indexOf('signature') !== -1) {
                     detail = msg + '<br><br><strong>Check that your Secret Access Key is correct.</strong>';
                 } else if (msg.toLowerCase().indexOf('credentials') !== -1 || msg.toLowerCase().indexOf('access denied') !== -1) {

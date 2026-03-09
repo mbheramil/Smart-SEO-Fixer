@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.12
+Stable tag: 1.16.13
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.13 =
+* Change: Model selection removed from settings UI — plugin now hardcodes `us.anthropic.claude-sonnet-4-6` (AWS CLI verified working)
+* Fix: DB migration v7 now unconditionally sets the correct model ID in the database
+* Fix: Setup wizard model dropdown removed; model is fixed in code
 
 = 1.16.12 =
 * Fix: Claude 4.x models now use cross-region inference profile IDs (`us.` prefix) — the catalog Model ID `anthropic.claude-sonnet-4-6` is not directly invokable; the invoke API requires `us.anthropic.claude-sonnet-4-6`
