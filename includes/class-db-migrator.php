@@ -162,14 +162,20 @@ class SSF_DB_Migrator {
      */
     public static function migrate_v7_fix_bedrock_model_id() {
         $stale_map = [
-            'us.anthropic.claude-sonnet-4-6-20260301-v1:0' => 'anthropic.claude-sonnet-4-6',
-            'us.anthropic.claude-opus-4-6-20260301-v1:0'   => 'anthropic.claude-opus-4-6',
-            'us.anthropic.claude-sonnet-4-5-20251022-v1:0' => 'anthropic.claude-sonnet-4-5',
-            'us.anthropic.claude-haiku-4-5-20251022-v1:0'  => 'anthropic.claude-haiku-4-5',
-            'anthropic.claude-sonnet-4-6-20260301-v1:0'    => 'anthropic.claude-sonnet-4-6',
-            'anthropic.claude-opus-4-6-20260301-v1:0'      => 'anthropic.claude-opus-4-6',
-            'anthropic.claude-sonnet-4-5-20251022-v1:0'    => 'anthropic.claude-sonnet-4-5',
-            'anthropic.claude-haiku-4-5-20251022-v1:0'     => 'anthropic.claude-haiku-4-5',
+            // Old date-suffixed IDs → correct cross-region profile ID
+            'us.anthropic.claude-sonnet-4-6-20260301-v1:0' => 'us.anthropic.claude-sonnet-4-6',
+            'us.anthropic.claude-opus-4-6-20260301-v1:0'   => 'us.anthropic.claude-opus-4-6',
+            'us.anthropic.claude-sonnet-4-5-20251022-v1:0' => 'us.anthropic.claude-sonnet-4-5',
+            'us.anthropic.claude-haiku-4-5-20251022-v1:0'  => 'us.anthropic.claude-haiku-4-5',
+            'anthropic.claude-sonnet-4-6-20260301-v1:0'    => 'us.anthropic.claude-sonnet-4-6',
+            'anthropic.claude-opus-4-6-20260301-v1:0'      => 'us.anthropic.claude-opus-4-6',
+            'anthropic.claude-sonnet-4-5-20251022-v1:0'    => 'us.anthropic.claude-sonnet-4-5',
+            'anthropic.claude-haiku-4-5-20251022-v1:0'     => 'us.anthropic.claude-haiku-4-5',
+            // Bare catalog IDs (no us. prefix) → cross-region profile IDs
+            'anthropic.claude-sonnet-4-6'                  => 'us.anthropic.claude-sonnet-4-6',
+            'anthropic.claude-opus-4-6'                    => 'us.anthropic.claude-opus-4-6',
+            'anthropic.claude-sonnet-4-5'                  => 'us.anthropic.claude-sonnet-4-5',
+            'anthropic.claude-haiku-4-5'                   => 'us.anthropic.claude-haiku-4-5',
         ];
 
         $opts = get_option('smart_seo_fixer_options', []);

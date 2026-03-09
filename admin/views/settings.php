@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
-$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-sonnet-4-6');
+$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -144,10 +144,10 @@ unset($available_post_types['attachment']);
                                 <?php
                                 // Detect if current saved model is a custom (not in our preset list) ID
                                 $preset_ids = [
-                                    'anthropic.claude-sonnet-4-6',
-                                    'anthropic.claude-opus-4-6',
-                                    'anthropic.claude-sonnet-4-5',
-                                    'anthropic.claude-haiku-4-5',
+                                    'us.anthropic.claude-sonnet-4-6',
+                                    'us.anthropic.claude-opus-4-6',
+                                    'us.anthropic.claude-sonnet-4-5',
+                                    'us.anthropic.claude-haiku-4-5',
                                     'anthropic.claude-3-5-sonnet-20241022-v2:0',
                                     'anthropic.claude-3-5-haiku-20241022-v1:0',
                                     'meta.llama3-70b-instruct-v1:0',
@@ -157,10 +157,10 @@ unset($available_post_types['attachment']);
                                 ?>
                                 <select name="bedrock_model" id="bedrock_model">
                                     <optgroup label="Anthropic Claude 4 (Latest)">
-                                        <option value="anthropic.claude-sonnet-4-6" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-6'); ?>>Claude Sonnet 4.6 &mdash; <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
-                                        <option value="anthropic.claude-opus-4-6" <?php selected($bedrock_model, 'anthropic.claude-opus-4-6'); ?>>Claude Opus 4.6 &mdash; <?php esc_html_e('Most Powerful', 'smart-seo-fixer'); ?></option>
-                                        <option value="anthropic.claude-sonnet-4-5" <?php selected($bedrock_model, 'anthropic.claude-sonnet-4-5'); ?>>Claude Sonnet 4.5</option>
-                                        <option value="anthropic.claude-haiku-4-5" <?php selected($bedrock_model, 'anthropic.claude-haiku-4-5'); ?>>Claude Haiku 4.5 &mdash; <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
+                                        <option value="us.anthropic.claude-sonnet-4-6" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-6'); ?>>Claude Sonnet 4.6 &mdash; <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
+                                        <option value="us.anthropic.claude-opus-4-6" <?php selected($bedrock_model, 'us.anthropic.claude-opus-4-6'); ?>>Claude Opus 4.6 &mdash; <?php esc_html_e('Most Powerful', 'smart-seo-fixer'); ?></option>
+                                        <option value="us.anthropic.claude-sonnet-4-5" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-5'); ?>>Claude Sonnet 4.5</option>
+                                        <option value="us.anthropic.claude-haiku-4-5" <?php selected($bedrock_model, 'us.anthropic.claude-haiku-4-5'); ?>>Claude Haiku 4.5 &mdash; <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
                                     </optgroup>
                                     <optgroup label="Anthropic Claude 3.5 (Stable)">
                                         <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2</option>
@@ -177,7 +177,7 @@ unset($available_post_types['attachment']);
                                 <div id="ssf-custom-model-wrap" style="margin-top:8px;<?php echo $is_custom ? '' : 'display:none;'; ?>">
                                     <input type="text" id="bedrock_model_custom" name="bedrock_model_custom"
                                            value="<?php echo $is_custom ? esc_attr($bedrock_model) : ''; ?>"
-                                           class="regular-text" placeholder="e.g. anthropic.claude-sonnet-4-6"
+                                           class="regular-text" placeholder="e.g. us.anthropic.claude-sonnet-4-6"
                                            style="font-family:monospace;font-size:12px;">
                                     <p class="description" style="margin-top:4px;">
                                         <?php esc_html_e('Paste the exact Model ID from the', 'smart-seo-fixer'); ?>

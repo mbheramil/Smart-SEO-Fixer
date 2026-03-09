@@ -38,7 +38,7 @@ class SSF_Bedrock {
      * Bedrock model ID (e.g. anthropic.claude-3-5-haiku-20241022-v1:0)
      */
     private function get_model() {
-        return Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-sonnet-4-6');
+        return Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6');
     }
 
     /**
@@ -54,7 +54,9 @@ class SSF_Bedrock {
      */
     private function get_model_family() {
         $model = $this->get_model();
+        // Cross-region inference profiles (us.anthropic.*) and direct Anthropic models
         if (strpos($model, 'anthropic.claude') !== false) return 'claude';
+        if (strpos($model, '.anthropic.claude') !== false) return 'claude'; // us./eu./ap. prefix
         if (strpos($model, 'meta.llama')       !== false) return 'llama';
         if (strpos($model, 'amazon.titan')     !== false) return 'titan';
         if (strpos($model, 'mistral.')         !== false) return 'mistral';

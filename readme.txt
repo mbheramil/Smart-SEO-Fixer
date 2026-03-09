@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.11
+Stable tag: 1.16.12
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.12 =
+* Fix: Claude 4.x models now use cross-region inference profile IDs (`us.` prefix) — the catalog Model ID `anthropic.claude-sonnet-4-6` is not directly invokable; the invoke API requires `us.anthropic.claude-sonnet-4-6`
+* Fix: DB migration v7 updated to fix bare catalog IDs saved without `us.` prefix → correct profile IDs
+* Fix: `get_model_family()` now correctly detects `us.anthropic.claude-*` as Claude family
 
 = 1.16.11 =
 * Fix: DB migration (v7) automatically corrects any stale Bedrock model ID saved in the database with the old wrong format
