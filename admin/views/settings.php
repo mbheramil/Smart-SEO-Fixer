@@ -10,6 +10,18 @@ if (!defined('ABSPATH')) {
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
+
+// Check if credentials are set as wp-config.php constants
+$const_access = defined('SSF_BEDROCK_ACCESS_KEY') && SSF_BEDROCK_ACCESS_KEY !== '';
+$const_secret = defined('SSF_BEDROCK_SECRET_KEY') && SSF_BEDROCK_SECRET_KEY !== '';
+$const_region = defined('SSF_BEDROCK_REGION')     && SSF_BEDROCK_REGION     !== '';
+$using_consts = $const_access && $const_secret;
+
+// For display purposes, use configured value from whichever source is active
+$effective_access = $const_access ? SSF_BEDROCK_ACCESS_KEY : $bedrock_access;
+$effective_secret = $const_secret ? SSF_BEDROCK_SECRET_KEY : $bedrock_secret;
+$effective_region = $const_region ? SSF_BEDROCK_REGION     : $bedrock_region;
+$is_configured    = !empty($effective_access) && !empty($effective_secret);
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -80,43 +92,62 @@ unset($available_post_types['attachment']);
                         <h3 style="margin:0;"><?php esc_html_e('AWS Bedrock Configuration', 'smart-seo-fixer'); ?></h3>
                         <div style="display:flex;align-items:center;gap:10px;">
                             <span id="ssf-bedrock-status" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;
-                                <?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;' : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;'; ?>">
-                                <span id="ssf-bedrock-status-dot" style="width:8px;height:8px;border-radius:50%;background:<?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? '#16a34a' : '#9ca3af'; ?>;"></span>
-                                <span id="ssf-bedrock-status-text"><?php echo (!empty($bedrock_access) && !empty($bedrock_secret)) ? esc_html__('Credentials saved', 'smart-seo-fixer') : esc_html__('Not configured', 'smart-seo-fixer'); ?></span>
+                                <?php echo $is_configured ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;' : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;'; ?>">
+                                <span id="ssf-bedrock-status-dot" style="width:8px;height:8px;border-radius:50%;background:<?php echo $is_configured ? '#16a34a' : '#9ca3af'; ?>;"></span>
+                                <span id="ssf-bedrock-status-text"><?php echo $is_configured ? esc_html__('Credentials saved', 'smart-seo-fixer') : esc_html__('Not configured', 'smart-seo-fixer'); ?></span>
                             </span>
-                            <button type="button" class="button" id="ssf-test-bedrock" <?php echo (empty($bedrock_access) || empty($bedrock_secret)) ? 'disabled' : ''; ?>>
+                            <button type="button" class="button" id="ssf-test-bedrock" <?php echo !$is_configured ? 'disabled' : ''; ?>>
                                 <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
                                 <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
                             </button>
                         </div>
                     </div>
                     <p class="description" style="margin:0 0 12px;">
-                        <?php esc_html_e('Uses your own AWS account. Credentials are stored encrypted in WordPress options.', 'smart-seo-fixer'); ?>
+                        <?php if ($using_consts): ?>
+                            <span style="color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Credentials are set via wp-config.php constants and are not stored in the database.', 'smart-seo-fixer'); ?></span>
+                        <?php else: ?>
+                            <?php esc_html_e('Uses your own AWS account. Credentials are stored in WordPress options.', 'smart-seo-fixer'); ?>
+                            &mdash; <strong><?php esc_html_e('For better security, define them as constants in wp-config.php (see below).', 'smart-seo-fixer'); ?></strong>
+                        <?php endif; ?>
                     </p>
                     <table class="form-table">
                         <tr>
                             <th scope="row"><label for="bedrock_access_key"><?php esc_html_e('Access Key ID', 'smart-seo-fixer'); ?></label></th>
                             <td>
-                                <input type="text" name="bedrock_access_key" id="bedrock_access_key"
-                                       value="<?php echo esc_attr($bedrock_access); ?>"
-                                       class="regular-text" autocomplete="off"
-                                       placeholder="AKIA...">
-                                <p class="description"><?php esc_html_e('Your AWS IAM Access Key ID with Bedrock permissions.', 'smart-seo-fixer'); ?></p>
+                                <?php if ($const_access): ?>
+                                    <input type="text" class="regular-text" value="<?php echo esc_attr(substr($effective_access, 0, 4) . str_repeat('*', 12)); ?>" disabled>
+                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
+                                <?php else: ?>
+                                    <input type="text" name="bedrock_access_key" id="bedrock_access_key"
+                                           value="<?php echo esc_attr($bedrock_access); ?>"
+                                           class="regular-text" autocomplete="off"
+                                           placeholder="AKIA...">
+                                    <p class="description"><?php esc_html_e('Your AWS IAM Access Key ID with Bedrock permissions.', 'smart-seo-fixer'); ?></p>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="bedrock_secret_key"><?php esc_html_e('Secret Access Key', 'smart-seo-fixer'); ?></label></th>
                             <td>
-                                <input type="password" name="bedrock_secret_key" id="bedrock_secret_key"
-                                       value="<?php echo esc_attr($bedrock_secret); ?>"
-                                       class="regular-text" autocomplete="off">
-                                <button type="button" class="button" id="toggle-bedrock-secret"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
-                                <p class="description"><?php esc_html_e('Your AWS IAM Secret Access Key.', 'smart-seo-fixer'); ?></p>
+                                <?php if ($const_secret): ?>
+                                    <input type="text" class="regular-text" value="<?php echo esc_attr(str_repeat('*', 20)); ?>" disabled>
+                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
+                                <?php else: ?>
+                                    <input type="password" name="bedrock_secret_key" id="bedrock_secret_key"
+                                           value="<?php echo esc_attr($bedrock_secret); ?>"
+                                           class="regular-text" autocomplete="off">
+                                    <button type="button" class="button" id="toggle-bedrock-secret"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
+                                    <p class="description"><?php esc_html_e('Your AWS IAM Secret Access Key.', 'smart-seo-fixer'); ?></p>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="bedrock_region"><?php esc_html_e('AWS Region', 'smart-seo-fixer'); ?></label></th>
                             <td>
+                                <?php if ($const_region): ?>
+                                    <input type="text" class="regular-text" value="<?php echo esc_attr($effective_region); ?>" disabled>
+                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
+                                <?php else: ?>
                                 <select name="bedrock_region" id="bedrock_region">
                                     <?php
                                     $regions = [
@@ -135,11 +166,27 @@ unset($available_post_types['attachment']);
                                     <?php endforeach; ?>
                                 </select>
                                 <p class="description"><?php esc_html_e('Select the AWS region where Bedrock is enabled on your account.', 'smart-seo-fixer'); ?></p>
+                                <?php endif; ?>
                             </td>
                         </tr>
 
                     </table>
                     <div id="ssf-bedrock-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
+
+                    <?php if (!$using_consts): ?>
+                    <div style="margin-top:12px;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
+                        <p style="margin:0 0 8px;font-weight:600;color:#166534;">
+                            <span class="dashicons dashicons-lock" style="font-size:16px;"></span>
+                            <?php esc_html_e('Store credentials securely in wp-config.php (recommended)', 'smart-seo-fixer'); ?>
+                        </p>
+                        <p style="margin:0 0 8px;font-size:12px;color:#14532d;"><?php esc_html_e('Add these lines to your wp-config.php before the "That\'s all, stop editing!" comment. Credentials defined as constants are never stored in the database.', 'smart-seo-fixer'); ?></p>
+                        <pre style="margin:0;padding:10px 14px;background:#fff;border:1px solid #d1fae5;border-radius:4px;font-size:12px;line-height:1.7;color:#065f46;overflow-x:auto;">define( 'SSF_BEDROCK_ACCESS_KEY', 'YOUR_ACCESS_KEY_ID' );
+define( 'SSF_BEDROCK_SECRET_KEY', 'YOUR_SECRET_ACCESS_KEY' );
+define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-east-1</pre>
+                        <p style="margin:8px 0 0;font-size:11px;color:#166534;"><?php esc_html_e('Once defined, the fields above will be locked and show a padlock icon. The database values will be ignored.', 'smart-seo-fixer'); ?></p>
+                    </div>
+                    <?php endif; ?>
+
                     <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
                         <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
                             <span class="dashicons dashicons-info" style="font-size:16px;"></span>

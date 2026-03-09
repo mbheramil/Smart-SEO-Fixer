@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.13
+Stable tag: 1.16.14
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.14 =
+* Enhancement: AWS credentials can now be defined as PHP constants in wp-config.php (`SSF_BEDROCK_ACCESS_KEY`, `SSF_BEDROCK_SECRET_KEY`, `SSF_BEDROCK_REGION`) for improved security — constants take priority over database values
+* Enhancement: Settings page shows a wp-config.php code snippet when constants are not yet set; locks credential fields with a padlock icon when constants are active
+* Enhancement: Test Connection uses constants directly when defined, skipping any database credential handling
 
 = 1.16.13 =
 * Change: Model selection removed from settings UI — plugin now hardcodes `us.anthropic.claude-sonnet-4-6` (AWS CLI verified working)

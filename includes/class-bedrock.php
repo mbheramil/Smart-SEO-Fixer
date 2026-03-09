@@ -14,23 +14,32 @@ if (!defined('ABSPATH')) {
 class SSF_Bedrock {
 
     /**
-     * AWS region (e.g. us-east-1)
+     * AWS region — constant SSF_BEDROCK_REGION in wp-config.php takes priority
      */
     private function get_region() {
+        if (defined('SSF_BEDROCK_REGION') && SSF_BEDROCK_REGION !== '') {
+            return SSF_BEDROCK_REGION;
+        }
         return Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
     }
 
     /**
-     * AWS Access Key ID
+     * AWS Access Key ID — constant SSF_BEDROCK_ACCESS_KEY in wp-config.php takes priority
      */
     private function get_access_key() {
+        if (defined('SSF_BEDROCK_ACCESS_KEY') && SSF_BEDROCK_ACCESS_KEY !== '') {
+            return SSF_BEDROCK_ACCESS_KEY;
+        }
         return Smart_SEO_Fixer::get_option('bedrock_access_key');
     }
 
     /**
-     * AWS Secret Access Key
+     * AWS Secret Access Key — constant SSF_BEDROCK_SECRET_KEY in wp-config.php takes priority
      */
     private function get_secret_key() {
+        if (defined('SSF_BEDROCK_SECRET_KEY') && SSF_BEDROCK_SECRET_KEY !== '') {
+            return SSF_BEDROCK_SECRET_KEY;
+        }
         return Smart_SEO_Fixer::get_option('bedrock_secret_key');
     }
 
