@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.7
+Stable tag: 1.16.8
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.8 =
+* Fix: Model list updated with correct cross-region inference IDs (us. prefix) for Claude 4.x models on AWS Bedrock
+* New: Claude Sonnet 4.6 is now the default model (us.anthropic.claude-sonnet-4-6-20260301-v1:0)
+* New: Added Claude Opus 4.6, Sonnet 4.5, Haiku 4.5 to model dropdown
+* Fix: Claude 3.5 models kept as stable fallback options
 
 = 1.16.7 =
 * Fix: Test Connection now shows actionable guidance for "model identifier is invalid" error — explains the model must be enabled in AWS Bedrock Model Access console with a direct link

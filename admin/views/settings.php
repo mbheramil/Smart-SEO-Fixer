@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
-$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'anthropic.claude-3-5-sonnet-20241022-v2:0');
+$bedrock_model   = Smart_SEO_Fixer::get_option('bedrock_model', 'us.anthropic.claude-sonnet-4-6-20260301-v1:0');
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -142,11 +142,15 @@ unset($available_post_types['attachment']);
                             <th scope="row"><label for="bedrock_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
                             <td>
                                 <select name="bedrock_model" id="bedrock_model">
-                                    <optgroup label="Anthropic Claude (Recommended)">
-                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2 — <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
-                                        <option value="anthropic.claude-3-5-haiku-20241022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-haiku-20241022-v1:0'); ?>>Claude 3.5 Haiku — <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
-                                        <option value="anthropic.claude-3-sonnet-20240229-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-sonnet-20240229-v1:0'); ?>>Claude 3 Sonnet</option>
-                                        <option value="anthropic.claude-3-haiku-20240307-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-haiku-20240307-v1:0'); ?>>Claude 3 Haiku — <?php esc_html_e('Lightweight', 'smart-seo-fixer'); ?></option>
+                                    <optgroup label="Anthropic Claude 4 (Latest)">
+                                        <option value="us.anthropic.claude-sonnet-4-6-20260301-v1:0" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-6-20260301-v1:0'); ?>>Claude Sonnet 4.6 &mdash; <?php esc_html_e('Recommended for SEO', 'smart-seo-fixer'); ?></option>
+                                        <option value="us.anthropic.claude-opus-4-6-20260301-v1:0" <?php selected($bedrock_model, 'us.anthropic.claude-opus-4-6-20260301-v1:0'); ?>>Claude Opus 4.6 &mdash; <?php esc_html_e('Most Powerful', 'smart-seo-fixer'); ?></option>
+                                        <option value="us.anthropic.claude-sonnet-4-5-20251022-v1:0" <?php selected($bedrock_model, 'us.anthropic.claude-sonnet-4-5-20251022-v1:0'); ?>>Claude Sonnet 4.5</option>
+                                        <option value="us.anthropic.claude-haiku-4-5-20251022-v1:0" <?php selected($bedrock_model, 'us.anthropic.claude-haiku-4-5-20251022-v1:0'); ?>>Claude Haiku 4.5 &mdash; <?php esc_html_e('Fast & Affordable', 'smart-seo-fixer'); ?></option>
+                                    </optgroup>
+                                    <optgroup label="Anthropic Claude 3.5 (Stable)">
+                                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-sonnet-20241022-v2:0'); ?>>Claude 3.5 Sonnet v2</option>
+                                        <option value="anthropic.claude-3-5-haiku-20241022-v1:0" <?php selected($bedrock_model, 'anthropic.claude-3-5-haiku-20241022-v1:0'); ?>>Claude 3.5 Haiku</option>
                                     </optgroup>
                                     <optgroup label="Meta Llama">
                                         <option value="meta.llama3-70b-instruct-v1:0" <?php selected($bedrock_model, 'meta.llama3-70b-instruct-v1:0'); ?>>Llama 3 70B Instruct</option>

@@ -557,7 +557,7 @@ class SSF_Ajax {
         $access_key = sanitize_text_field($_POST['access_key'] ?? '');
         $secret_key = sanitize_text_field($_POST['secret_key'] ?? '');
         $region     = sanitize_text_field($_POST['region']     ?? 'us-east-1');
-        $model      = sanitize_text_field($_POST['model']      ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0');
+        $model      = sanitize_text_field($_POST['model']      ?? 'us.anthropic.claude-sonnet-4-6-20260301-v1:0');
 
         if (empty($access_key) || empty($secret_key)) {
             wp_send_json_error(['message' => __('Access Key and Secret Key are required.', 'smart-seo-fixer')]);
