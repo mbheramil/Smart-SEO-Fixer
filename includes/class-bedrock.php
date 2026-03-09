@@ -290,7 +290,12 @@ class SSF_Bedrock {
 
         $parsed   = wp_parse_url( $endpoint );
         $host     = $parsed['host'];
-        $uri      = $parsed['path'] ?? '/';
+        $raw_path = $parsed['path'] ?? '/';
+
+        // SigV4 canonical URI: each path segment must be URI-encoded (RFC 3986).
+        // The model ID contains a colon (e.g. v1:0) which must become %3A.
+        // Split on '/' and encode each segment individually, then rejoin.
+        $uri = implode( '/', array_map( 'rawurlencode', explode( '/', $raw_path ) ) );
 
         $amz_date   = gmdate( 'Ymd\THis\Z' );
         $date_stamp = gmdate( 'Ymd' );

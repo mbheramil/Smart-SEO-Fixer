@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.4
+Stable tag: 1.16.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.5 =
+* Fix: AWS SigV4 signature mismatch — colon in model ID (v1:0) now correctly percent-encoded as %3A in canonical URI, resolving "signature does not match" errors
+* Fix: IAM permissions hint updated — clarifies that AmazonBedrockFullAccess is sufficient, no extra policy needed
+* New: AWS Bedrock connection status indicator with Test Connection button in settings
 
 = 1.16.4 =
 * Fix: Canonical URL scheme now always matches site HTTPS/HTTP setting (prevents "Google chose different canonical" in Search Console)

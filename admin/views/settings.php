@@ -150,11 +150,14 @@ unset($available_post_types['attachment']);
                     <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
                         <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
                             <span class="dashicons dashicons-info" style="font-size:16px;"></span>
-                            <?php esc_html_e('Required IAM permissions:', 'smart-seo-fixer'); ?>
+                            <?php esc_html_e('IAM Permissions', 'smart-seo-fixer'); ?>
                         </p>
-                        <code style="font-size:12px;color:#1e3a5f;">bedrock:InvokeModel, bedrock:ListFoundationModels</code>
-                        <p style="margin:8px 0 0;font-size:12px;color:#1e3a5f;">
-                            <?php esc_html_e('Attach these permissions to the IAM user whose credentials you enter above.', 'smart-seo-fixer'); ?>
+                        <p style="margin:0 0 6px;font-size:12px;color:#1e3a5f;">
+                            <?php esc_html_e('If you already have AmazonBedrockFullAccess attached to your IAM user, you\'re all set — no extra permissions needed.', 'smart-seo-fixer'); ?>
+                        </p>
+                        <p style="margin:0;font-size:12px;color:#1e3a5f;">
+                            <?php esc_html_e('If using a custom/limited policy, these specific permissions are required:', 'smart-seo-fixer'); ?>
+                            <code style="font-size:12px;color:#1e3a5f;">bedrock:InvokeModel, bedrock:ListFoundationModels</code>
                         </p>
                     </div>
                 </div>
