@@ -672,8 +672,24 @@ jQuery(document).ready(function($) {
                 $dot.css('background','#16a34a');
                 $text.text('<?php esc_html_e('Connected', 'smart-seo-fixer'); ?>');
             } else {
+                var msg    = r.data.message || 'Unknown error';
+                var detail = msg;
+
+                // Friendly guidance for the most common errors
+                if (msg.toLowerCase().indexOf('model identifier is invalid') !== -1 || msg.toLowerCase().indexOf('validationexception') !== -1) {
+                    detail = msg + '<br><br>'
+                        + '<strong>This model is not enabled in your AWS account.</strong><br>'
+                        + 'Go to <a href="https://console.aws.amazon.com/bedrock/home#/modelaccess" target="_blank" style="color:#7f1d1d;text-decoration:underline;">AWS Bedrock → Model Access</a>, '
+                        + 'find the model in the list, click <strong>Manage model access</strong>, check the box, and click <strong>Save changes</strong>. '
+                        + 'It takes about 1 minute to activate.';
+                } else if (msg.toLowerCase().indexOf('signature') !== -1) {
+                    detail = msg + '<br><br><strong>Check that your Secret Access Key is correct.</strong>';
+                } else if (msg.toLowerCase().indexOf('credentials') !== -1 || msg.toLowerCase().indexOf('access denied') !== -1) {
+                    detail = msg + '<br><br><strong>Your IAM user does not have Bedrock permission. Attach AmazonBedrockFullAccess to the IAM user.</strong>';
+                }
+
                 $result.css({background:'#fef2f2', border:'1px solid #fecaca', color:'#991b1b'})
-                       .html('<strong>❌ Failed:</strong> ' + $('<div>').text(r.data.message || 'Unknown error').html())
+                       .html('<strong>❌ Failed:</strong> ' + detail)
                        .show();
                 $status.css({background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca'});
                 $dot.css('background','#dc2626');
