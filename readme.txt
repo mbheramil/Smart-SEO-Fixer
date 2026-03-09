@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.14
+Stable tag: 1.16.15
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 1.16.15 =
+* UI: Removed padlock label text from credential fields when constants are active
+* UI: Removed "Before you start" info box from Bedrock settings
 
 = 1.16.14 =
 * Enhancement: AWS credentials can now be defined as PHP constants in wp-config.php (`SSF_BEDROCK_ACCESS_KEY`, `SSF_BEDROCK_SECRET_KEY`, `SSF_BEDROCK_REGION`) for improved security — constants take priority over database values
