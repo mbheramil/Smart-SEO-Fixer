@@ -116,7 +116,6 @@ unset($available_post_types['attachment']);
                             <td>
                                 <?php if ($const_access): ?>
                                     <input type="text" class="regular-text" value="<?php echo esc_attr(substr($effective_access, 0, 4) . str_repeat('*', 12)); ?>" disabled>
-                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
                                 <?php else: ?>
                                     <input type="text" name="bedrock_access_key" id="bedrock_access_key"
                                            value="<?php echo esc_attr($bedrock_access); ?>"
@@ -131,7 +130,6 @@ unset($available_post_types['attachment']);
                             <td>
                                 <?php if ($const_secret): ?>
                                     <input type="text" class="regular-text" value="<?php echo esc_attr(str_repeat('*', 20)); ?>" disabled>
-                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
                                 <?php else: ?>
                                     <input type="password" name="bedrock_secret_key" id="bedrock_secret_key"
                                            value="<?php echo esc_attr($bedrock_secret); ?>"
@@ -146,7 +144,6 @@ unset($available_post_types['attachment']);
                             <td>
                                 <?php if ($const_region): ?>
                                     <input type="text" class="regular-text" value="<?php echo esc_attr($effective_region); ?>" disabled>
-                                    <span style="margin-left:6px;color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Set in wp-config.php', 'smart-seo-fixer'); ?></span>
                                 <?php else: ?>
                                 <select name="bedrock_region" id="bedrock_region">
                                     <?php
@@ -187,26 +184,7 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
                     </div>
                     <?php endif; ?>
 
-                    <div style="margin-top:12px;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
-                        <p style="margin:0 0 8px;font-weight:600;color:#1e40af;">
-                            <span class="dashicons dashicons-info" style="font-size:16px;"></span>
-                            <?php esc_html_e('Before you start', 'smart-seo-fixer'); ?>
-                        </p>
-                        <p style="margin:0 0 6px;font-size:12px;color:#1e3a5f;">
-                            <strong><?php esc_html_e('Anthropic use case approval (required for Claude models):', 'smart-seo-fixer'); ?></strong>
-                            <?php esc_html_e('First-time users must submit use case details to Anthropic via AWS before Claude models work. Go to', 'smart-seo-fixer'); ?>
-                            <a href="https://console.aws.amazon.com/bedrock/home#/modelcatalog" target="_blank"><?php esc_html_e('Bedrock Model Catalog', 'smart-seo-fixer'); ?></a>,
-                            <?php esc_html_e('click on Claude Sonnet 4.6, and complete the use case form if prompted.', 'smart-seo-fixer'); ?>
-                        </p>
-                        <p style="margin:0 0 6px;font-size:12px;color:#1e3a5f;">
-                            <strong><?php esc_html_e('IAM permissions:', 'smart-seo-fixer'); ?></strong>
-                            <?php esc_html_e('If you already have AmazonBedrockFullAccess attached to your IAM user, you\'re all set — no extra permissions needed.', 'smart-seo-fixer'); ?>
-                        </p>
-                        <p style="margin:0;font-size:12px;color:#1e3a5f;">
-                            <?php esc_html_e('If using a custom/limited policy, these specific permissions are required:', 'smart-seo-fixer'); ?>
-                            <code style="font-size:12px;color:#1e3a5f;">bedrock:InvokeModel, bedrock:ListFoundationModels</code>
-                        </p>
-                    </div>
+
                 </div>
             </div>
         </div>
