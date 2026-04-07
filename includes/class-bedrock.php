@@ -275,11 +275,51 @@ class SSF_Bedrock {
             return $content;
         };
 
-        if ( class_exists( 'SSF_Rate_Limiter' ) ) {
-            return SSF_Rate_Limiter::execute( 'bedrock', $make_request );
+        // Wrap with retry logic for transient failures (timeouts, 429, 500, 503)
+        $max_retries = 3;
+        $attempt = 0;
+        $last_result = null;
+
+        while ( $attempt < $max_retries ) {
+            $attempt++;
+
+            if ( class_exists( 'SSF_Rate_Limiter' ) ) {
+                $last_result = SSF_Rate_Limiter::execute( 'bedrock', $make_request );
+            } else {
+                $last_result = $make_request();
+            }
+
+            // Success — return immediately
+            if ( ! is_wp_error( $last_result ) ) {
+                return $last_result;
+            }
+
+            // Check if the error is retryable
+            $error_msg = $last_result->get_error_message();
+            $is_retryable = (
+                strpos( $error_msg, 'cURL error 28' ) !== false ||   // timeout
+                strpos( $error_msg, 'cURL error 7' ) !== false ||    // connection refused
+                strpos( $error_msg, 'HTTP 429' ) !== false ||        // rate limited
+                strpos( $error_msg, 'HTTP 500' ) !== false ||        // server error
+                strpos( $error_msg, 'HTTP 502' ) !== false ||        // bad gateway
+                strpos( $error_msg, 'HTTP 503' ) !== false ||        // service unavailable
+                strpos( $error_msg, 'ThrottlingException' ) !== false
+            );
+
+            if ( ! $is_retryable || $attempt >= $max_retries ) {
+                break;
+            }
+
+            if ( class_exists( 'SSF_Logger' ) ) {
+                SSF_Logger::warning( sprintf( 'Bedrock request failed (attempt %d/%d): %s — retrying', $attempt, $max_retries, $error_msg ), 'ai' );
+            }
+
+            // Exponential backoff: 2s, 4s (capped at PHP max_execution_time safety)
+            $delay = min( pow( 2, $attempt ), 8 );
+            sleep( $delay );
         }
 
-        return $make_request();
+        return $last_result;
     }
 
     // =========================================================================

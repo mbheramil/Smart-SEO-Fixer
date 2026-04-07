@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
- * Version: 1.16.15
+ * Version: 2.0.0
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '1.16.15');
+define('SSF_VERSION', '2.0.0');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -105,6 +105,8 @@ final class Smart_SEO_Fixer {
             'includes/class-content-suggestions.php',
             'includes/class-wp-standards.php',
             'includes/class-performance.php',
+            'includes/class-image-seo.php',
+            'includes/class-email-digest.php',
             'includes/class-ajax.php',
         ];
         
@@ -149,6 +151,11 @@ final class Smart_SEO_Fixer {
             add_action(SSF_Keyword_Tracker::CRON_HOOK, ['SSF_Keyword_Tracker', 'cron_track']);
         }
         
+        // Email digest cron
+        if (class_exists('SSF_Email_Digest')) {
+            add_action(SSF_Email_Digest::CRON_HOOK, ['SSF_Email_Digest', 'send_digest']);
+        }
+        
         // 404 Monitor (frontend hook)
         if (class_exists('SSF_404_Monitor')) {
             SSF_404_Monitor::init();
@@ -159,10 +166,22 @@ final class Smart_SEO_Fixer {
             SSF_Robots_Editor::init();
         }
         
+        // Image SEO (frontend content filter for lazy load, dimensions, etc.)
+        if (class_exists('SSF_Image_SEO') && Smart_SEO_Fixer::get_option('enable_image_seo', true)) {
+            SSF_Image_SEO::init();
+        }
+        
         // Performance profiler (record plugin load metrics)
         if (class_exists('SSF_Performance') && is_admin()) {
             SSF_Performance::start();
             add_action('wp_loaded', ['SSF_Performance', 'end'], 9999);
+        }
+        
+        // Core Web Vitals tracking (frontend)
+        if (class_exists('SSF_Performance')) {
+            add_action('wp', ['SSF_Performance', 'enqueue_cwv_script']);
+            add_action('wp_ajax_ssf_cwv_beacon', ['SSF_Performance', 'handle_cwv_beacon']);
+            add_action('wp_ajax_nopriv_ssf_cwv_beacon', ['SSF_Performance', 'handle_cwv_beacon']);
         }
         
         register_activation_hook(__FILE__, [$this, 'activate']);
@@ -260,6 +279,9 @@ final class Smart_SEO_Fixer {
             'homepage_description' => '',
             'post_types' => ['post', 'page'], // Updated on init to include custom post types
             'background_seo_cron' => true, // Auto-fill missing SEO in background
+            'enable_image_seo' => true, // Lazy load, width/height, decoding=async
+            'enable_cwv_tracking' => false, // Core Web Vitals RUM (opt-in)
+            'enable_email_digest' => false, // Weekly SEO score digest (opt-in)
         ];
         
         foreach ($defaults as $key => $value) {
@@ -296,6 +318,11 @@ final class Smart_SEO_Fixer {
             SSF_Keyword_Tracker::schedule_cron();
         }
         
+        // Schedule email digest (weekly)
+        if (class_exists('SSF_Email_Digest')) {
+            SSF_Email_Digest::schedule_cron();
+        }
+        
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -320,6 +347,10 @@ final class Smart_SEO_Fixer {
         
         if (class_exists('SSF_Keyword_Tracker')) {
             SSF_Keyword_Tracker::unschedule_cron();
+        }
+        
+        if (class_exists('SSF_Email_Digest')) {
+            SSF_Email_Digest::unschedule_cron();
         }
         
         flush_rewrite_rules();

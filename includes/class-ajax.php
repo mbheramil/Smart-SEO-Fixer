@@ -136,6 +136,25 @@ class SSF_Ajax {
         // Performance Profiler
         add_action('wp_ajax_ssf_performance_data', [$this, 'performance_data']);
         add_action('wp_ajax_ssf_performance_clear', [$this, 'performance_clear']);
+        
+        // Content Duplication Detection
+        add_action('wp_ajax_ssf_detect_duplicates', [$this, 'detect_duplicates']);
+        
+        // Core Web Vitals data
+        add_action('wp_ajax_ssf_get_cwv_data', [$this, 'get_cwv_data']);
+        
+        // Internal Link Auto-Insertion
+        add_action('wp_ajax_ssf_insert_internal_links', [$this, 'insert_internal_links']);
+        
+        // Bulk Fix Preview — Approve/Reject
+        add_action('wp_ajax_ssf_apply_bulk_preview', [$this, 'apply_bulk_preview']);
+        
+        // Image SEO audit
+        add_action('wp_ajax_ssf_audit_images', [$this, 'audit_images']);
+        
+        // Onboarding checklist
+        add_action('wp_ajax_ssf_get_onboarding_status', [$this, 'get_onboarding_status']);
+        add_action('wp_ajax_ssf_dismiss_onboarding', [$this, 'dismiss_onboarding']);
     }
     
     /**
@@ -168,6 +187,11 @@ class SSF_Ajax {
         
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        // Track for onboarding checklist
+        if (!get_option('ssf_first_analysis_done', false)) {
+            update_option('ssf_first_analysis_done', true);
         }
         
         wp_send_json_success($result);
@@ -265,6 +289,11 @@ class SSF_Ajax {
             }
             
             $done = ($offset + $batch_size) >= $total || empty($posts);
+            
+            // Track for onboarding checklist
+            if ($done && !get_option('ssf_bulk_analyze_done', false)) {
+                update_option('ssf_bulk_analyze_done', true);
+            }
             
             wp_send_json_success([
                 'processed' => count($posts),
@@ -636,6 +665,7 @@ class SSF_Ajax {
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
             'enable_sitemap'          => !empty($_POST['enable_sitemap']) ? 1 : 0,
             'disable_other_seo_output'=> !empty($_POST['disable_other_seo_output']) ? 1 : 0,
+            'redirect_attachments'    => in_array(($_POST['redirect_attachments'] ?? ''), ['parent', 'file'], true) ? sanitize_text_field($_POST['redirect_attachments']) : '',
             'background_seo_cron'     => !empty($_POST['background_seo_cron']) ? 1 : 0,
             'github_token'            => $v ? SSF_Validator::api_key($_POST['github_token'] ?? '') : sanitize_text_field($_POST['github_token'] ?? ''),
             'gsc_client_id'           => sanitize_text_field($_POST['gsc_client_id'] ?? ''),
@@ -2991,6 +3021,298 @@ class SSF_Ajax {
                   )
                 : __('No canonical issues found — all canonicals are already correct!', 'smart-seo-fixer'),
         ]);
+    }
+    
+    // =========================================================================
+    // New Feature Handlers
+    // =========================================================================
+    
+    /**
+     * Detect duplicate titles/descriptions across the whole site
+     */
+    public function detect_duplicates() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $analyzer = new SSF_Analyzer();
+        $results = $analyzer->detect_duplicates();
+        
+        wp_send_json_success($results);
+    }
+    
+    /**
+     * Get Core Web Vitals data
+     */
+    public function get_cwv_data() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Performance')) {
+            wp_send_json_error(['message' => __('Performance module not available.', 'smart-seo-fixer')]);
+        }
+        
+        wp_send_json_success([
+            'summary'  => SSF_Performance::get_cwv_data()['summary'],
+            'by_page'  => SSF_Performance::get_cwv_by_page(10),
+        ]);
+    }
+    
+    /**
+     * Insert AI-suggested internal links into post content.
+     * 
+     * Takes link suggestions and applies them by inserting <a> tags into the content.
+     */
+    public function insert_internal_links() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        $links = isset($_POST['links']) ? $_POST['links'] : [];
+        
+        if (!$post_id || empty($links)) {
+            wp_send_json_error(['message' => __('Missing post ID or links.', 'smart-seo-fixer')]);
+        }
+        
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+        }
+        
+        $content = $post->post_content;
+        $inserted = 0;
+        
+        // Set history source
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('ai');
+        }
+        
+        foreach ($links as $link) {
+            $anchor = sanitize_text_field($link['anchor'] ?? '');
+            $url    = esc_url($link['url'] ?? '');
+            
+            if (empty($anchor) || empty($url)) {
+                continue;
+            }
+            
+            // Only insert if the anchor text exists as plain text (not already linked)
+            // Use word boundary matching to avoid partial word matches
+            $pattern = '/(?<!["\'>])(' . preg_quote($anchor, '/') . ')(?![^<]*<\/a>)/i';
+            
+            if (preg_match($pattern, $content)) {
+                // Replace only the first occurrence
+                $replacement = '<a href="' . esc_url($url) . '">' . esc_html($anchor) . '</a>';
+                $content = preg_replace($pattern, $replacement, $content, 1);
+                $inserted++;
+            }
+        }
+        
+        if ($inserted > 0) {
+            wp_update_post([
+                'ID'           => $post_id,
+                'post_content' => $content,
+            ]);
+            
+            // Re-analyze to update score
+            if (class_exists('SSF_Analyzer')) {
+                (new SSF_Analyzer())->analyze_post($post_id);
+            }
+        }
+        
+        wp_send_json_success([
+            'inserted' => $inserted,
+            'total'    => count($links),
+            'message'  => sprintf(
+                __('Inserted %d of %d internal links.', 'smart-seo-fixer'),
+                $inserted, count($links)
+            ),
+        ]);
+    }
+    
+    /**
+     * Apply selected items from a bulk fix preview.
+     * 
+     * The frontend sends an array of approved items (post_id + fields to apply).
+     * Rejected items are simply not included. This allows per-item approve/reject.
+     */
+    public function apply_bulk_preview() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $items = isset($_POST['items']) ? $_POST['items'] : [];
+        
+        if (empty($items) || !is_array($items)) {
+            wp_send_json_error(['message' => __('No items to apply.', 'smart-seo-fixer')]);
+        }
+        
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('bulk');
+        }
+        
+        $applied = 0;
+        $skipped = 0;
+        $errors = [];
+        
+        foreach ($items as $item) {
+            $post_id = intval($item['post_id'] ?? 0);
+            if (!$post_id || !get_post($post_id)) {
+                $skipped++;
+                continue;
+            }
+            
+            $changed = false;
+            
+            if (!empty($item['title'])) {
+                update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($item['title']));
+                $changed = true;
+            }
+            
+            if (!empty($item['description'])) {
+                update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($item['description']));
+                $changed = true;
+            }
+            
+            if (!empty($item['keyword'])) {
+                update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($item['keyword']));
+                $changed = true;
+            }
+            
+            if ($changed) {
+                $applied++;
+                
+                // Re-analyze
+                if (class_exists('SSF_Analyzer')) {
+                    (new SSF_Analyzer())->analyze_post($post_id);
+                }
+            } else {
+                $skipped++;
+            }
+        }
+        
+        wp_send_json_success([
+            'applied' => $applied,
+            'skipped' => $skipped,
+            'total'   => count($items),
+            'message' => sprintf(
+                __('Applied changes to %d posts, skipped %d.', 'smart-seo-fixer'),
+                $applied, $skipped
+            ),
+        ]);
+    }
+    
+    /**
+     * Audit images in a post for SEO issues
+     */
+    public function audit_images() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Image_SEO')) {
+            wp_send_json_error(['message' => __('Image SEO module not available.', 'smart-seo-fixer')]);
+        }
+        
+        $issues = SSF_Image_SEO::audit_post_images($post_id);
+        
+        wp_send_json_success([
+            'post_id' => $post_id,
+            'issues'  => $issues,
+            'total'   => count($issues),
+        ]);
+    }
+    
+    /**
+     * Get onboarding checklist status
+     */
+    public function get_onboarding_status() {
+        $this->verify_nonce();
+        
+        if (get_option('ssf_onboarding_dismissed', false)) {
+            wp_send_json_success(['dismissed' => true, 'items' => []]);
+            return;
+        }
+        
+        $openai = class_exists('SSF_AI') ? SSF_AI::get() : null;
+        
+        $items = [
+            [
+                'id'       => 'api_configured',
+                'label'    => __('Configure AI provider (AWS Bedrock)', 'smart-seo-fixer'),
+                'complete' => $openai && $openai->is_configured(),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer-settings'),
+            ],
+            [
+                'id'       => 'first_analysis',
+                'label'    => __('Analyze your first post', 'smart-seo-fixer'),
+                'complete' => (bool) get_option('ssf_first_analysis_done', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer'),
+            ],
+            [
+                'id'       => 'bulk_analyze',
+                'label'    => __('Run bulk analysis on all posts', 'smart-seo-fixer'),
+                'complete' => (bool) get_option('ssf_bulk_analyze_done', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer'),
+            ],
+            [
+                'id'       => 'schema_enabled',
+                'label'    => __('Enable schema markup', 'smart-seo-fixer'),
+                'complete' => (bool) Smart_SEO_Fixer::get_option('enable_schema', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer-settings'),
+            ],
+            [
+                'id'       => 'sitemap_enabled',
+                'label'    => __('Enable XML sitemap', 'smart-seo-fixer'),
+                'complete' => (bool) Smart_SEO_Fixer::get_option('enable_sitemap', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer-settings'),
+            ],
+            [
+                'id'       => 'auto_meta',
+                'label'    => __('Enable auto meta generation on publish', 'smart-seo-fixer'),
+                'complete' => (bool) Smart_SEO_Fixer::get_option('auto_meta', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer-settings'),
+            ],
+            [
+                'id'       => 'redirects_reviewed',
+                'label'    => __('Check your redirects & 404 monitor', 'smart-seo-fixer'),
+                'complete' => (bool) get_option('ssf_redirects_reviewed', false),
+                'link'     => admin_url('admin.php?page=smart-seo-fixer-redirects'),
+            ],
+        ];
+        
+        $completed = count(array_filter($items, function($item) { return $item['complete']; }));
+        
+        wp_send_json_success([
+            'dismissed'  => false,
+            'items'      => $items,
+            'completed'  => $completed,
+            'total'      => count($items),
+            'percentage' => round(($completed / count($items)) * 100),
+        ]);
+    }
+    
+    /**
+     * Dismiss onboarding checklist
+     */
+    public function dismiss_onboarding() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        update_option('ssf_onboarding_dismissed', true);
+        
+        wp_send_json_success(['message' => __('Onboarding dismissed.', 'smart-seo-fixer')]);
     }
 }
 

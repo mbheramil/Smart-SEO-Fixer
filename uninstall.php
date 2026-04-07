@@ -36,6 +36,7 @@ $options = [
     'ssf_post_types',
     'ssf_local_seo_data',
     'ssf_redirects',
+    'ssf_redirect_attachments',
     'ssf_404_log',
     'ssf_cron_last_run',
     'ssf_gsc_client_id',

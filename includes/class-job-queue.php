@@ -173,6 +173,9 @@ class SSF_Job_Queue {
         global $wpdb;
         $table = self::table();
         
+        // Check for stuck jobs first
+        self::handle_dead_letters();
+        
         // Find the next job to process (oldest pending or in-progress)
         $job = $wpdb->get_row(
             "SELECT * FROM $table 
@@ -531,5 +534,83 @@ class SSF_Job_Queue {
                 $days
             )
         );
+    }
+    
+    /**
+     * Detect and handle stuck/dead-letter jobs.
+     * 
+     * A job is "stuck" if it has been in 'processing' status for more than 30 minutes
+     * without any progress. These are marked as failed and an admin email is sent.
+     * 
+     * Call this from process_queue() or on a separate cron schedule.
+     */
+    public static function handle_dead_letters() {
+        global $wpdb;
+        $table = self::table();
+        
+        // Find jobs stuck in 'processing' for over 30 minutes
+        $stuck_jobs = $wpdb->get_results(
+            "SELECT * FROM $table 
+             WHERE status = 'processing' 
+             AND started_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+             ORDER BY started_at ASC"
+        );
+        
+        if (empty($stuck_jobs)) {
+            return;
+        }
+        
+        $admin_email = get_option('admin_email');
+        $site_name   = get_bloginfo('name');
+        $dead_letters = [];
+        
+        foreach ($stuck_jobs as $job) {
+            // Mark as failed
+            $wpdb->update(
+                $table,
+                [
+                    'status'        => self::STATUS_FAILED,
+                    'error_message' => __('Job timed out — no progress for 30+ minutes.', 'smart-seo-fixer'),
+                    'completed_at'  => current_time('mysql'),
+                ],
+                ['id' => $job->id],
+                ['%s', '%s', '%s'],
+                ['%d']
+            );
+            
+            $dead_letters[] = $job;
+            
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error(sprintf(
+                    'Job #%d marked as dead letter: stuck in processing since %s (%d/%d items)',
+                    $job->id, $job->started_at, $job->processed_items, $job->total_items
+                ), 'queue');
+            }
+        }
+        
+        // Send single admin notification for all stuck jobs
+        if (!empty($dead_letters) && !empty($admin_email)) {
+            $subject = sprintf('[%s] Smart SEO Fixer: %d background job(s) failed', $site_name, count($dead_letters));
+            
+            $body = __("The following background jobs were stuck and have been marked as failed:\n\n", 'smart-seo-fixer');
+            
+            foreach ($dead_letters as $job) {
+                $body .= sprintf(
+                    "- Job #%d (%s): %d/%d items processed, started %s\n",
+                    $job->id,
+                    $job->job_type,
+                    $job->processed_items,
+                    $job->total_items,
+                    $job->started_at
+                );
+            }
+            
+            $body .= "\n" . sprintf(
+                __("You can retry these jobs from: %s\n", 'smart-seo-fixer'),
+                admin_url('admin.php?page=smart-seo-fixer-jobs')
+            );
+            
+            wp_mail($admin_email, $subject, $body);
+        }
     }
 }

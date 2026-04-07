@@ -986,5 +986,134 @@ class SSF_Analyzer {
             $min, $max, $limit
         ));
     }
+    
+    /**
+     * Detect duplicate SEO titles and meta descriptions across all published posts.
+     * 
+     * Returns grouped arrays of posts sharing the same title or description.
+     * 
+     * @return array ['duplicate_titles' => [...], 'duplicate_descriptions' => [...]]
+     */
+    public function detect_duplicates() {
+        global $wpdb;
+        
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        // Find duplicate SEO titles
+        $dup_titles = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT pm.meta_value AS seo_title, GROUP_CONCAT(p.ID) AS post_ids, COUNT(*) as cnt
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                 WHERE pm.meta_key = '_ssf_seo_title'
+                 AND pm.meta_value != ''
+                 AND p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 GROUP BY pm.meta_value
+                 HAVING cnt > 1
+                 ORDER BY cnt DESC
+                 LIMIT 50",
+                ...$post_types
+            )
+        );
+        
+        // Find duplicate meta descriptions
+        $dup_descs = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT pm.meta_value AS meta_description, GROUP_CONCAT(p.ID) AS post_ids, COUNT(*) as cnt
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                 WHERE pm.meta_key = '_ssf_meta_description'
+                 AND pm.meta_value != ''
+                 AND p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 GROUP BY pm.meta_value
+                 HAVING cnt > 1
+                 ORDER BY cnt DESC
+                 LIMIT 50",
+                ...$post_types
+            )
+        );
+        
+        // Also check posts sharing the same wp post_title (even without SEO title)
+        $dup_post_titles = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT post_title, GROUP_CONCAT(ID) AS post_ids, COUNT(*) as cnt
+                 FROM {$wpdb->posts}
+                 WHERE post_status = 'publish'
+                 AND post_type IN ($placeholders)
+                 AND post_title != ''
+                 GROUP BY post_title
+                 HAVING cnt > 1
+                 ORDER BY cnt DESC
+                 LIMIT 50",
+                ...$post_types
+            )
+        );
+        
+        // Enrich with post details
+        $title_groups = [];
+        foreach ($dup_titles as $group) {
+            $ids = array_map('intval', explode(',', $group->post_ids));
+            $posts = [];
+            foreach ($ids as $id) {
+                $posts[] = [
+                    'post_id' => $id,
+                    'title'   => get_the_title($id),
+                    'url'     => get_permalink($id),
+                ];
+            }
+            $title_groups[] = [
+                'seo_title' => $group->seo_title,
+                'count'     => intval($group->cnt),
+                'posts'     => $posts,
+            ];
+        }
+        
+        $desc_groups = [];
+        foreach ($dup_descs as $group) {
+            $ids = array_map('intval', explode(',', $group->post_ids));
+            $posts = [];
+            foreach ($ids as $id) {
+                $posts[] = [
+                    'post_id' => $id,
+                    'title'   => get_the_title($id),
+                    'url'     => get_permalink($id),
+                ];
+            }
+            $desc_groups[] = [
+                'meta_description' => mb_substr($group->meta_description, 0, 160),
+                'count'            => intval($group->cnt),
+                'posts'            => $posts,
+            ];
+        }
+        
+        $post_title_groups = [];
+        foreach ($dup_post_titles as $group) {
+            $ids = array_map('intval', explode(',', $group->post_ids));
+            $posts = [];
+            foreach ($ids as $id) {
+                $posts[] = [
+                    'post_id' => $id,
+                    'url'     => get_permalink($id),
+                ];
+            }
+            $post_title_groups[] = [
+                'post_title' => $group->post_title,
+                'count'      => intval($group->cnt),
+                'posts'      => $posts,
+            ];
+        }
+        
+        return [
+            'duplicate_seo_titles'       => $title_groups,
+            'duplicate_descriptions'     => $desc_groups,
+            'duplicate_post_titles'      => $post_title_groups,
+            'total_duplicate_titles'     => count($title_groups),
+            'total_duplicate_descs'      => count($desc_groups),
+            'total_duplicate_post_titles'=> count($post_title_groups),
+        ];
+    }
 }
 

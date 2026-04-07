@@ -633,7 +633,179 @@ class SSF_Search_Console {
                 // This is handled by the sitemap generator which excludes noindex pages
                 $fixed[] = 'Sitemap automatically excludes noindex pages';
                 break;
+                
+            case 'duplicate_titles':
+                // Regenerate unique SEO titles for posts with duplicate titles
+                $fixed = array_merge($fixed, $this->fix_duplicate_seo_field('_ssf_seo_title', 'title'));
+                break;
+                
+            case 'duplicate_descs':
+                // Regenerate unique meta descriptions for posts with duplicate descriptions
+                $fixed = array_merge($fixed, $this->fix_duplicate_seo_field('_ssf_meta_description', 'description'));
+                break;
+                
+            case 'missing_seo':
+                // Generate missing SEO data via AI for all posts that lack it
+                $fixed = array_merge($fixed, $this->fix_missing_seo_data());
+                break;
         }
+        
+        return $fixed;
+    }
+    
+    /**
+     * Fix duplicate SEO field (title or description) using AI regeneration.
+     * Keeps the first post's value, regenerates for the duplicates.
+     */
+    private function fix_duplicate_seo_field($meta_key, $field_label) {
+        global $wpdb;
+        $fixed = [];
+        
+        if (!class_exists('SSF_AI')) {
+            return [__('AI module not available.', 'smart-seo-fixer')];
+        }
+        
+        $openai = SSF_AI::get();
+        if (!$openai->is_configured()) {
+            return [SSF_AI::not_configured_message()];
+        }
+        
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        // Find duplicate groups
+        $duplicates = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT pm.meta_value, GROUP_CONCAT(pm.post_id ORDER BY pm.post_id ASC) AS post_ids
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                 WHERE pm.meta_key = %s
+                 AND pm.meta_value != ''
+                 AND p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 GROUP BY pm.meta_value
+                 HAVING COUNT(*) > 1
+                 LIMIT 20",
+                $meta_key, ...$post_types
+            )
+        );
+        
+        if (empty($duplicates)) {
+            return [sprintf(__('No duplicate %s found.', 'smart-seo-fixer'), $field_label)];
+        }
+        
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('ai');
+        }
+        
+        $regen_count = 0;
+        
+        foreach ($duplicates as $group) {
+            $ids = array_map('intval', explode(',', $group->post_ids));
+            // Keep the first post's value, regenerate for the rest
+            array_shift($ids);
+            
+            foreach ($ids as $post_id) {
+                $post = get_post($post_id);
+                if (!$post) continue;
+                
+                $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                
+                if ($meta_key === '_ssf_seo_title') {
+                    $new_value = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                } else {
+                    $new_value = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                }
+                
+                if (!is_wp_error($new_value) && !empty(trim($new_value))) {
+                    update_post_meta($post_id, $meta_key, sanitize_text_field(trim($new_value)));
+                    $regen_count++;
+                }
+                
+                // Cap at 10 regenerations per batch to avoid API rate limits
+                if ($regen_count >= 10) break 2;
+            }
+        }
+        
+        $fixed[] = sprintf(
+            __('Regenerated unique %s for %d posts.', 'smart-seo-fixer'),
+            $field_label, $regen_count
+        );
+        
+        return $fixed;
+    }
+    
+    /**
+     * Fix missing SEO data (title + description) for up to 10 posts.
+     */
+    private function fix_missing_seo_data() {
+        global $wpdb;
+        $fixed = [];
+        
+        if (!class_exists('SSF_AI')) {
+            return [__('AI module not available.', 'smart-seo-fixer')];
+        }
+        
+        $openai = SSF_AI::get();
+        if (!$openai->is_configured()) {
+            return [SSF_AI::not_configured_message()];
+        }
+        
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        $posts = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT p.ID 
+                 FROM {$wpdb->posts} p
+                 LEFT JOIN {$wpdb->postmeta} pm_t ON p.ID = pm_t.post_id AND pm_t.meta_key = '_ssf_seo_title'
+                 LEFT JOIN {$wpdb->postmeta} pm_d ON p.ID = pm_d.post_id AND pm_d.meta_key = '_ssf_meta_description'
+                 WHERE p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 AND ((pm_t.meta_value IS NULL OR pm_t.meta_value = '')
+                   OR (pm_d.meta_value IS NULL OR pm_d.meta_value = ''))
+                 ORDER BY p.post_date DESC
+                 LIMIT 10",
+                ...$post_types
+            )
+        );
+        
+        if (empty($posts)) {
+            return [__('All posts have SEO data.', 'smart-seo-fixer')];
+        }
+        
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('ai');
+        }
+        
+        $gen_count = 0;
+        
+        foreach ($posts as $post_id) {
+            $post = get_post($post_id);
+            if (!$post || str_word_count(strip_tags($post->post_content)) < 10) continue;
+            
+            $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+            
+            $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+            if (empty($seo_title)) {
+                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                if (!is_wp_error($title) && !empty(trim($title))) {
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                    $gen_count++;
+                }
+            }
+            
+            $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+            if (empty($meta_desc)) {
+                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                if (!is_wp_error($desc) && !empty(trim($desc))) {
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                    $gen_count++;
+                }
+            }
+        }
+        
+        $fixed[] = sprintf(__('Generated missing SEO data for %d fields.', 'smart-seo-fixer'), $gen_count);
         
         return $fixed;
     }

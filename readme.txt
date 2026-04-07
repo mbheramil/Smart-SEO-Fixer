@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.16.15
+Stable tag: 2.0.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,19 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+
+= 2.0.0 =
+* New: Core Web Vitals (LCP, CLS, INP) real-user monitoring with p75 grading
+* New: Image SEO — automatic lazy loading, eager first image, missing dimensions, decoding=async
+* New: Weekly email digest with SEO score summary and action items
+* New: Content duplication detection for titles and meta descriptions
+* New: Internal link auto-insertion via AI-powered anchor matching
+* New: Onboarding checklist with 7 milestone tracker
+* New: Bulk fix preview with per-item approve/reject
+* Enhancement: Bedrock API retry logic with exponential backoff (3 retries)
+* Enhancement: Broken link scanner concurrency limit (5 parallel checks)
+* Enhancement: Job queue dead-letter handling for stuck jobs with admin notification
+* Enhancement: Canonical conflict auto-fix for duplicate titles, descriptions, and missing SEO data
 
 = 1.16.15 =
 * UI: Removed padlock label text from credential fields when constants are active

@@ -51,6 +51,7 @@ $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
 $enable_sitemap = Smart_SEO_Fixer::get_option('enable_sitemap', true);
 $disable_other_seo_output = Smart_SEO_Fixer::get_option('disable_other_seo_output', false);
+$redirect_attachments = Smart_SEO_Fixer::get_option('redirect_attachments', '');
 $title_separator = Smart_SEO_Fixer::get_option('title_separator', '|');
 $homepage_title = Smart_SEO_Fixer::get_option('homepage_title');
 $homepage_description = Smart_SEO_Fixer::get_option('homepage_description');
@@ -473,6 +474,25 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
                             </label>
                             <p class="description">
                                 <?php esc_html_e('Automatically add structured data to help search engines understand your content.', 'smart-seo-fixer'); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Attachment Pages', 'smart-seo-fixer'); ?></th>
+                        <td>
+                            <select name="redirect_attachments" id="redirect_attachments">
+                                <option value="" <?php selected($redirect_attachments, ''); ?>>
+                                    <?php esc_html_e('Disabled — keep attachment pages as-is', 'smart-seo-fixer'); ?>
+                                </option>
+                                <option value="parent" <?php selected($redirect_attachments, 'parent'); ?>>
+                                    <?php esc_html_e('Redirect to parent post/page (recommended)', 'smart-seo-fixer'); ?>
+                                </option>
+                                <option value="file" <?php selected($redirect_attachments, 'file'); ?>>
+                                    <?php esc_html_e('Redirect to the media file URL', 'smart-seo-fixer'); ?>
+                                </option>
+                            </select>
+                            <p class="description">
+                                <?php esc_html_e('WordPress creates an "attachment page" for every uploaded image/file. These pages show a single media item on a blog-like template and are bad for SEO. Redirecting them (301) to the parent post prevents thin content and wasted crawl budget.', 'smart-seo-fixer'); ?>
                             </p>
                         </td>
                     </tr>

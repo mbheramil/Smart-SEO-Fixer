@@ -19,9 +19,12 @@ class SSF_Redirects {
     /**
      * Constructor
      */
-    public function __construct() {
+        public function __construct() {
         // Intercept requests to check for redirects (runs early)
         add_action('template_redirect', [$this, 'maybe_redirect'], 1);
+        
+        // Redirect attachment pages (runs before 404 logging)
+        add_action('template_redirect', [$this, 'maybe_redirect_attachment'], 2);
         
         // Track slug changes
         add_action('post_updated', [$this, 'detect_slug_change'], 10, 3);
@@ -71,6 +74,53 @@ class SSF_Redirects {
         }
     }
     
+        /**
+     * Redirect WordPress attachment pages (media pages) to parent post or file
+     *
+     * Attachment pages are auto-created for every media upload and typically
+     * show a single image on a blog-like template — bad for SEO.
+     * Setting: ssf_redirect_attachments = 'parent' | 'file' | '' (disabled)
+     */
+    public function maybe_redirect_attachment() {
+        if ( ! is_attachment() ) {
+            return;
+        }
+
+        $mode = Smart_SEO_Fixer::get_option( 'redirect_attachments', '' );
+
+        if ( empty( $mode ) ) {
+            return; // Feature disabled
+        }
+
+        $attachment = get_post();
+        if ( ! $attachment ) {
+            return;
+        }
+
+        $redirect_url = '';
+
+        if ( $mode === 'parent' ) {
+            // Redirect to the parent post/page the media was attached to
+            if ( $attachment->post_parent && get_post_status( $attachment->post_parent ) === 'publish' ) {
+                $redirect_url = get_permalink( $attachment->post_parent );
+            } else {
+                // No parent or parent not published — fall back to homepage
+                $redirect_url = home_url( '/' );
+            }
+        } elseif ( $mode === 'file' ) {
+            // Redirect to the actual media file URL (the image/PDF itself)
+            $file_url = wp_get_attachment_url( $attachment->ID );
+            if ( $file_url ) {
+                $redirect_url = $file_url;
+            }
+        }
+
+        if ( ! empty( $redirect_url ) ) {
+            wp_redirect( $redirect_url, 301 );
+            exit;
+        }
+    }
+
     /**
      * Detect when a post slug changes and auto-create a redirect
      */

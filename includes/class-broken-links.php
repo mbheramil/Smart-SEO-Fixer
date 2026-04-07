@@ -127,6 +127,12 @@ class SSF_Broken_Links {
     }
     
     /**
+     * Max concurrent link checks per scan_post call.
+     * Prevents overwhelming the server on posts with many links.
+     */
+    const MAX_CONCURRENT_CHECKS = 5;
+
+    /**
      * Scan a single post for broken links
      */
     public static function scan_post($post_id, $content = null) {
@@ -142,16 +148,21 @@ class SSF_Broken_Links {
         $checked = 0;
         $broken = 0;
         
-        foreach ($links as $link) {
-            $checked++;
-            $result = self::check_url($link['url']);
-            
-            if ($result['is_broken']) {
-                $broken++;
-                self::record_broken_link($post_id, $link, $result);
-            } else {
-                // Remove from broken links if it was previously broken but now works
-                self::remove_if_fixed($post_id, $link['url']);
+        // Process links in batches to limit concurrent outbound requests
+        $batches = array_chunk($links, self::MAX_CONCURRENT_CHECKS);
+        
+        foreach ($batches as $batch) {
+            foreach ($batch as $link) {
+                $checked++;
+                $result = self::check_url($link['url']);
+                
+                if ($result['is_broken']) {
+                    $broken++;
+                    self::record_broken_link($post_id, $link, $result);
+                } else {
+                    // Remove from broken links if it was previously broken but now works
+                    self::remove_if_fixed($post_id, $link['url']);
+                }
             }
         }
         

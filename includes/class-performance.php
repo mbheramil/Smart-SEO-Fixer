@@ -176,5 +176,213 @@ class SSF_Performance {
     public static function clear_history() {
         delete_option('ssf_perf_history');
         delete_transient('ssf_perf_latest');
+        delete_option('ssf_cwv_data');
+    }
+    
+    // =========================================================================
+    // Core Web Vitals (CWV) — Real User Monitoring
+    // =========================================================================
+    
+    /**
+     * Enqueue the CWV measurement script on the frontend.
+     * Uses the web-vitals library via PerformanceObserver to measure LCP, CLS, INP.
+     */
+    public static function enqueue_cwv_script() {
+        if (is_admin() || !Smart_SEO_Fixer::get_option('enable_cwv_tracking', false)) {
+            return;
+        }
+        
+        // Sample rate: only collect from 10% of pageviews to minimize overhead
+        if (wp_rand(1, 10) > 1) {
+            return;
+        }
+        
+        add_action('wp_footer', [__CLASS__, 'output_cwv_inline_script'], 999);
+    }
+    
+    /**
+     * Output inline CWV measurement script (no external dependency).
+     * Uses PerformanceObserver API available in modern browsers.
+     */
+    public static function output_cwv_inline_script() {
+        $beacon_url = admin_url('admin-ajax.php');
+        $nonce = wp_create_nonce('ssf_cwv_beacon');
+        ?>
+        <script>
+        (function(){
+            if (!('PerformanceObserver' in window)) return;
+            var cwv = {lcp:0, cls:0, inp:0, url: location.pathname};
+            
+            // LCP
+            try {
+                new PerformanceObserver(function(l){
+                    var e = l.getEntries();
+                    if(e.length) cwv.lcp = Math.round(e[e.length-1].startTime);
+                }).observe({type:'largest-contentful-paint', buffered:true});
+            } catch(e){}
+            
+            // CLS
+            try {
+                var clsVal = 0;
+                new PerformanceObserver(function(l){
+                    l.getEntries().forEach(function(e){
+                        if(!e.hadRecentInput) clsVal += e.value;
+                    });
+                    cwv.cls = Math.round(clsVal * 1000) / 1000;
+                }).observe({type:'layout-shift', buffered:true});
+            } catch(e){}
+            
+            // INP (Interaction to Next Paint)
+            try {
+                var inpVal = 0;
+                new PerformanceObserver(function(l){
+                    l.getEntries().forEach(function(e){
+                        if(e.duration > inpVal) inpVal = e.duration;
+                    });
+                    cwv.inp = Math.round(inpVal);
+                }).observe({type:'event', buffered:true, durationThreshold:16});
+            } catch(e){}
+            
+            // Send on page unload
+            function send(){
+                if(cwv.lcp === 0 && cwv.cls === 0 && cwv.inp === 0) return;
+                var data = 'action=ssf_cwv_beacon&nonce=<?php echo esc_js($nonce); ?>'
+                    + '&lcp=' + cwv.lcp + '&cls=' + cwv.cls + '&inp=' + cwv.inp
+                    + '&url=' + encodeURIComponent(cwv.url);
+                if(navigator.sendBeacon){
+                    navigator.sendBeacon('<?php echo esc_js($beacon_url); ?>', data);
+                }
+            }
+            
+            if('onvisibilitychange' in document){
+                document.addEventListener('visibilitychange', function(){
+                    if(document.visibilityState==='hidden') send();
+                });
+            } else {
+                window.addEventListener('pagehide', send);
+            }
+        })();
+        </script>
+        <?php
+    }
+    
+    /**
+     * AJAX handler for CWV beacon (called from frontend).
+     * Stores aggregated CWV data.
+     */
+    public static function handle_cwv_beacon() {
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'ssf_cwv_beacon')) {
+            wp_die('', '', ['response' => 204]);
+        }
+        
+        $lcp = floatval($_POST['lcp'] ?? 0);
+        $cls = floatval($_POST['cls'] ?? 0);
+        $inp = floatval($_POST['inp'] ?? 0);
+        $url = sanitize_text_field($_POST['url'] ?? '');
+        
+        if ($lcp <= 0 && $cls <= 0 && $inp <= 0) {
+            wp_die('', '', ['response' => 204]);
+        }
+        
+        $data = get_option('ssf_cwv_data', [
+            'samples' => [],
+            'summary' => ['lcp_avg' => 0, 'cls_avg' => 0, 'inp_avg' => 0, 'count' => 0],
+        ]);
+        
+        // Add sample
+        $data['samples'][] = [
+            'lcp'  => $lcp,
+            'cls'  => $cls,
+            'inp'  => $inp,
+            'url'  => $url,
+            'time' => current_time('U'),
+        ];
+        
+        // Keep last 500 samples
+        if (count($data['samples']) > 500) {
+            $data['samples'] = array_slice($data['samples'], -500);
+        }
+        
+        // Recalculate summary (p75 values — what Google uses)
+        $lcp_vals = array_column($data['samples'], 'lcp');
+        $cls_vals = array_column($data['samples'], 'cls');
+        $inp_vals = array_column($data['samples'], 'inp');
+        
+        sort($lcp_vals);
+        sort($cls_vals);
+        sort($inp_vals);
+        
+        $count = count($data['samples']);
+        $p75_idx = max(0, (int) ceil($count * 0.75) - 1);
+        
+        $data['summary'] = [
+            'lcp_p75' => $lcp_vals[$p75_idx] ?? 0,
+            'cls_p75' => $cls_vals[$p75_idx] ?? 0,
+            'inp_p75' => $inp_vals[$p75_idx] ?? 0,
+            'lcp_avg' => round(array_sum($lcp_vals) / max(1, $count)),
+            'cls_avg' => round(array_sum($cls_vals) / max(1, $count), 3),
+            'inp_avg' => round(array_sum($inp_vals) / max(1, $count)),
+            'count'   => $count,
+            'last_updated' => current_time('mysql'),
+        ];
+        
+        // Grade CWV (Google thresholds)
+        $data['summary']['lcp_grade'] = $data['summary']['lcp_p75'] <= 2500 ? 'good' : ($data['summary']['lcp_p75'] <= 4000 ? 'needs-improvement' : 'poor');
+        $data['summary']['cls_grade'] = $data['summary']['cls_p75'] <= 0.1 ? 'good' : ($data['summary']['cls_p75'] <= 0.25 ? 'needs-improvement' : 'poor');
+        $data['summary']['inp_grade'] = $data['summary']['inp_p75'] <= 200 ? 'good' : ($data['summary']['inp_p75'] <= 500 ? 'needs-improvement' : 'poor');
+        
+        update_option('ssf_cwv_data', $data, false);
+        
+        wp_die('', '', ['response' => 204]);
+    }
+    
+    /**
+     * Get Core Web Vitals summary
+     */
+    public static function get_cwv_data() {
+        return get_option('ssf_cwv_data', [
+            'samples' => [],
+            'summary' => [
+                'lcp_p75' => 0, 'cls_p75' => 0, 'inp_p75' => 0,
+                'lcp_avg' => 0, 'cls_avg' => 0, 'inp_avg' => 0,
+                'count' => 0, 'last_updated' => '',
+                'lcp_grade' => 'unknown', 'cls_grade' => 'unknown', 'inp_grade' => 'unknown',
+            ],
+        ]);
+    }
+    
+    /**
+     * Get CWV data for per-page breakdown (top slowest pages)
+     */
+    public static function get_cwv_by_page($limit = 10) {
+        $data = self::get_cwv_data();
+        $pages = [];
+        
+        foreach ($data['samples'] as $sample) {
+            $url = $sample['url'];
+            if (!isset($pages[$url])) {
+                $pages[$url] = ['lcp' => [], 'cls' => [], 'inp' => [], 'count' => 0];
+            }
+            $pages[$url]['lcp'][] = $sample['lcp'];
+            $pages[$url]['cls'][] = $sample['cls'];
+            $pages[$url]['inp'][] = $sample['inp'];
+            $pages[$url]['count']++;
+        }
+        
+        $result = [];
+        foreach ($pages as $url => $metrics) {
+            $result[] = [
+                'url'   => $url,
+                'count' => $metrics['count'],
+                'lcp_avg' => round(array_sum($metrics['lcp']) / max(1, $metrics['count'])),
+                'cls_avg' => round(array_sum($metrics['cls']) / max(1, $metrics['count']), 3),
+                'inp_avg' => round(array_sum($metrics['inp']) / max(1, $metrics['count'])),
+            ];
+        }
+        
+        // Sort by worst LCP
+        usort($result, function($a, $b) { return $b['lcp_avg'] - $a['lcp_avg']; });
+        
+        return array_slice($result, 0, $limit);
     }
 }
