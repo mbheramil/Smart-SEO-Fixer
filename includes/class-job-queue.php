@@ -285,6 +285,12 @@ class SSF_Job_Queue {
             case 'orphan_fix_batch':
                 return self::process_orphan_fix($item_id, $payload);
                 
+            case 'not_indexed_ai_fix':
+                return self::process_not_indexed_fix($item_id, $payload);
+                
+            case 'bulk_404_redirect':
+                return self::process_404_redirect($item_id, $payload);
+                
             default:
                 return new WP_Error('unknown_type', sprintf('Unknown job type: %s', $job_type));
         }
@@ -411,6 +417,114 @@ class SSF_Job_Queue {
         // The orphan fix is complex — we simulate what the AJAX handler does
         // For now, return a placeholder; the actual fix logic is in class-search-console.php
         return new WP_Error('not_implemented', 'Orphan fix via queue not yet implemented');
+    }
+    
+    /**
+     * Process a single "not indexed" AI fix item
+     * Generates missing SEO title, meta description, and fixes link issues
+     */
+    private static function process_not_indexed_fix($post_id, $payload) {
+        $post = get_post(intval($post_id));
+        if (!$post) {
+            return new WP_Error('not_found', 'Post not found');
+        }
+        
+        $openai = SSF_AI::get();
+        if (!$openai->is_configured()) {
+            return new WP_Error('no_api_key', SSF_AI::not_configured_message());
+        }
+        
+        $issues_map = [];
+        if (!empty($payload['issues'])) {
+            $decoded = is_string($payload['issues']) ? json_decode($payload['issues'], true) : $payload['issues'];
+            if (is_array($decoded)) {
+                $issues_map = $decoded;
+            }
+        }
+        $issues = isset($issues_map[$post_id]) ? (array) $issues_map[$post_id] : [];
+        $generated = [];
+        
+        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+        $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
+        
+        // Generate keyword if missing
+        if (empty($focus_keyword) && str_word_count($clean_content) >= 10) {
+            $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+            if (!is_wp_error($keywords) && !empty($keywords['primary'])) {
+                $focus_keyword = sanitize_text_field($keywords['primary']);
+                update_post_meta($post_id, '_ssf_focus_keyword', $focus_keyword);
+                $generated[] = 'keyword';
+            }
+        }
+        
+        // Fix missing title
+        if (in_array('missing_title', $issues) || empty(get_post_meta($post_id, '_ssf_seo_title', true))) {
+            if (str_word_count($clean_content) >= 10) {
+                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                if (!is_wp_error($title) && !empty(trim($title))) {
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                    $generated[] = 'title';
+                }
+            }
+        }
+        
+        // Fix missing description
+        if (in_array('missing_description', $issues) || empty(get_post_meta($post_id, '_ssf_meta_description', true))) {
+            if (str_word_count($clean_content) >= 10) {
+                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                if (!is_wp_error($desc) && !empty(trim($desc))) {
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                    $generated[] = 'description';
+                }
+            }
+        }
+        
+        // Re-analyze
+        if (class_exists('SSF_Analyzer')) {
+            $analyzer = new SSF_Analyzer();
+            $analyzer->analyze_post($post_id);
+        }
+        
+        if (!empty($generated)) {
+            return sprintf('Fixed: %s', implode(', ', $generated));
+        }
+        
+        return 'No fixable issues found';
+    }
+    
+    /**
+     * Process a single 404 redirect item
+     * Item is the 404 URL string, payload contains redirect_to
+     */
+    private static function process_404_redirect($url, $payload) {
+        $redirect_to = $payload['redirect_to'] ?? '';
+        if (empty($redirect_to)) {
+            return new WP_Error('no_target', 'No redirect target URL');
+        }
+        
+        if (!class_exists('SSF_Redirects')) {
+            return new WP_Error('no_module', 'Redirects module not available');
+        }
+        
+        $redirects = new SSF_Redirects();
+        
+        // Check for duplicates
+        $existing = $redirects->get_redirects();
+        foreach ($existing as $r) {
+            if (trim($r['from'], '/') === trim($url, '/')) {
+                return 'Skipped (redirect already exists)';
+            }
+        }
+        
+        $redirects->add_redirect([
+            'from'    => $url,
+            'to'      => esc_url_raw($redirect_to),
+            'type'    => 301,
+            'note'    => 'Bulk from 404 log (background)',
+            'auto'    => false,
+        ]);
+        
+        return 'Redirect created';
     }
     
     /**

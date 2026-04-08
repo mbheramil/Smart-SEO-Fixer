@@ -230,10 +230,16 @@ if (class_exists('SSF_GSC_Client')) {
                     <span class="dashicons dashicons-warning" style="color: #f59e0b;"></span>
                     <?php esc_html_e('Pages Not Appearing in Search', 'smart-seo-fixer'); ?>
                 </h2>
-                <button type="button" class="button" id="ssf-gsc-scan-indexed">
-                    <span class="dashicons dashicons-search" style="vertical-align: text-bottom;"></span>
-                    <?php esc_html_e('Scan Now', 'smart-seo-fixer'); ?>
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="button button-primary" id="ssf-bulk-ai-fix-idx" style="display:none;">
+                        <span class="dashicons dashicons-admin-generic" style="vertical-align: text-bottom;"></span>
+                        <?php esc_html_e('Bulk AI Fix Selected', 'smart-seo-fixer'); ?>
+                    </button>
+                    <button type="button" class="button" id="ssf-gsc-scan-indexed">
+                        <span class="dashicons dashicons-search" style="vertical-align: text-bottom;"></span>
+                        <?php esc_html_e('Scan Now', 'smart-seo-fixer'); ?>
+                    </button>
+                </div>
             </div>
             <div class="ssf-card-body">
                 <p class="description" style="margin: 0 0 16px;" id="ssf-gsc-index-desc">
@@ -264,14 +270,27 @@ if (class_exists('SSF_GSC_Client')) {
                     <p style="color: #9ca3af;"><?php esc_html_e('Scanning pages... This may take a moment.', 'smart-seo-fixer'); ?></p>
                 </div>
                 
+                <!-- Job Progress (background) -->
+                <div id="ssf-idx-job-progress" style="display:none; margin-bottom: 20px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                        <span id="ssf-idx-job-text" style="color:#374151;font-weight:500;"><?php esc_html_e('Processing in background...', 'smart-seo-fixer'); ?></span>
+                        <span id="ssf-idx-job-pct" style="color:#6b7280;">0%</span>
+                    </div>
+                    <div style="background:#e5e7eb;border-radius:9999px;height:10px;overflow:hidden;">
+                        <div id="ssf-idx-job-bar" style="background:#2271b1;height:100%;width:0%;transition:width 0.3s ease;border-radius:9999px;"></div>
+                    </div>
+                    <div id="ssf-idx-job-status" style="margin-top:8px;font-size:12px;color:#059669;display:none;"></div>
+                </div>
+                
                 <!-- Results table -->
                 <div id="ssf-gsc-index-results" style="display: none;">
                     <table class="wp-list-table widefat striped" id="ssf-gsc-index-table">
                         <thead>
                             <tr>
-                                <th style="width: 35%;"><?php esc_html_e('Page', 'smart-seo-fixer'); ?></th>
-                                <th style="width: 30%;"><?php esc_html_e('Issues Found', 'smart-seo-fixer'); ?></th>
-                                <th style="width: 15%;"><?php esc_html_e('Status', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 30px;"><input type="checkbox" id="ssf-idx-select-all"></th>
+                                <th style="width: 32%;"><?php esc_html_e('Page', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 28%;"><?php esc_html_e('Issues Found', 'smart-seo-fixer'); ?></th>
+                                <th style="width: 12%;"><?php esc_html_e('Status', 'smart-seo-fixer'); ?></th>
                                 <th style="width: 20%; text-align: right;"><?php esc_html_e('Actions', 'smart-seo-fixer'); ?></th>
                             </tr>
                         </thead>
@@ -578,6 +597,7 @@ jQuery(document).ready(function($) {
             var statusLabel = p.issue_count > 2 ? '<?php esc_html_e('Critical', 'smart-seo-fixer'); ?>' : (p.issue_count > 0 ? '<?php esc_html_e('Needs Fix', 'smart-seo-fixer'); ?>' : '<?php esc_html_e('Check', 'smart-seo-fixer'); ?>');
             
             html += '<tr id="ssf-idx-row-' + p.id + '">';
+            html += '<td><input type="checkbox" class="ssf-idx-check" value="' + p.id + '" data-issues=\'' + JSON.stringify(p.issues) + '\'></td>';
             html += '<td>';
             html += '<a href="' + $('<span>').text(p.url).html() + '" target="_blank" style="text-decoration:none;font-weight:500;">' + $('<span>').text(p.title).html() + '</a>';
             html += '<div style="font-size:11px;color:#9ca3af;">' + p.post_type + '</div>';
@@ -593,6 +613,135 @@ jQuery(document).ready(function($) {
             html += '</tr>';
         });
         return html;
+    }
+    
+    // Select All for Not Indexed — selects ALL items, not just visible page
+    $('#ssf-idx-select-all').on('change', function() {
+        var isChecked = $(this).is(':checked');
+        $('.ssf-idx-check').prop('checked', isChecked);
+        // When "select all" is checked, flag that ALL items are selected (even beyond visible rows)
+        if (isChecked) {
+            idxSelectAllMode = true;
+        } else {
+            idxSelectAllMode = false;
+        }
+        toggleBulkAiBtn();
+    });
+    var idxSelectAllMode = false;
+    $(document).on('change', '.ssf-idx-check', function() {
+        if (!$(this).is(':checked')) idxSelectAllMode = false;
+        toggleBulkAiBtn();
+    });
+    function toggleBulkAiBtn() {
+        var count = idxSelectAllMode ? allNotIndexed.length : $('.ssf-idx-check:checked').length;
+        if (count > 0) {
+            $('#ssf-bulk-ai-fix-idx').show().find('.dashicons').after(function() { return ''; });
+            // Update button text with count
+            $('#ssf-bulk-ai-fix-idx').html('<span class="dashicons dashicons-admin-generic" style="vertical-align:text-bottom;"></span> <?php echo esc_js(__('Bulk AI Fix', 'smart-seo-fixer')); ?> (' + count + ')');
+        } else {
+            $('#ssf-bulk-ai-fix-idx').hide();
+        }
+    }
+    
+    // Bulk AI Fix — dispatches background job
+    var idxJobId = null;
+    var idxPollTimer = null;
+    
+    $('#ssf-bulk-ai-fix-idx').on('click', function() {
+        var selectedIds = [];
+        var issuesMap = {};
+        
+        if (idxSelectAllMode) {
+            // Select ALL items from the full dataset, not just visible rows
+            allNotIndexed.forEach(function(p) {
+                if (p.issue_count > 0) {
+                    selectedIds.push(p.id);
+                    issuesMap[p.id] = p.issues;
+                }
+            });
+        } else {
+            $('.ssf-idx-check:checked').each(function() {
+                var id = $(this).val();
+                var issues = $(this).data('issues') || [];
+                selectedIds.push(id);
+                issuesMap[id] = issues;
+            });
+        }
+        
+        if (!selectedIds.length) {
+            alert('<?php echo esc_js(__('No pages with fixable issues selected.', 'smart-seo-fixer')); ?>');
+            return;
+        }
+        
+        if (!confirm('<?php echo esc_js(__('This will run AI fixes on the selected pages in the background. You can leave this page. Continue?', 'smart-seo-fixer')); ?>')) return;
+        
+        var $btn = $(this).prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> <?php echo esc_js(__('Dispatching...', 'smart-seo-fixer')); ?>');
+        
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_dispatch_job',
+            nonce: ssfAdmin.nonce,
+            job_type: 'not_indexed_ai_fix',
+            items: selectedIds,
+            payload: { issues: JSON.stringify(issuesMap) }
+        }, function(response) {
+            if (!response.success) {
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-admin-generic" style="vertical-align:text-bottom;"></span> <?php echo esc_js(__('Bulk AI Fix Selected', 'smart-seo-fixer')); ?>');
+                alert(response.data?.message || '<?php echo esc_js(__('Failed to create job.', 'smart-seo-fixer')); ?>');
+                return;
+            }
+            
+            idxJobId = response.data.job_id;
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-admin-generic" style="vertical-align:text-bottom;"></span> <?php echo esc_js(__('Bulk AI Fix Selected', 'smart-seo-fixer')); ?>');
+            
+            // Show progress bar and start polling
+            $('#ssf-idx-job-progress').show();
+            $('#ssf-idx-job-bar').css('width', '0%');
+            $('#ssf-idx-job-text').text('<?php echo esc_js(__('Processing in background...', 'smart-seo-fixer')); ?> 0 / ' + response.data.total);
+            $('#ssf-idx-job-pct').text('0%');
+            $('#ssf-idx-job-status').hide();
+            
+            startIdxPoll();
+        }).fail(function() {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-admin-generic" style="vertical-align:text-bottom;"></span> <?php echo esc_js(__('Bulk AI Fix Selected', 'smart-seo-fixer')); ?>');
+            alert('<?php echo esc_js(__('Request failed. Please try again.', 'smart-seo-fixer')); ?>');
+        });
+    });
+    
+    function startIdxPoll() {
+        if (idxPollTimer) clearInterval(idxPollTimer);
+        idxPollTimer = setInterval(pollIdxJob, 5000);
+    }
+    
+    function pollIdxJob() {
+        if (!idxJobId) return;
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_poll_job',
+            nonce: ssfAdmin.nonce,
+            job_id: idxJobId
+        }, function(response) {
+            if (!response.success) return;
+            var d = response.data;
+            $('#ssf-idx-job-bar').css('width', d.percent + '%');
+            $('#ssf-idx-job-text').text('<?php echo esc_js(__('Processing in background...', 'smart-seo-fixer')); ?> ' + d.processed + ' / ' + d.total);
+            $('#ssf-idx-job-pct').text(d.percent + '%');
+            
+            if (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') {
+                clearInterval(idxPollTimer);
+                idxPollTimer = null;
+                
+                if (d.status === 'completed') {
+                    $('#ssf-idx-job-bar').css({'width':'100%','background':'#059669'});
+                    var msg = d.processed + ' <?php echo esc_js(__('pages processed', 'smart-seo-fixer')); ?>';
+                    if (d.failed > 0) msg += ' (' + d.failed + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>)';
+                    $('#ssf-idx-job-status').html('✓ ' + msg).css('color', '#059669').show();
+                } else if (d.status === 'failed') {
+                    $('#ssf-idx-job-bar').css('background', '#dc2626');
+                    $('#ssf-idx-job-status').html('✗ <?php echo esc_js(__('Job failed', 'smart-seo-fixer')); ?>: ' + (d.error_message || '')).css('color', '#dc2626').show();
+                } else {
+                    $('#ssf-idx-job-status').html('<?php echo esc_js(__('Job cancelled', 'smart-seo-fixer')); ?>').css('color', '#f59e0b').show();
+                }
+            }
+        });
     }
     
     // Scan button

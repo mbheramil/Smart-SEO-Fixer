@@ -155,6 +155,10 @@ class SSF_Ajax {
         // Onboarding checklist
         add_action('wp_ajax_ssf_get_onboarding_status', [$this, 'get_onboarding_status']);
         add_action('wp_ajax_ssf_dismiss_onboarding', [$this, 'dismiss_onboarding']);
+        
+        // Generic background job dispatch & polling
+        add_action('wp_ajax_ssf_dispatch_job', [$this, 'dispatch_job']);
+        add_action('wp_ajax_ssf_poll_job', [$this, 'poll_job']);
     }
     
     /**
@@ -3896,6 +3900,110 @@ class SSF_Ajax {
         $wpdb->update($table, ['status' => 'pending', 'attempts' => 0, 'error' => ''], ['id' => $job_id]);
         
         wp_send_json_success(['message' => __('Job requeued.', 'smart-seo-fixer')]);
+    }
+    
+    // =========================================================================
+    // Generic Background Job Dispatch & Polling
+    // =========================================================================
+    
+    /**
+     * Dispatch a background job via SSF_Job_Queue
+     * 
+     * Accepts: job_type, items (array of IDs), payload (optional config)
+     * Returns: job_id on success for polling
+     */
+    public function dispatch_job() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $allowed_types = [
+            'bulk_ai_fix', 'bulk_schema', 'orphan_fix_batch',
+            'not_indexed_ai_fix', 'bulk_404_redirect',
+        ];
+        
+        $job_type = sanitize_key($_POST['job_type'] ?? '');
+        if (!in_array($job_type, $allowed_types, true)) {
+            wp_send_json_error(['message' => __('Invalid job type.', 'smart-seo-fixer')]);
+        }
+        
+        $items = isset($_POST['items']) ? array_values(array_filter(array_map('sanitize_text_field', (array) $_POST['items']))) : [];
+        if (empty($items)) {
+            wp_send_json_error(['message' => __('No items to process.', 'smart-seo-fixer')]);
+        }
+        
+        $payload = [];
+        if (isset($_POST['payload']) && is_array($_POST['payload'])) {
+            foreach ($_POST['payload'] as $k => $v) {
+                $payload[sanitize_key($k)] = sanitize_text_field($v);
+            }
+        }
+        
+        $job_id = SSF_Job_Queue::create($job_type, $items, $payload);
+        
+        if (is_wp_error($job_id)) {
+            wp_send_json_error(['message' => $job_id->get_error_message()]);
+        }
+        
+        wp_send_json_success([
+            'job_id'  => $job_id,
+            'total'   => count($items),
+            'message' => sprintf(
+                __('Job #%d created with %d items. Processing in background.', 'smart-seo-fixer'),
+                $job_id, count($items)
+            ),
+        ]);
+    }
+    
+    /**
+     * Poll a specific job's progress
+     * 
+     * Accepts: job_id
+     * Returns: status, processed, total, failed, percent, results (if completed)
+     */
+    public function poll_job() {
+        $this->verify_nonce();
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        if (!$job_id) {
+            wp_send_json_error(['message' => __('Invalid job ID.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => __('Job queue not available.', 'smart-seo-fixer')]);
+        }
+        
+        $job = SSF_Job_Queue::get($job_id);
+        if (!$job) {
+            wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
+        }
+        
+        $total     = intval($job->total_items);
+        $processed = intval($job->processed_items);
+        $failed    = intval($job->failed_items);
+        $percent   = $total > 0 ? round(($processed / $total) * 100) : 0;
+        
+        $data = [
+            'job_id'    => intval($job->id),
+            'status'    => $job->status,
+            'total'     => $total,
+            'processed' => $processed,
+            'failed'    => $failed,
+            'percent'   => $percent,
+        ];
+        
+        if (in_array($job->status, ['completed', 'failed', 'cancelled'])) {
+            $data['results'] = $job->results;
+            $data['error_message'] = $job->error_message;
+        }
+        
+        wp_send_json_success($data);
     }
     
     // =========================================================================

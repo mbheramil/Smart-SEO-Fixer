@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.2
+Stable tag: 2.0.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,7 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
-
+= 2.0.3 =
+* New: Bulk AI Fix button for "Pages Not Appearing in Search" — select pages and fix all missing titles/descriptions at once
+* New: All bulk operations (AI fix, schema regenerate, 404 redirects) now run as background jobs — you can leave the page while processing continues
+* New: Generic job dispatch and polling system (ssf_dispatch_job / ssf_poll_job AJAX endpoints)
+* New: Background job types: not_indexed_ai_fix, bulk_404_redirect
+* Enhancement: "Select All" on 404 log and Pages Not Indexed now selects ALL items, not just the visible page
+* Enhancement: Schema bulk regenerate now dispatches a background job with progress polling
+* Enhancement: 404 bulk redirect now dispatches a background job instead of sequential inline AJAX
 = 2.0.0 =
 * New: Core Web Vitals (LCP, CLS, INP) real-user monitoring with p75 grading
 * New: Image SEO — automatic lazy loading, eager first image, missing dimensions, decoding=async
