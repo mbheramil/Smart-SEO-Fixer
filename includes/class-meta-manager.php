@@ -212,10 +212,17 @@ class SSF_Meta_Manager {
      */
     public function disable_conflicting_plugins() {
         // === Yoast SEO ===
-        // Primary: remove the wpseo_head() function Yoast hooks to wp_head at priority 1.
-        // This stops ALL Yoast meta output (titles, descriptions, OG, JSON-LD, etc.) in one shot.
-        // Works regardless of which Yoast version is installed.
-        remove_action('wp_head', 'wpseo_head', 1);
+        // remove_action during init fires BEFORE Yoast has a chance to add_action to wp_head,
+        // so the removal is silently ignored. Instead, hook to wp_head at priority 0 so we
+        // remove Yoast's priority-1 hook right before it would fire — guaranteed to work.
+        add_action('wp_head', function() {
+            remove_action('wp_head', 'wpseo_head', 1);
+            // Old-style Yoast (pre-v14)
+            if (class_exists('WPSEO_Frontend')) {
+                $instance = WPSEO_Frontend::get_instance();
+                remove_action('wp_head', [$instance, 'head'], 1);
+            }
+        }, 0);
         
         if (defined('WPSEO_VERSION') || class_exists('WPSEO_Frontend')) {
             // Belt-and-suspenders filters for any Yoast output that leaks through other paths
@@ -232,15 +239,6 @@ class SSF_Meta_Manager {
             add_filter('wpseo_robots', '__return_empty_string', 9999);
             add_filter('wpseo_json_ld_output', '__return_empty_array', 9999);
             add_filter('wpseo_schema_graph', '__return_empty_array', 9999);
-            
-            // Old-style Yoast (pre-v14)
-            add_action('template_redirect', function() {
-                if (class_exists('WPSEO_Frontend')) {
-                    $instance = WPSEO_Frontend::get_instance();
-                    remove_action('wp_head', [$instance, 'head'], 1);
-                }
-                remove_action('wp_head', 'adjacent_posts_rel_link_wp_head', 10);
-            });
         }
         
         // === Rank Math ===

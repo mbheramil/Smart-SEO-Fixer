@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.12
+Stable tag: 2.0.13
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.13 =
+* Fix: Yoast meta description still duplicating after v2.0.12 — remove_action during init fires before Yoast registers its wp_head hook so the removal was silently ignored; now removes wpseo_head inside a wp_head priority-0 callback, which runs after Yoast has registered but before it fires
+
 = 2.0.12 =
 * Fix: Duplicate title and meta description tags — two bugs caused this: (1) SSF's remove_action for WordPress's built-in title tag was registered on after_setup_theme but SSF initialises on init (after_setup_theme fires first), so the removal never happened; fixed by calling remove_action directly in the constructor; (2) Yoast SEO hooks its entire head output via a standalone wpseo_head() function at wp_head priority 1 which SSF was not removing; added remove_action('wp_head', 'wpseo_head', 1) as the primary Yoast suppression
 
