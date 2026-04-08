@@ -3314,5 +3314,763 @@ class SSF_Ajax {
         
         wp_send_json_success(['message' => __('Onboarding dismissed.', 'smart-seo-fixer')]);
     }
+    
+    // =========================================================================
+    // 404 Monitor AJAX Handlers
+    // =========================================================================
+    
+    /**
+     * Get 404 logs with pagination and filters
+     */
+    public function get_404_logs() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_404_Monitor')) {
+            wp_send_json_error(['message' => __('404 Monitor is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_404_Monitor::query([
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => 20,
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+            'status'   => sanitize_text_field($_POST['status'] ?? 'active'),
+        ]);
+        
+        $items = [];
+        foreach ($result['items'] as $row) {
+            $items[] = [
+                'id'            => intval($row->id),
+                'url'           => $row->url,
+                'hit_count'     => intval($row->hit_count),
+                'referrer'      => $row->referrer,
+                'last_hit'      => $row->last_hit,
+                'redirected_to' => $row->redirected_to,
+                'dismissed'     => intval($row->dismissed),
+            ];
+        }
+        
+        wp_send_json_success([
+            'items' => $items,
+            'total' => $result['total'],
+            'pages' => $result['pages'],
+            'page'  => $result['page'],
+        ]);
+    }
+    
+    /**
+     * Dismiss a 404 entry
+     */
+    public function dismiss_404() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_404_Monitor')) {
+            wp_send_json_error(['message' => __('404 Monitor is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) {
+            wp_send_json_error(['message' => __('Invalid ID.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_404_Monitor::dismiss($id);
+        
+        wp_send_json_success(['message' => __('Entry dismissed.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Create redirect from a 404 entry
+     */
+    public function create_404_redirect() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_404_Monitor')) {
+            wp_send_json_error(['message' => __('404 Monitor is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $id = intval($_POST['id'] ?? 0);
+        $redirect_to = esc_url_raw($_POST['redirect_to'] ?? '');
+        
+        if (!$id || empty($redirect_to)) {
+            wp_send_json_error(['message' => __('Both ID and redirect URL are required.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_404_Monitor::create_redirect($id, $redirect_to);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success(['message' => __('Redirect created.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Clear all 404 logs
+     */
+    public function clear_404_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_404_Monitor')) {
+            wp_send_json_error(['message' => __('404 Monitor is not available.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_404_Monitor::clear_all();
+        
+        wp_send_json_success(['message' => __('All 404 logs cleared.', 'smart-seo-fixer')]);
+    }
+    
+    // =========================================================================
+    // GSC: Pages Not Indexed
+    // =========================================================================
+    
+    /**
+     * Scan for pages not appearing in Google Search
+     */
+    public function gsc_not_indexed() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('Google Search Console is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        if (!$gsc->is_connected()) {
+            wp_send_json_error(['message' => __('Google Search Console is not connected. Go to Settings to connect.', 'smart-seo-fixer')]);
+        }
+        
+        // Get all published posts/pages
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $published = get_posts([
+            'post_type'      => $post_types,
+            'post_status'    => 'publish',
+            'posts_per_page' => 500,
+            'fields'         => 'ids',
+        ]);
+        
+        if (empty($published)) {
+            wp_send_json_success([
+                'total_published' => 0,
+                'total_in_gsc'    => 0,
+                'count'           => 0,
+                'not_indexed'     => [],
+            ]);
+        }
+        
+        // Build URL list for all published posts
+        $published_urls = [];
+        foreach ($published as $post_id) {
+            $url = get_permalink($post_id);
+            if ($url) {
+                $published_urls[$post_id] = $url;
+            }
+        }
+        
+        // Get all pages that have appeared in GSC (last 90 days)
+        $gsc_result = $gsc->get_search_analytics([
+            'startDate'  => date('Y-m-d', strtotime('-90 days')),
+            'endDate'    => date('Y-m-d', strtotime('-1 day')),
+            'dimensions' => ['page'],
+            'rowLimit'   => 5000,
+        ]);
+        
+        $gsc_urls = [];
+        if (!is_wp_error($gsc_result) && !empty($gsc_result['rows'])) {
+            foreach ($gsc_result['rows'] as $row) {
+                $gsc_urls[] = rtrim($row['keys'][0] ?? '', '/');
+            }
+        }
+        
+        // Compare: find published pages NOT in GSC
+        $not_indexed = [];
+        foreach ($published_urls as $post_id => $url) {
+            $url_normalized = rtrim($url, '/');
+            $found = false;
+            foreach ($gsc_urls as $gsc_url) {
+                if (strcasecmp($url_normalized, rtrim($gsc_url, '/')) === 0) {
+                    $found = true;
+                    break;
+                }
+            }
+            
+            if (!$found) {
+                $post = get_post($post_id);
+                $issues = [];
+                
+                // Check for common SEO issues
+                $title = get_post_meta($post_id, '_ssf_title', true);
+                $desc  = get_post_meta($post_id, '_ssf_description', true);
+                
+                if (empty($title) && empty($post->post_title)) {
+                    $issues[] = 'missing_title';
+                }
+                if (empty($desc)) {
+                    $issues[] = 'missing_meta';
+                }
+                $noindex = get_post_meta($post_id, '_ssf_noindex', true);
+                if ($noindex) {
+                    $issues[] = 'noindex';
+                }
+                // Check internal links
+                $content = $post->post_content ?? '';
+                if (substr_count($content, '<a ') < 1) {
+                    $issues[] = 'no_internal_links';
+                }
+                
+                $not_indexed[] = [
+                    'id'          => $post_id,
+                    'title'       => get_the_title($post_id),
+                    'url'         => $url,
+                    'post_type'   => $post->post_type,
+                    'issues'      => $issues,
+                    'issue_count' => count($issues),
+                    'status'      => count($issues) > 0 ? 'issues' : 'not_found',
+                ];
+            }
+        }
+        
+        // Sort by issue count descending
+        usort($not_indexed, function($a, $b) {
+            return $b['issue_count'] - $a['issue_count'];
+        });
+        
+        wp_send_json_success([
+            'total_published' => count($published_urls),
+            'total_in_gsc'    => count($gsc_urls),
+            'count'           => count($not_indexed),
+            'not_indexed'     => $not_indexed,
+        ]);
+    }
+    
+    // =========================================================================
+    // Keyword Tracker AJAX Handlers
+    // =========================================================================
+    
+    /**
+     * Get tracked keywords with pagination
+     */
+    public function get_tracked_keywords() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Keyword_Tracker::get_keywords([
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => 20,
+            'days'     => intval($_POST['days'] ?? 30),
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+        ]);
+        
+        wp_send_json_success([
+            'items' => $result['items'],
+            'total' => $result['total'],
+            'pages' => $result['pages'],
+            'page'  => $result['page'],
+        ]);
+    }
+    
+    /**
+     * Get keyword position history for a specific keyword
+     */
+    public function get_keyword_history() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $keyword = sanitize_text_field($_POST['keyword'] ?? '');
+        $days    = intval($_POST['days'] ?? 30);
+        
+        if (empty($keyword)) {
+            wp_send_json_error(['message' => __('No keyword specified.', 'smart-seo-fixer')]);
+        }
+        
+        $history = SSF_Keyword_Tracker::get_keyword_history($keyword, $days);
+        
+        wp_send_json_success($history);
+    }
+    
+    /**
+     * Manually fetch keywords from GSC now
+     */
+    public function fetch_keywords_now() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Keyword_Tracker')) {
+            wp_send_json_error(['message' => __('Keyword Tracker is not available.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('Google Search Console client is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $gsc = new SSF_GSC_Client();
+        if (!$gsc->is_connected()) {
+            wp_send_json_error(['message' => __('Google Search Console is not connected. Go to Settings to connect first.', 'smart-seo-fixer')]);
+        }
+        
+        // Run the tracking cron manually
+        SSF_Keyword_Tracker::cron_track();
+        
+        $stats = SSF_Keyword_Tracker::get_stats();
+        
+        wp_send_json_success([
+            'message'        => sprintf(__('Done! %d keywords tracked.', 'smart-seo-fixer'), $stats['total_keywords']),
+            'total_keywords' => $stats['total_keywords'],
+        ]);
+    }
+    
+    // =========================================================================
+    // Debug Log AJAX Handlers
+    // =========================================================================
+    
+    /**
+     * Get plugin logs with pagination and filtering
+     */
+    public function get_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Logger')) {
+            wp_send_json_error(['message' => __('Logger is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $level    = sanitize_text_field($_POST['level'] ?? '');
+        $category = sanitize_text_field($_POST['category'] ?? '');
+        
+        $result = SSF_Logger::query([
+            'page'     => intval($_POST['page'] ?? 1),
+            'per_page' => intval($_POST['per_page'] ?? 50),
+            'level'    => !empty($level) ? $level : null,
+            'category' => !empty($category) ? $category : null,
+            'search'   => sanitize_text_field($_POST['search'] ?? ''),
+        ]);
+        
+        $counts = SSF_Logger::get_counts();
+        
+        wp_send_json_success([
+            'items'       => $result['items'],
+            'total'       => $result['total'],
+            'page'        => $result['page'],
+            'total_pages' => $result['total_pages'],
+            'counts'      => $counts,
+        ]);
+    }
+    
+    /**
+     * Clear all debug logs
+     */
+    public function clear_logs() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Logger')) {
+            wp_send_json_error(['message' => __('Logger is not available.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $wpdb->query("TRUNCATE TABLE " . SSF_Logger::table());
+        
+        wp_send_json_success(['message' => __('All logs cleared.', 'smart-seo-fixer')]);
+    }
+    
+    // =========================================================================
+    // Change History AJAX Handlers
+    // =========================================================================
+    
+    /**
+     * Get change history
+     */
+    public function get_history() {
+        $this->verify_nonce();
+        
+        if (!class_exists('SSF_History')) {
+            wp_send_json_error(['message' => __('History tracker is not available.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_history';
+        
+        $page     = intval($_POST['page'] ?? 1);
+        $per_page = intval($_POST['per_page'] ?? 50);
+        $offset   = ($page - 1) * $per_page;
+        $search   = sanitize_text_field($_POST['search'] ?? '');
+        
+        $where = '1=1';
+        $params = [];
+        
+        if (!empty($search)) {
+            $where .= ' AND (meta_key LIKE %s OR old_value LIKE %s OR new_value LIKE %s)';
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+        
+        $total_sql = "SELECT COUNT(*) FROM $table WHERE $where";
+        $total = !empty($params) ? $wpdb->get_var($wpdb->prepare($total_sql, ...$params)) : $wpdb->get_var($total_sql);
+        
+        $sql = "SELECT h.*, p.post_title FROM $table h LEFT JOIN {$wpdb->posts} p ON h.post_id = p.ID WHERE $where ORDER BY h.changed_at DESC LIMIT %d OFFSET %d";
+        $query_params = array_merge($params, [$per_page, $offset]);
+        $items = $wpdb->get_results($wpdb->prepare($sql, ...$query_params));
+        
+        wp_send_json_success([
+            'items'       => $items ?: [],
+            'total'       => intval($total),
+            'page'        => $page,
+            'total_pages' => ceil($total / $per_page),
+        ]);
+    }
+    
+    /**
+     * Undo a change from history
+     */
+    public function undo_change() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $history_id = intval($_POST['history_id'] ?? 0);
+        if (!$history_id) {
+            wp_send_json_error(['message' => __('Invalid history ID.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_history';
+        $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $history_id));
+        
+        if (!$record) {
+            wp_send_json_error(['message' => __('History record not found.', 'smart-seo-fixer')]);
+        }
+        
+        // Restore old value
+        update_post_meta($record->post_id, $record->meta_key, $record->old_value);
+        
+        wp_send_json_success(['message' => __('Change undone successfully.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Get history stats
+     */
+    public function get_history_stats() {
+        $this->verify_nonce();
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_history';
+        
+        $total   = intval($wpdb->get_var("SELECT COUNT(*) FROM $table"));
+        $today   = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table WHERE DATE(changed_at) = %s", current_time('Y-m-d'))));
+        $week    = intval($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table WHERE changed_at >= %s", date('Y-m-d', strtotime('-7 days')))));
+        
+        wp_send_json_success([
+            'total' => $total,
+            'today' => $today,
+            'week'  => $week,
+        ]);
+    }
+    
+    // =========================================================================
+    // Job Queue AJAX Handlers
+    // =========================================================================
+    
+    /**
+     * Get job queue status summary
+     */
+    public function get_job_status() {
+        $this->verify_nonce();
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_jobs';
+        
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            wp_send_json_success(['pending' => 0, 'running' => 0, 'completed' => 0, 'failed' => 0]);
+        }
+        
+        $counts = $wpdb->get_results("SELECT status, COUNT(*) as cnt FROM $table GROUP BY status", OBJECT_K);
+        
+        wp_send_json_success([
+            'pending'   => isset($counts['pending'])   ? intval($counts['pending']->cnt)   : 0,
+            'running'   => isset($counts['running'])   ? intval($counts['running']->cnt)   : 0,
+            'completed' => isset($counts['completed']) ? intval($counts['completed']->cnt) : 0,
+            'failed'    => isset($counts['failed'])    ? intval($counts['failed']->cnt)    : 0,
+        ]);
+    }
+    
+    /**
+     * Get jobs list
+     */
+    public function get_jobs() {
+        $this->verify_nonce();
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_jobs';
+        
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            wp_send_json_success(['items' => [], 'total' => 0, 'page' => 1, 'total_pages' => 0]);
+        }
+        
+        $page     = intval($_POST['page'] ?? 1);
+        $per_page = 20;
+        $offset   = ($page - 1) * $per_page;
+        $status   = sanitize_text_field($_POST['status'] ?? '');
+        
+        $where = '1=1';
+        $params = [];
+        
+        if (!empty($status)) {
+            $where .= ' AND status = %s';
+            $params[] = $status;
+        }
+        
+        $total_sql = "SELECT COUNT(*) FROM $table WHERE $where";
+        $total = !empty($params) ? $wpdb->get_var($wpdb->prepare($total_sql, ...$params)) : $wpdb->get_var($total_sql);
+        
+        $sql = "SELECT * FROM $table WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d";
+        $query_params = array_merge($params, [$per_page, $offset]);
+        $items = $wpdb->get_results($wpdb->prepare($sql, ...$query_params));
+        
+        wp_send_json_success([
+            'items'       => $items ?: [],
+            'total'       => intval($total),
+            'page'        => $page,
+            'total_pages' => ceil($total / $per_page),
+        ]);
+    }
+    
+    /**
+     * Cancel a queued job
+     */
+    public function cancel_job() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        if (!$job_id) {
+            wp_send_json_error(['message' => __('Invalid job ID.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_jobs';
+        $wpdb->update($table, ['status' => 'cancelled'], ['id' => $job_id]);
+        
+        wp_send_json_success(['message' => __('Job cancelled.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Retry a failed job
+     */
+    public function retry_job() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $job_id = intval($_POST['job_id'] ?? 0);
+        if (!$job_id) {
+            wp_send_json_error(['message' => __('Invalid job ID.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_jobs';
+        $wpdb->update($table, ['status' => 'pending', 'attempts' => 0, 'error' => ''], ['id' => $job_id]);
+        
+        wp_send_json_success(['message' => __('Job requeued.', 'smart-seo-fixer')]);
+    }
+    
+    // =========================================================================
+    // Miscellaneous Missing Handlers
+    // =========================================================================
+    
+    /**
+     * Save robots.txt content
+     */
+    public function save_robots() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $content = sanitize_textarea_field($_POST['robots_content'] ?? '');
+        Smart_SEO_Fixer::update_option('robots_txt', $content);
+        
+        if (class_exists('SSF_Logger')) {
+            SSF_Logger::info('robots.txt content updated', 'general');
+        }
+        
+        wp_send_json_success(['message' => __('robots.txt saved.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Analyze readability of a post
+     */
+    public function analyze_readability() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
+        }
+        
+        if (class_exists('SSF_Readability')) {
+            $readability = new SSF_Readability();
+            $result = $readability->analyze($post->post_content);
+            wp_send_json_success($result);
+        }
+        
+        wp_send_json_error(['message' => __('Readability analyzer is not available.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Save social preview data
+     */
+    public function save_social_data() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        $fields = ['og_title', 'og_description', 'og_image', 'twitter_title', 'twitter_description', 'twitter_image'];
+        foreach ($fields as $field) {
+            if (isset($_POST[$field])) {
+                update_post_meta($post_id, '_ssf_' . $field, sanitize_text_field($_POST[$field]));
+            }
+        }
+        
+        wp_send_json_success(['message' => __('Social data saved.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Get social preview data for a post
+     */
+    public function get_social_data() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        $data = [];
+        $fields = ['og_title', 'og_description', 'og_image', 'twitter_title', 'twitter_description', 'twitter_image'];
+        foreach ($fields as $field) {
+            $data[$field] = get_post_meta($post_id, '_ssf_' . $field, true);
+        }
+        
+        wp_send_json_success($data);
+    }
+    
+    /**
+     * Get content suggestions for a post
+     */
+    public function content_suggestions() {
+        $this->verify_nonce();
+        
+        $post_id = intval($_POST['post_id'] ?? 0);
+        if (!$post_id) {
+            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Content_Suggestions')) {
+            wp_send_json_error(['message' => __('Content Suggestions module is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $suggestions = new SSF_Content_Suggestions();
+        $result = $suggestions->get_suggestions($post_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Run WP coding standards audit
+     */
+    public function wp_standards_audit() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_WP_Standards')) {
+            wp_send_json_error(['message' => __('WP Standards module is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $auditor = new SSF_WP_Standards();
+        $result = $auditor->audit();
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Get performance profiling data
+     */
+    public function performance_data() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Performance')) {
+            wp_send_json_error(['message' => __('Performance module is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $perf = new SSF_Performance();
+        $data = $perf->get_data();
+        
+        wp_send_json_success($data);
+    }
+    
+    /**
+     * Clear performance data
+     */
+    public function performance_clear() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Performance')) {
+            wp_send_json_error(['message' => __('Performance module is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $perf = new SSF_Performance();
+        $perf->clear();
+        
+        wp_send_json_success(['message' => __('Performance data cleared.', 'smart-seo-fixer')]);
+    }
 }
 

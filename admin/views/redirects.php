@@ -77,7 +77,12 @@ if (!defined('ABSPATH')) exit;
     <div class="ssf-card">
         <div class="ssf-card-header">
             <h2><span class="dashicons dashicons-warning"></span> <?php esc_html_e('404 Error Log', 'smart-seo-fixer'); ?></h2>
-            <button type="button" class="button" id="ssf-clear-404" style="color:#dc2626;border-color:#dc2626;"><?php esc_html_e('Clear Log', 'smart-seo-fixer'); ?></button>
+            <div>
+                <button type="button" class="button button-primary" id="ssf-bulk-redirect-404" style="display:none;margin-right:6px;">
+                    <span class="dashicons dashicons-randomize" style="line-height:1.5;"></span> <?php esc_html_e('Bulk Redirect Selected', 'smart-seo-fixer'); ?>
+                </button>
+                <button type="button" class="button" id="ssf-clear-404" style="color:#dc2626;border-color:#dc2626;"><?php esc_html_e('Clear Log', 'smart-seo-fixer'); ?></button>
+            </div>
         </div>
         <div class="ssf-card-body" style="padding:0;">
             <div id="ssf-404-loading" style="padding:30px;text-align:center;"><span class="spinner is-active" style="float:none;"></span></div>
@@ -87,6 +92,7 @@ if (!defined('ABSPATH')) exit;
             <table id="ssf-404-table" class="widefat striped" style="display:none;border:0;">
                 <thead>
                     <tr>
+                        <th style="width:30px;"><input type="checkbox" id="ssf-404-select-all"></th>
                         <th><?php esc_html_e('URL', 'smart-seo-fixer'); ?></th>
                         <th style="width:60px;"><?php esc_html_e('Hits', 'smart-seo-fixer'); ?></th>
                         <th><?php esc_html_e('Last Hit', 'smart-seo-fixer'); ?></th>
@@ -95,6 +101,25 @@ if (!defined('ABSPATH')) exit;
                 </thead>
                 <tbody id="ssf-404-tbody"></tbody>
             </table>
+        </div>
+        <!-- Bulk Redirect Modal -->
+        <div id="ssf-bulk-redirect-modal" style="display:none;">
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:999999;">
+                <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 12px;"><?php esc_html_e('Bulk Redirect 404s', 'smart-seo-fixer'); ?></h3>
+                    <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">
+                        <span id="ssf-bulk-count">0</span> <?php esc_html_e('URLs selected. All will be 301 redirected to:', 'smart-seo-fixer'); ?>
+                    </p>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;"><?php esc_html_e('Redirect to:', 'smart-seo-fixer'); ?></label>
+                        <input type="url" id="ssf-bulk-redirect-to" class="regular-text" style="width:100%;" value="<?php echo esc_attr(home_url('/')); ?>">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;">
+                        <button type="button" class="button" id="ssf-bulk-redirect-cancel"><?php esc_html_e('Cancel', 'smart-seo-fixer'); ?></button>
+                        <button type="button" class="button button-primary" id="ssf-bulk-redirect-confirm"><?php esc_html_e('Create Redirects', 'smart-seo-fixer'); ?></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -134,6 +159,7 @@ jQuery(document).ready(function($) {
             var html = '';
             r.data.log.forEach(function(entry) {
                 html += '<tr>';
+                html += '<td><input type="checkbox" class="ssf-404-check" value="'+escA(entry.url)+'"></td>';
                 html += '<td><code>'+escH(entry.url)+'</code></td>';
                 html += '<td><strong>'+entry.hits+'</strong></td>';
                 html += '<td style="font-size:12px;">'+escH(entry.last_hit||'')+'</td>';
@@ -192,6 +218,51 @@ jQuery(document).ready(function($) {
     $('#ssf-clear-404').on('click', function() {
         if (!confirm('<?php echo esc_js(__('Clear all 404 log entries?', 'smart-seo-fixer')); ?>')) return;
         $.post(ssfAdmin.ajax_url, {action:'ssf_clear_404_log',nonce:ssfAdmin.nonce}, function() { load404Log(); });
+    });
+    
+    // Select all 404 checkboxes
+    $('#ssf-404-select-all').on('change', function() {
+        $('.ssf-404-check').prop('checked', $(this).is(':checked'));
+        toggleBulkBtn();
+    });
+    $(document).on('change', '.ssf-404-check', function() { toggleBulkBtn(); });
+    function toggleBulkBtn() {
+        var count = $('.ssf-404-check:checked').length;
+        if (count > 0) { $('#ssf-bulk-redirect-404').show(); } else { $('#ssf-bulk-redirect-404').hide(); }
+    }
+    
+    // Bulk redirect modal
+    $('#ssf-bulk-redirect-404').on('click', function() {
+        var count = $('.ssf-404-check:checked').length;
+        if (!count) return;
+        $('#ssf-bulk-count').text(count);
+        $('#ssf-bulk-redirect-modal').show();
+    });
+    $('#ssf-bulk-redirect-cancel').on('click', function() { $('#ssf-bulk-redirect-modal').hide(); });
+    
+    // Bulk redirect confirm
+    $('#ssf-bulk-redirect-confirm').on('click', function() {
+        var redirectTo = $('#ssf-bulk-redirect-to').val().trim();
+        if (!redirectTo) { alert('<?php echo esc_js(__('Enter a redirect URL.', 'smart-seo-fixer')); ?>'); return; }
+        var urls = [];
+        $('.ssf-404-check:checked').each(function() { urls.push($(this).val()); });
+        if (!urls.length) return;
+        var $btn = $(this).prop('disabled', true).text('<?php echo esc_js(__('Creating...', 'smart-seo-fixer')); ?>');
+        var done = 0;
+        function addNext() {
+            if (done >= urls.length) {
+                $btn.prop('disabled', false).text('<?php echo esc_js(__('Create Redirects', 'smart-seo-fixer')); ?>');
+                $('#ssf-bulk-redirect-modal').hide();
+                loadRedirects();
+                load404Log();
+                return;
+            }
+            $.post(ssfAdmin.ajax_url, {action:'ssf_add_redirect',nonce:ssfAdmin.nonce,from:urls[done],to:redirectTo,redirect_type:'301',note:'Bulk from 404 log'}, function() {
+                done++;
+                addNext();
+            }).fail(function() { done++; addNext(); });
+        }
+        addNext();
     });
     
     function escH(t) { var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; }
