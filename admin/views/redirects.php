@@ -114,6 +114,16 @@ if (!defined('ABSPATH')) exit;
                         <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;"><?php esc_html_e('Redirect to:', 'smart-seo-fixer'); ?></label>
                         <input type="url" id="ssf-bulk-redirect-to" class="regular-text" style="width:100%;" value="<?php echo esc_attr(home_url('/')); ?>">
                     </div>
+                    <div id="ssf-bulk-progress-wrap" style="display:none;margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                            <span id="ssf-bulk-progress-text" style="color:#374151;font-weight:500;">0 / 0</span>
+                            <span id="ssf-bulk-progress-pct" style="color:#6b7280;">0%</span>
+                        </div>
+                        <div style="background:#e5e7eb;border-radius:9999px;height:10px;overflow:hidden;">
+                            <div id="ssf-bulk-progress-bar" style="background:#2271b1;height:100%;width:0%;transition:width 0.3s ease;border-radius:9999px;"></div>
+                        </div>
+                        <div id="ssf-bulk-progress-status" style="margin-top:8px;font-size:12px;color:#059669;display:none;"></div>
+                    </div>
                     <div style="display:flex;justify-content:flex-end;gap:8px;">
                         <button type="button" class="button" id="ssf-bulk-redirect-cancel"><?php esc_html_e('Cancel', 'smart-seo-fixer'); ?></button>
                         <button type="button" class="button button-primary" id="ssf-bulk-redirect-confirm"><?php esc_html_e('Create Redirects', 'smart-seo-fixer'); ?></button>
@@ -247,20 +257,48 @@ jQuery(document).ready(function($) {
         var urls = [];
         $('.ssf-404-check:checked').each(function() { urls.push($(this).val()); });
         if (!urls.length) return;
-        var $btn = $(this).prop('disabled', true).text('<?php echo esc_js(__('Creating...', 'smart-seo-fixer')); ?>');
+        var total = urls.length;
         var done = 0;
+        var failed = 0;
+        var $btn = $(this).prop('disabled', true);
+        $('#ssf-bulk-redirect-cancel').prop('disabled', true);
+        $('#ssf-bulk-progress-wrap').show();
+        $('#ssf-bulk-progress-status').hide();
+        $('#ssf-bulk-progress-bar').css('width', '0%');
+        $('#ssf-bulk-progress-text').text('0 / ' + total);
+        $('#ssf-bulk-progress-pct').text('0%');
+        
+        function updateProgress() {
+            var pct = Math.round((done / total) * 100);
+            $('#ssf-bulk-progress-bar').css('width', pct + '%');
+            $('#ssf-bulk-progress-text').text(done + ' / ' + total);
+            $('#ssf-bulk-progress-pct').text(pct + '%');
+        }
+        
         function addNext() {
-            if (done >= urls.length) {
-                $btn.prop('disabled', false).text('<?php echo esc_js(__('Create Redirects', 'smart-seo-fixer')); ?>');
-                $('#ssf-bulk-redirect-modal').hide();
-                loadRedirects();
-                load404Log();
+            if (done >= total) {
+                $('#ssf-bulk-progress-bar').css({'width':'100%','background':'#059669'});
+                var msg = done + ' <?php echo esc_js(__('redirects created', 'smart-seo-fixer')); ?>';
+                if (failed > 0) msg += ' (' + failed + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>)';
+                $('#ssf-bulk-progress-status').text('✓ ' + msg).show();
+                $btn.prop('disabled', false).text('<?php echo esc_js(__('Done!', 'smart-seo-fixer')); ?>');
+                $('#ssf-bulk-redirect-cancel').prop('disabled', false).text('<?php echo esc_js(__('Close', 'smart-seo-fixer')); ?>');
+                setTimeout(function() {
+                    $('#ssf-bulk-redirect-modal').hide();
+                    $('#ssf-bulk-progress-wrap').hide();
+                    $('#ssf-bulk-progress-bar').css('background', '#2271b1');
+                    $btn.text('<?php echo esc_js(__('Create Redirects', 'smart-seo-fixer')); ?>');
+                    $('#ssf-bulk-redirect-cancel').text('<?php echo esc_js(__('Cancel', 'smart-seo-fixer')); ?>');
+                    loadRedirects();
+                    load404Log();
+                }, 1500);
                 return;
             }
             $.post(ssfAdmin.ajax_url, {action:'ssf_add_redirect',nonce:ssfAdmin.nonce,from:urls[done],to:redirectTo,redirect_type:'301',note:'Bulk from 404 log'}, function() {
                 done++;
+                updateProgress();
                 addNext();
-            }).fail(function() { done++; addNext(); });
+            }).fail(function() { done++; failed++; updateProgress(); addNext(); });
         }
         addNext();
     });
