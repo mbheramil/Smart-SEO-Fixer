@@ -28,6 +28,9 @@ class SSF_Sitemap {
             // Intercept sitemap requests early, before other plugins can serve theirs
             add_action('parse_request', [$this, 'intercept_sitemap_request'], 1);
             
+            // Serve XSL stylesheet
+            add_action('template_redirect', [$this, 'render_xsl'], 0);
+            
             // Ping search engines on post publish
             add_action('publish_post', [$this, 'ping_search_engines']);
             add_action('publish_page', [$this, 'ping_search_engines']);
@@ -157,6 +160,33 @@ class SSF_Sitemap {
     }
     
     /**
+     * Serve the XSL stylesheet for sitemap rendering in browsers.
+     */
+    public function render_xsl() {
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
+        
+        $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
+        if ($home_path && strpos($path, $home_path . '/') === 0) {
+            $path = substr($path, strlen($home_path) + 1);
+        }
+        
+        if ($path === 'ssf-sitemap.xsl') {
+            header('Content-Type: text/xsl; charset=UTF-8');
+            header('X-Robots-Tag: noindex, follow');
+            echo $this->get_xsl_stylesheet(false);
+            exit;
+        }
+        
+        if ($path === 'ssf-sitemap-index.xsl') {
+            header('Content-Type: text/xsl; charset=UTF-8');
+            header('X-Robots-Tag: noindex, follow');
+            echo $this->get_xsl_stylesheet(true);
+            exit;
+        }
+    }
+    
+    /**
      * Add rewrite rules for sitemap
      */
     public function add_rewrite_rules() {
@@ -262,7 +292,9 @@ class SSF_Sitemap {
      * Generate sitemap index — automatically includes all public post types and taxonomies.
      */
     private function generate_index_sitemap() {
+        $xsl_url = esc_url(home_url('/ssf-sitemap-index.xsl'));
         $output = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $output .= '<?xml-stylesheet type="text/xsl" href="' . $xsl_url . '"?>' . "\n";
         $output .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
         
         // Post type sitemaps
@@ -443,10 +475,212 @@ class SSF_Sitemap {
     }
     
     /**
+     * Generate XSL stylesheet for styled sitemap display in browsers.
+     */
+    private function get_xsl_stylesheet($is_index = false) {
+        $site_name = esc_html(get_bloginfo('name'));
+        $plugin_name = 'Smart SEO Fixer';
+        $home = esc_url(home_url('/'));
+        $sitemap_url = esc_url(home_url('/sitemap.xml'));
+        
+        $xsl = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xsl .= '<xsl:stylesheet version="2.0"
+            xmlns:html="http://www.w3.org/TR/REC-html40"
+            xmlns:sitemap="http://www.sitemaps.org/schemas/sitemap/0.9"
+            xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+        <xsl:output method="html" version="1.0" encoding="UTF-8" indent="yes"/>
+        <xsl:template match="/">';
+        
+        $xsl .= '<html xmlns="http://www.w3.org/1999/xhtml"><head>
+        <title>' . ($is_index ? 'XML Sitemap Index' : 'XML Sitemap') . ' — ' . $site_name . '</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <meta name="robots" content="noindex, follow"/>
+        <style type="text/css">
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                color: #1e293b;
+                background: #f1f5f9;
+                line-height: 1.6;
+            }
+            .container {
+                max-width: 1024px;
+                margin: 0 auto;
+                padding: 32px 20px;
+            }
+            .header {
+                background: linear-gradient(135deg, #0f172a, #1e40af);
+                color: #fff;
+                padding: 32px 40px;
+                border-radius: 12px;
+                margin-bottom: 24px;
+            }
+            .header h1 {
+                font-size: 22px;
+                font-weight: 700;
+                margin-bottom: 6px;
+            }
+            .header p {
+                font-size: 13px;
+                color: #94a3b8;
+                margin: 0;
+            }
+            .header p a {
+                color: #60a5fa;
+                text-decoration: none;
+            }
+            .header p a:hover {
+                text-decoration: underline;
+            }
+            .badge {
+                display: inline-block;
+                background: rgba(255,255,255,0.15);
+                color: #e2e8f0;
+                font-size: 11px;
+                padding: 3px 10px;
+                border-radius: 20px;
+                margin-left: 10px;
+                font-weight: 500;
+                vertical-align: middle;
+            }
+            .info {
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 14px 20px;
+                margin-bottom: 20px;
+                font-size: 13px;
+                color: #64748b;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                background: #fff;
+                border-radius: 10px;
+                overflow: hidden;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            }
+            th {
+                background: #f8fafc;
+                color: #475569;
+                font-weight: 600;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                padding: 12px 16px;
+                text-align: left;
+                border-bottom: 2px solid #e2e8f0;
+            }
+            td {
+                padding: 10px 16px;
+                font-size: 13px;
+                border-bottom: 1px solid #f1f5f9;
+                color: #334155;
+            }
+            tr:last-child td { border-bottom: none; }
+            tr:hover td { background: #f8fafc; }
+            td a {
+                color: #2563eb;
+                text-decoration: none;
+                word-break: break-all;
+            }
+            td a:hover { text-decoration: underline; }
+            .row-num {
+                color: #94a3b8;
+                font-size: 12px;
+                font-variant-numeric: tabular-nums;
+            }
+            .date {
+                color: #64748b;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+            .priority {
+                font-weight: 600;
+                font-size: 12px;
+            }
+            .freq {
+                font-size: 12px;
+                color: #64748b;
+                text-transform: capitalize;
+            }
+            .footer {
+                text-align: center;
+                padding: 20px;
+                font-size: 12px;
+                color: #94a3b8;
+            }
+            .footer a { color: #64748b; text-decoration: none; }
+            .footer a:hover { text-decoration: underline; }
+        </style>
+        </head><body><div class="container">';
+        
+        // Header
+        $xsl .= '<div class="header">';
+        $xsl .= '<h1>' . ($is_index ? 'XML Sitemap Index' : 'XML Sitemap');
+        
+        if ($is_index) {
+            $xsl .= '<span class="badge"><xsl:value-of select="count(sitemap:sitemapindex/sitemap:sitemap)"/> sitemaps</span>';
+        } else {
+            $xsl .= '<span class="badge"><xsl:value-of select="count(sitemap:urlset/sitemap:url)"/> URLs</span>';
+        }
+        
+        $xsl .= '</h1>';
+        $xsl .= '<p>Generated by <strong>' . $plugin_name . '</strong> for <a href="' . $home . '">' . $site_name . '</a></p>';
+        $xsl .= '</div>';
+        
+        // Info box
+        if ($is_index) {
+            $xsl .= '<div class="info">This XML sitemap index lists all sub-sitemaps for this website. It is used by search engines like Google and Bing to discover and crawl your content.</div>';
+        } else {
+            $xsl .= '<div class="info">This XML sitemap contains the list of URLs for this section. <a href="' . $sitemap_url . '">← Back to Sitemap Index</a></div>';
+        }
+        
+        // Table
+        if ($is_index) {
+            $xsl .= '<table>';
+            $xsl .= '<thead><tr><th style="width:50px">#</th><th>Sitemap</th><th style="width:200px">Last Modified</th></tr></thead>';
+            $xsl .= '<tbody>';
+            $xsl .= '<xsl:for-each select="sitemap:sitemapindex/sitemap:sitemap">';
+            $xsl .= '<tr>';
+            $xsl .= '<td class="row-num"><xsl:value-of select="position()"/></td>';
+            $xsl .= '<td><a><xsl:attribute name="href"><xsl:value-of select="sitemap:loc"/></xsl:attribute><xsl:value-of select="sitemap:loc"/></a></td>';
+            $xsl .= '<td class="date"><xsl:if test="sitemap:lastmod"><xsl:value-of select="concat(substring(sitemap:lastmod,1,10),\' \',substring(sitemap:lastmod,12,5))"/></xsl:if></td>';
+            $xsl .= '</tr>';
+            $xsl .= '</xsl:for-each>';
+            $xsl .= '</tbody></table>';
+        } else {
+            $xsl .= '<table>';
+            $xsl .= '<thead><tr><th style="width:50px">#</th><th>URL</th><th style="width:100px">Priority</th><th style="width:100px">Frequency</th><th style="width:180px">Last Modified</th></tr></thead>';
+            $xsl .= '<tbody>';
+            $xsl .= '<xsl:for-each select="sitemap:urlset/sitemap:url">';
+            $xsl .= '<tr>';
+            $xsl .= '<td class="row-num"><xsl:value-of select="position()"/></td>';
+            $xsl .= '<td><a><xsl:attribute name="href"><xsl:value-of select="sitemap:loc"/></xsl:attribute><xsl:value-of select="sitemap:loc"/></a></td>';
+            $xsl .= '<td class="priority"><xsl:value-of select="sitemap:priority"/></td>';
+            $xsl .= '<td class="freq"><xsl:value-of select="sitemap:changefreq"/></td>';
+            $xsl .= '<td class="date"><xsl:if test="sitemap:lastmod"><xsl:value-of select="concat(substring(sitemap:lastmod,1,10),\' \',substring(sitemap:lastmod,12,5))"/></xsl:if></td>';
+            $xsl .= '</tr>';
+            $xsl .= '</xsl:for-each>';
+            $xsl .= '</tbody></table>';
+        }
+        
+        $xsl .= '<div class="footer">Generated by <a href="https://github.com/mbheramil/Smart-SEO-Fixer">' . $plugin_name . '</a></div>';
+        $xsl .= '</div></body></html>';
+        
+        $xsl .= '</xsl:template></xsl:stylesheet>';
+        
+        return $xsl;
+    }
+    
+    /**
      * Sitemap header
      */
     private function sitemap_header() {
+        $xsl_url = esc_url(home_url('/ssf-sitemap.xsl'));
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<?xml-stylesheet type="text/xsl" href="' . $xsl_url . '"?>' . "\n"
             . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
     }
     

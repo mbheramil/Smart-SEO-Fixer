@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.7
+Stable tag: 2.0.8
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.8 =
+* Enhancement: XML Sitemap now displays with a styled, readable layout in browsers (like Yoast) instead of raw XML
+* Enhancement: Sitemap index shows sitemap count badge and "Last Modified" column
+* Enhancement: Sub-sitemaps show URL count badge, priority, frequency, and last modified date in a clean table
+* Enhancement: "Back to Sitemap Index" link on sub-sitemaps for easy navigation
+
 = 2.0.7 =
 * Fix: Auto-updater now uses direct GitHub archive URL instead of API zipball — fixes cURL error 6 (DNS resolution failure) on some servers
 * Fix: Increased download timeout to 60 seconds and redirect limit to 10 for more reliable updates
