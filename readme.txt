@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.10
+Stable tag: 2.0.11
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.11 =
+* Fix: SSF now falls back to Yoast SEO, Rank Math, All in One SEO, and SEOPress meta fields when SSF's own fields are empty — pages with existing SEO data from other plugins are never left without meta tags
+* Fix: "Disable Other SEO Plugins Output" setting now shows clear warnings and Migration page links in all states (active plugin, plugin deactivated but data exists, checkbox enabled)
+
 = 2.0.10 =
 * Fix: Sitemap XSL stylesheet URLs now use query parameters (``/?ssf_sitemap=xsl``) instead of ``/ssf-sitemap.xsl`` paths — eliminates dependency on rewrite rules and .htaccess, making the styled sitemap work on all server configurations without needing a Permalink flush
 

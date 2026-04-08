@@ -599,13 +599,28 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
                                 </strong>
                                 <span style="color: #856404;"><?php echo esc_html(implode(', ', $conflicting_plugins)); ?></span>
                                 <p class="description" style="margin: 5px 0 0; color: #856404;">
-                                    <?php esc_html_e('Enable this setting to prevent duplicate meta descriptions, Open Graph tags, canonical URLs, and schema markup. You should also migrate your SEO data first from the', 'smart-seo-fixer'); ?>
-                                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-migration')); ?>"><?php esc_html_e('Migration page', 'smart-seo-fixer'); ?></a>.
+                                    <?php esc_html_e('This will suppress ALL meta output from the plugin above. Run', 'smart-seo-fixer'); ?>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-migration')); ?>"><?php esc_html_e('Migration', 'smart-seo-fixer'); ?></a>
+                                    <?php esc_html_e('first to copy your existing SEO data into SSF, or those pages will show SSF\'s auto-generated fallback instead of your custom meta.', 'smart-seo-fixer'); ?>
+                                </p>
+                            </div>
+                            <?php elseif ($disable_other_seo_output): ?>
+                            <div style="margin-top: 8px; padding: 10px 14px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 6px;">
+                                <strong style="color: #0c5460;">
+                                    <span class="dashicons dashicons-info" style="font-size: 16px; width: 16px; height: 16px;"></span>
+                                    <?php esc_html_e('Other SEO plugin output is suppressed.', 'smart-seo-fixer'); ?>
+                                </strong>
+                                <p class="description" style="margin: 5px 0 0; color: #0c5460;">
+                                    <?php esc_html_e('SSF will use your saved SSF meta fields for each page. If any pages still have data in Yoast/Rank Math that hasn\'t been imported, use the', 'smart-seo-fixer'); ?>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-migration')); ?>"><?php esc_html_e('Migration page', 'smart-seo-fixer'); ?></a>
+                                    <?php esc_html_e('to import it. SSF will automatically fall back to those values for any pages not yet migrated.', 'smart-seo-fixer'); ?>
                                 </p>
                             </div>
                             <?php else: ?>
                             <p class="description">
                                 <?php esc_html_e('Suppresses meta output from Yoast SEO, Rank Math, All in One SEO, The SEO Framework, and SEOPress. Enable this if you see duplicate meta descriptions in your page source.', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('Always run Migration first to copy your existing SEO data into SSF before enabling this.', 'smart-seo-fixer'); ?>
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-migration')); ?>"><?php esc_html_e('Go to Migration →', 'smart-seo-fixer'); ?></a>
                             </p>
                             <?php endif; ?>
                         </td>

@@ -74,6 +74,46 @@ class SSF_Meta_Manager {
     }
     
     /**
+     * Read SEO title from other plugins' meta keys as a fallback.
+     * Used when SSF's own _ssf_seo_title field is empty.
+     */
+    private function get_other_plugin_title($post_id) {
+        $keys = [
+            '_yoast_wpseo_title',   // Yoast SEO
+            'rank_math_title',       // Rank Math
+            '_aioseo_title',         // All in One SEO
+            '_seopress_titles_title', // SEOPress
+        ];
+        foreach ($keys as $key) {
+            $val = get_post_meta($post_id, $key, true);
+            if (!empty($val)) {
+                return $val;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Read meta description from other plugins' meta keys as a fallback.
+     * Used when SSF's own _ssf_meta_description field is empty.
+     */
+    private function get_other_plugin_description($post_id) {
+        $keys = [
+            '_yoast_wpseo_metadesc',   // Yoast SEO
+            'rank_math_description',    // Rank Math
+            '_aioseo_description',      // All in One SEO
+            '_seopress_titles_desc',    // SEOPress
+        ];
+        foreach ($keys as $key) {
+            $val = get_post_meta($post_id, $key, true);
+            if (!empty($val)) {
+                return $val;
+            }
+        }
+        return '';
+    }
+
+    /**
      * Output our own <title> tag directly in wp_head
      * 
      * This is the most reliable approach — used by Yoast, Rank Math, etc.
@@ -95,6 +135,10 @@ class SSF_Meta_Manager {
         if (is_singular()) {
             $post_id = get_the_ID();
             $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
+            
+            if (empty($seo_title)) {
+                $seo_title = $this->get_other_plugin_title($post_id);
+            }
             
             if (!empty($seo_title)) {
                 return $seo_title;
@@ -286,6 +330,10 @@ class SSF_Meta_Manager {
             $post_id = get_the_ID();
             $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
             
+            if (empty($seo_title)) {
+                $seo_title = $this->get_other_plugin_title($post_id);
+            }
+            
             if (!empty($seo_title)) {
                 return $seo_title;
             }
@@ -328,6 +376,10 @@ class SSF_Meta_Manager {
             $post_id = get_the_ID();
             $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
             
+            if (empty($seo_title)) {
+                $seo_title = $this->get_other_plugin_title($post_id);
+            }
+            
             if (!empty($seo_title)) {
                 // If SEO title is set, use it as-is without site name
                 return ['title' => $seo_title];
@@ -365,6 +417,10 @@ class SSF_Meta_Manager {
         if (is_singular()) {
             $post_id = get_the_ID();
             $description = get_post_meta($post_id, '_ssf_meta_description', true);
+            
+            if (empty($description)) {
+                $description = $this->get_other_plugin_description($post_id);
+            }
             
             if (!empty($description)) {
                 return $description;
