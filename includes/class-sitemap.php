@@ -287,7 +287,7 @@ class SSF_Sitemap {
      * Generate sitemap index — automatically includes all public post types and taxonomies.
      */
     private function generate_index_sitemap() {
-        $xsl_url = esc_url(home_url('/ssf-sitemap-index.xsl'));
+        $xsl_url = esc_url(home_url('/?ssf_sitemap=xsl-index'));
         $output = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $output .= '<?xml-stylesheet type="text/xsl" href="' . $xsl_url . '"?>' . "\n";
         $output .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
@@ -673,7 +673,7 @@ class SSF_Sitemap {
      * Sitemap header
      */
     private function sitemap_header() {
-        $xsl_url = esc_url(home_url('/ssf-sitemap.xsl'));
+        $xsl_url = esc_url(home_url('/?ssf_sitemap=xsl'));
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<?xml-stylesheet type="text/xsl" href="' . $xsl_url . '"?>' . "\n"
             . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
