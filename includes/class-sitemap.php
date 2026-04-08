@@ -25,11 +25,8 @@ class SSF_Sitemap {
             add_filter('query_vars', [$this, 'add_query_vars']);
             add_action('template_redirect', [$this, 'render_sitemap'], 1);
             
-            // Intercept sitemap requests early, before other plugins can serve theirs
+            // Intercept sitemap + XSL requests early, before other plugins can serve theirs
             add_action('parse_request', [$this, 'intercept_sitemap_request'], 1);
-            
-            // Serve XSL stylesheet
-            add_action('template_redirect', [$this, 'render_xsl'], 0);
             
             // Ping search engines on post publish
             add_action('publish_post', [$this, 'ping_search_engines']);
@@ -79,13 +76,23 @@ class SSF_Sitemap {
      * Intercept sitemap requests early before other plugins can serve theirs.
      */
     public function intercept_sitemap_request($wp) {
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '';
         $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
         
         // Strip the site subdirectory if WordPress is in a subdirectory
         $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
         if ($home_path && strpos($path, $home_path . '/') === 0) {
             $path = substr($path, strlen($home_path) + 1);
+        }
+        
+        // XSL stylesheets
+        if ($path === 'ssf-sitemap-index.xsl') {
+            $wp->query_vars['ssf_sitemap'] = 'xsl-index';
+            return;
+        }
+        if ($path === 'ssf-sitemap.xsl') {
+            $wp->query_vars['ssf_sitemap'] = 'xsl';
+            return;
         }
         
         if ($path === 'sitemap.xml') {
@@ -160,38 +167,15 @@ class SSF_Sitemap {
     }
     
     /**
-     * Serve the XSL stylesheet for sitemap rendering in browsers.
-     */
-    public function render_xsl() {
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
-        
-        $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
-        if ($home_path && strpos($path, $home_path . '/') === 0) {
-            $path = substr($path, strlen($home_path) + 1);
-        }
-        
-        if ($path === 'ssf-sitemap.xsl') {
-            header('Content-Type: text/xsl; charset=UTF-8');
-            header('X-Robots-Tag: noindex, follow');
-            echo $this->get_xsl_stylesheet(false);
-            exit;
-        }
-        
-        if ($path === 'ssf-sitemap-index.xsl') {
-            header('Content-Type: text/xsl; charset=UTF-8');
-            header('X-Robots-Tag: noindex, follow');
-            echo $this->get_xsl_stylesheet(true);
-            exit;
-        }
-    }
-    
-    /**
      * Add rewrite rules for sitemap
      */
     public function add_rewrite_rules() {
         // Index
         add_rewrite_rule('^sitemap\.xml$', 'index.php?ssf_sitemap=index', 'top');
+        
+        // XSL stylesheets
+        add_rewrite_rule('^ssf-sitemap-index\.xsl$', 'index.php?ssf_sitemap=xsl-index', 'top');
+        add_rewrite_rule('^ssf-sitemap\.xsl$', 'index.php?ssf_sitemap=xsl', 'top');
         
         // Catch-all for any sub-sitemap: sitemap-{anything}.xml
         // The actual parsing is done in intercept_sitemap_request
@@ -220,6 +204,17 @@ class SSF_Sitemap {
         
         if ($sitemap_type === 'index') {
             $output = $this->generate_index_sitemap();
+            header('Content-Type: application/xml; charset=UTF-8');
+        } elseif ($sitemap_type === 'xsl-index') {
+            header('Content-Type: text/xsl; charset=UTF-8');
+            header('X-Robots-Tag: noindex, follow');
+            echo $this->get_xsl_stylesheet(true);
+            exit;
+        } elseif ($sitemap_type === 'xsl') {
+            header('Content-Type: text/xsl; charset=UTF-8');
+            header('X-Robots-Tag: noindex, follow');
+            echo $this->get_xsl_stylesheet(false);
+            exit;
         } elseif (strpos($sitemap_type, 'pt:') === 0) {
             // Post type: pt:{post_type}:{page}
             $parts = explode(':', $sitemap_type);
