@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.6
+Stable tag: 2.0.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.7 =
+* Fix: Auto-updater now uses direct GitHub archive URL instead of API zipball — fixes cURL error 6 (DNS resolution failure) on some servers
+* Fix: Increased download timeout to 60 seconds and redirect limit to 10 for more reliable updates
+
 = 2.0.6 =
 * Enhancement: Sitemap now automatically includes ALL public post types (services, locations, products, FAQs, etc.) — not just posts and pages
 * Enhancement: Sitemap now automatically includes ALL public taxonomies (custom categories, tags, etc.)

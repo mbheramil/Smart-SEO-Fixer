@@ -335,10 +335,10 @@ class SSF_Updater {
     }
     
     /**
-     * Inject auth header into GitHub download requests (for private repos)
+     * Inject auth header and download settings for GitHub requests
      */
     public function authorize_download($args, $url) {
-        // Only inject on GitHub API / GitHub download URLs for our repo
+        // Only apply to GitHub URLs for our repo
         if (strpos($url, 'github.com') === false && strpos($url, 'api.github.com') === false) {
             return $args;
         }
@@ -352,8 +352,10 @@ class SSF_Updater {
             $args['headers']['Authorization'] = 'token ' . $token;
         }
         
-        // GitHub API sometimes redirects — follow them
+        // GitHub redirects — follow them and increase timeout
         $args['reject_unsafe_urls'] = false;
+        $args['timeout'] = 60;
+        $args['redirection'] = 10;
         
         return $args;
     }
@@ -371,7 +373,18 @@ class SSF_Updater {
             }
         }
         
-        // Fall back to source zipball
+        // Use direct GitHub archive URL (more reliable than API zipball_url which
+        // requires API auth headers and redirects through api.github.com)
+        if (!empty($release->tag_name)) {
+            return sprintf(
+                'https://github.com/%s/%s/archive/refs/tags/%s.zip',
+                $this->github_user,
+                $this->github_repo,
+                $release->tag_name
+            );
+        }
+        
+        // Last resort: API zipball
         if (!empty($release->zipball_url)) {
             return $release->zipball_url;
         }
