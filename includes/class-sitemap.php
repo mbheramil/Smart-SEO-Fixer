@@ -18,11 +18,80 @@ class SSF_Sitemap {
         if (Smart_SEO_Fixer::get_option('enable_sitemap', true)) {
             add_action('init', [$this, 'add_rewrite_rules']);
             add_filter('query_vars', [$this, 'add_query_vars']);
-            add_action('template_redirect', [$this, 'render_sitemap']);
+            add_action('template_redirect', [$this, 'render_sitemap'], 1);
+            
+            // Intercept sitemap requests early, before other plugins can serve theirs
+            add_action('parse_request', [$this, 'intercept_sitemap_request'], 1);
             
             // Ping search engines on post publish
             add_action('publish_post', [$this, 'ping_search_engines']);
             add_action('publish_page', [$this, 'ping_search_engines']);
+            
+            // Disable conflicting sitemaps from other plugins
+            add_action('init', [$this, 'disable_conflicting_sitemaps'], 99);
+            
+            // Disable WordPress core sitemaps (WP 5.5+)
+            add_filter('wp_sitemaps_enabled', '__return_false');
+        }
+    }
+    
+    /**
+     * Intercept sitemap requests early before other plugins can serve theirs.
+     */
+    public function intercept_sitemap_request($wp) {
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
+        
+        $sitemap_map = [
+            'sitemap.xml'            => 'index',
+            'sitemap-posts.xml'      => 'posts',
+            'sitemap-pages.xml'      => 'pages',
+            'sitemap-categories.xml' => 'categories',
+            'sitemap-tags.xml'       => 'tags',
+            'sitemap-authors.xml'    => 'authors',
+        ];
+        
+        // Strip the site subdirectory if WordPress is in a subdirectory
+        $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
+        if ($home_path && strpos($path, $home_path . '/') === 0) {
+            $path = substr($path, strlen($home_path) + 1);
+        }
+        
+        if (isset($sitemap_map[$path])) {
+            $wp->query_vars['ssf_sitemap'] = $sitemap_map[$path];
+        }
+    }
+    
+    /**
+     * Disable sitemaps from other SEO plugins to avoid conflicts.
+     */
+    public function disable_conflicting_sitemaps() {
+        // Yoast SEO
+        if (defined('WPSEO_VERSION')) {
+            add_filter('wpseo_sitemaps_enabled', '__return_false');
+            // Remove Yoast sitemap rewrite rules
+            global $wp_rewrite;
+            if (isset($wp_rewrite->extra_rules_top)) {
+                foreach ($wp_rewrite->extra_rules_top as $rule => $rewrite) {
+                    if (strpos($rewrite, 'wpseo_sitemap') !== false || strpos($rewrite, 'sitemap_xsl') !== false) {
+                        unset($wp_rewrite->extra_rules_top[$rule]);
+                    }
+                }
+            }
+            // Prevent Yoast from serving its sitemap via template_redirect
+            if (class_exists('WPSEO_Sitemaps')) {
+                remove_action('template_redirect', 'redirect_canonical');
+            }
+        }
+        
+        // Rank Math
+        if (defined('RANK_MATH_VERSION')) {
+            add_filter('rank_math/sitemap/enable', '__return_false');
+        }
+        
+        // All in One SEO
+        if (defined('AIOSEO_VERSION')) {
+            add_filter('aioseo_sitemap_enabled', '__return_false');
         }
     }
     

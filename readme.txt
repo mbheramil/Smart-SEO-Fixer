@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.4
+Stable tag: 2.0.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.5 =
+* Fix: "Pages Not Appearing in Search" scanner now uses correct meta keys (_ssf_seo_title, _ssf_meta_description) — AI fix results now properly persist across page refreshes
+* Fix: AI Fix button now works without clicking Inspect first — issue name mismatch (missing_meta vs missing_description) caused fix queue to be empty
+* Fix: XML Sitemap now takes priority over Yoast SEO, Rank Math, AIOSEO, and WordPress core sitemaps when SSF sitemap is enabled
+* Enhancement: Google inspection verdicts now show friendly labels ("Not Indexed" instead of "NEUTRAL") with helpful explanations
+* Enhancement: Added missing issue labels for Noindex, No Internal Links tags in the not-indexed scanner
+
 = 2.0.4 =
 * Fix: Bulk 404 redirect reverted to reliable inline sequential processing (background job caused stalling)
 * Fix: Schema bulk regenerate reverted to inline batch processing for instant feedback

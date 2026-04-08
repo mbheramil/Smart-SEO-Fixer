@@ -469,7 +469,7 @@ class SSF_Job_Queue {
         }
         
         // Fix missing description
-        if (in_array('missing_description', $issues) || empty(get_post_meta($post_id, '_ssf_meta_description', true))) {
+        if (in_array('missing_description', $issues) || in_array('missing_meta', $issues) || empty(get_post_meta($post_id, '_ssf_meta_description', true))) {
             if (str_word_count($clean_content) >= 10) {
                 $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {

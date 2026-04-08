@@ -3504,14 +3504,14 @@ class SSF_Ajax {
                 $issues = [];
                 
                 // Check for common SEO issues
-                $title = get_post_meta($post_id, '_ssf_title', true);
-                $desc  = get_post_meta($post_id, '_ssf_description', true);
+                $title = get_post_meta($post_id, '_ssf_seo_title', true);
+                $desc  = get_post_meta($post_id, '_ssf_meta_description', true);
                 
                 if (empty($title) && empty($post->post_title)) {
                     $issues[] = 'missing_title';
                 }
                 if (empty($desc)) {
-                    $issues[] = 'missing_meta';
+                    $issues[] = 'missing_description';
                 }
                 $noindex = get_post_meta($post_id, '_ssf_noindex', true);
                 if ($noindex) {

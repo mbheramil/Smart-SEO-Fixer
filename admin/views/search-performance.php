@@ -581,6 +581,9 @@ jQuery(document).ready(function($) {
         var labels = {
             'missing_title': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No SEO Title</span>',
             'missing_description': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Meta Desc</span>',
+            'missing_meta': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Meta Desc</span>',
+            'noindex': '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">Noindex</span>',
+            'no_internal_links': '<span style="background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Internal Links</span>',
             'no_outgoing_links': '<span style="background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Outgoing Links</span>',
             'no_incoming_links': '<span style="background:#fff7ed;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px;">No Incoming Links</span>'
         };
@@ -823,11 +826,30 @@ jQuery(document).ready(function($) {
             var coverage = r?.inspectionResult?.indexStatusResult?.coverageState || '';
             var crawled = r?.inspectionResult?.indexStatusResult?.lastCrawlTime || '';
             
+            // Map verdicts to friendly labels
+            var verdictLabels = {
+                'PASS':    '<?php esc_html_e('Indexed', 'smart-seo-fixer'); ?>',
+                'NEUTRAL': '<?php esc_html_e('Not Indexed', 'smart-seo-fixer'); ?>',
+                'FAIL':    '<?php esc_html_e('Not Indexable', 'smart-seo-fixer'); ?>'
+            };
+            var verdictLabel = verdictLabels[verdict] || verdict;
             var verdictColor = verdict === 'PASS' ? '#16a34a' : (verdict === 'NEUTRAL' ? '#f59e0b' : '#dc2626');
+            
+            // Map coverage states to friendly descriptions
+            var coverageLabels = {
+                'Submitted and indexed': '<?php esc_html_e('Submitted and indexed', 'smart-seo-fixer'); ?>',
+                'Indexed, not submitted in sitemap': '<?php esc_html_e('Indexed, not in sitemap', 'smart-seo-fixer'); ?>',
+                'Discovered - currently not indexed': '<?php esc_html_e('Google found this page but chose not to index it yet. Improve content quality and SEO, then request indexing.', 'smart-seo-fixer'); ?>',
+                'Crawled - currently not indexed': '<?php esc_html_e('Google crawled this page but chose not to index it. Improve content uniqueness and quality.', 'smart-seo-fixer'); ?>',
+                'Page with redirect': '<?php esc_html_e('This page redirects to another URL', 'smart-seo-fixer'); ?>',
+                'URL is unknown to Google': '<?php esc_html_e('Google has never seen this page. Submit it in your sitemap.', 'smart-seo-fixer'); ?>'
+            };
+            var friendlyCoverage = coverageLabels[coverage] || coverage;
+            
             var $row = $('#ssf-idx-row-' + postId);
             $row.find('td:eq(2)').html(
-                '<span style="color:' + verdictColor + ';font-weight:600;font-size:12px;">' + verdict + '</span>' +
-                (coverage ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + $('<span>').text(coverage).html() + '</div>' : '')
+                '<span style="color:' + verdictColor + ';font-weight:600;font-size:12px;">' + verdictLabel + '</span>' +
+                (friendlyCoverage ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + $('<span>').text(friendlyCoverage).html() + '</div>' : '')
             );
         });
     });
@@ -843,10 +865,10 @@ jQuery(document).ready(function($) {
         var fixQueue = [];
         
         // Queue up fixes based on issues
-        if (issues.indexOf('missing_title') !== -1 || issues.indexOf('missing_description') !== -1) {
+        if (issues.indexOf('missing_title') !== -1 || issues.indexOf('missing_description') !== -1 || issues.indexOf('missing_meta') !== -1) {
             fixQueue.push({action: 'ssf_bulk_ai_fix', post_ids: [postId]});
         }
-        if (issues.indexOf('no_incoming_links') !== -1 || issues.indexOf('no_outgoing_links') !== -1) {
+        if (issues.indexOf('no_incoming_links') !== -1 || issues.indexOf('no_outgoing_links') !== -1 || issues.indexOf('no_internal_links') !== -1) {
             fixQueue.push({action: 'ssf_fix_orphaned_page', post_id: postId});
         }
         
