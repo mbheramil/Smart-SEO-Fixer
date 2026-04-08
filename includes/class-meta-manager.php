@@ -21,9 +21,13 @@ class SSF_Meta_Manager {
             return;
         }
         
-        // Remove WordPress's default title tag rendering — we'll handle it ourselves
-        // This fires early to ensure we remove the core handler before it runs
-        add_action('after_setup_theme', [$this, 'take_over_title_tag'], 99);
+        // Remove WordPress's default title tag — we handle it ourselves via output_title_tag().
+        // Do this directly here (not via after_setup_theme callback) because SSF is instantiated
+        // on 'init' and after_setup_theme has already fired by then, so a callback would never run.
+        remove_action('wp_head', '_wp_render_title_tag', 1);
+        if (!current_theme_supports('title-tag')) {
+            add_theme_support('title-tag');
+        }
         
         // Also keep filters as backup for plugins that call wp_get_document_title() directly
         add_filter('pre_get_document_title', [$this, 'filter_title'], 9999);
@@ -54,23 +58,6 @@ class SSF_Meta_Manager {
         if (Smart_SEO_Fixer::get_option('disable_other_seo_output', false)) {
             $this->disable_conflicting_plugins();
         }
-    }
-    
-    /**
-     * Take over title tag rendering from WordPress core
-     * 
-     * Removes WordPress's _wp_render_title_tag (which depends on title-tag theme support
-     * and filter chains that can fail with Elementor/custom themes). We output the <title>
-     * tag ourselves directly in wp_head for maximum reliability.
-     */
-    public function take_over_title_tag() {
-        // Ensure title-tag support exists (prevents warnings)
-        if (!current_theme_supports('title-tag')) {
-            add_theme_support('title-tag');
-        }
-        
-        // Remove WordPress core's title tag rendering — we'll do it ourselves
-        remove_action('wp_head', '_wp_render_title_tag', 1);
     }
     
     /**
@@ -225,44 +212,33 @@ class SSF_Meta_Manager {
      */
     public function disable_conflicting_plugins() {
         // === Yoast SEO ===
+        // Primary: remove the wpseo_head() function Yoast hooks to wp_head at priority 1.
+        // This stops ALL Yoast meta output (titles, descriptions, OG, JSON-LD, etc.) in one shot.
+        // Works regardless of which Yoast version is installed.
+        remove_action('wp_head', 'wpseo_head', 1);
+        
         if (defined('WPSEO_VERSION') || class_exists('WPSEO_Frontend')) {
-            // Yoast 14+ (modern): remove all frontend presenters
-            add_filter('wpseo_frontend_presenters', '__return_empty_array');
-            
-            // Yoast title filter
+            // Belt-and-suspenders filters for any Yoast output that leaks through other paths
+            add_filter('wpseo_frontend_presenters', '__return_empty_array', 9999);
             add_filter('wpseo_title', '__return_empty_string', 9999);
-            
-            // Yoast meta description
             add_filter('wpseo_metadesc', '__return_empty_string', 9999);
-            
-            // Yoast Open Graph
             add_filter('wpseo_opengraph_title', '__return_empty_string', 9999);
             add_filter('wpseo_opengraph_desc', '__return_empty_string', 9999);
             add_filter('wpseo_opengraph_url', '__return_empty_string', 9999);
             add_filter('wpseo_opengraph_image', '__return_empty_string', 9999);
-            
-            // Yoast Twitter
             add_filter('wpseo_twitter_title', '__return_empty_string', 9999);
             add_filter('wpseo_twitter_description', '__return_empty_string', 9999);
-            
-            // Yoast canonical
             add_filter('wpseo_canonical', '__return_false', 9999);
-            
-            // Yoast robots
             add_filter('wpseo_robots', '__return_empty_string', 9999);
-            
-            // Yoast JSON-LD schema (we have our own)
             add_filter('wpseo_json_ld_output', '__return_empty_array', 9999);
             add_filter('wpseo_schema_graph', '__return_empty_array', 9999);
             
-            // Remove Yoast head action entirely (belt-and-suspenders)
+            // Old-style Yoast (pre-v14)
             add_action('template_redirect', function() {
-                // Remove old-style Yoast frontend
                 if (class_exists('WPSEO_Frontend')) {
                     $instance = WPSEO_Frontend::get_instance();
                     remove_action('wp_head', [$instance, 'head'], 1);
                 }
-                // Remove Yoast's adjacent rel links
                 remove_action('wp_head', 'adjacent_posts_rel_link_wp_head', 10);
             });
         }

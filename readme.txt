@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.11
+Stable tag: 2.0.12
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.12 =
+* Fix: Duplicate title and meta description tags — two bugs caused this: (1) SSF's remove_action for WordPress's built-in title tag was registered on after_setup_theme but SSF initialises on init (after_setup_theme fires first), so the removal never happened; fixed by calling remove_action directly in the constructor; (2) Yoast SEO hooks its entire head output via a standalone wpseo_head() function at wp_head priority 1 which SSF was not removing; added remove_action('wp_head', 'wpseo_head', 1) as the primary Yoast suppression
+
 = 2.0.11 =
 * Fix: SSF now falls back to Yoast SEO, Rank Math, All in One SEO, and SEOPress meta fields when SSF's own fields are empty — pages with existing SEO data from other plugins are never left without meta tags
 * Fix: "Disable Other SEO Plugins Output" setting now shows clear warnings and Migration page links in all states (active plugin, plugin deactivated but data exists, checkbox enabled)
