@@ -454,100 +454,67 @@ jQuery(document).ready(function($) {
     });
     
     // ========================================
-    // Bulk: Regenerate All (background job)
+    // Bulk: Regenerate All (inline batch with progress)
     // ========================================
-    var schemaJobId = null;
-    var schemaPollTimer = null;
-    
     $('#ssf-regen-all-schemas').on('click', function() {
         var $btn = $(this);
         
-        if (!confirm('<?php echo esc_js(__('This will re-run AI schema generation for ALL posts with custom schemas in the background. You can leave this page. Continue?', 'smart-seo-fixer')); ?>')) return;
+        if (!confirm('<?php echo esc_js(__('This will re-run AI schema generation for ALL posts with custom schemas. This uses your AI API credits. Continue?', 'smart-seo-fixer')); ?>')) return;
+        
+        var $progress = $('#ssf-bulk-progress');
+        var $bar = $('#ssf-schema-progress-bar');
+        var $text = $('#ssf-schema-progress-text');
+        var $log = $('#ssf-schema-log');
         
         $btn.prop('disabled', true);
+        $progress.show();
+        $bar.css({'width':'0%','background':'#2271b1'});
+        $text.text('<?php echo esc_js(__('Starting...', 'smart-seo-fixer')); ?>');
+        $log.empty().show();
         
-        // First, get list of all post IDs that have custom schemas
-        $.post(ssfAdmin.ajax_url, {
-            action: 'ssf_get_schema_list',
-            nonce: ssfAdmin.nonce,
-            page: 1,
-            per_page: 9999
-        }, function(response) {
-            if (!response.success || !response.data.schemas || !response.data.schemas.length) {
-                $btn.prop('disabled', false);
-                showToast('<?php echo esc_js(__('No schemas found to regenerate.', 'smart-seo-fixer')); ?>', 'error');
-                return;
-            }
-            
-            var postIds = response.data.schemas.map(function(s) { return s.post_id; });
-            
-            // Dispatch background job
+        function processBatch(offset) {
             $.post(ssfAdmin.ajax_url, {
-                action: 'ssf_dispatch_job',
+                action: 'ssf_bulk_regenerate_schemas',
                 nonce: ssfAdmin.nonce,
-                job_type: 'bulk_schema',
-                items: postIds,
-                payload: { mode: 'regenerate' }
-            }, function(jr) {
-                if (!jr.success) {
+                mode: 'regenerate',
+                offset: offset,
+                batch_size: 2
+            }, function(response) {
+                if (!response.success) {
+                    $text.text(response.data.message || '<?php echo esc_js(__('Error occurred.', 'smart-seo-fixer')); ?>');
                     $btn.prop('disabled', false);
-                    showToast(jr.data?.message || '<?php echo esc_js(__('Failed to create job.', 'smart-seo-fixer')); ?>', 'error');
                     return;
                 }
                 
-                schemaJobId = jr.data.job_id;
-                var $progress = $('#ssf-bulk-progress');
-                var $bar = $('#ssf-schema-progress-bar');
-                var $text = $('#ssf-schema-progress-text');
-                var $log = $('#ssf-schema-log');
+                var data = response.data;
+                var newOffset = offset + data.processed;
+                var pct = data.total > 0 ? Math.round((newOffset / data.total) * 100) : 100;
                 
-                $progress.show();
-                $bar.css({'width':'0%','background':'#2271b1'});
-                $text.text('<?php echo esc_js(__('Processing in background...', 'smart-seo-fixer')); ?> 0 / ' + jr.data.total);
-                $log.empty().show().append('<div><?php echo esc_js(__('Background job started. You can leave this page — processing will continue.', 'smart-seo-fixer')); ?></div>');
+                $bar.css('width', pct + '%');
+                $text.text(newOffset + ' / ' + data.total + ' <?php echo esc_js(__('posts processed', 'smart-seo-fixer')); ?> (' + pct + '%)');
                 
-                // Start polling
-                if (schemaPollTimer) clearInterval(schemaPollTimer);
-                schemaPollTimer = setInterval(function() {
-                    $.post(ssfAdmin.ajax_url, {
-                        action: 'ssf_poll_job',
-                        nonce: ssfAdmin.nonce,
-                        job_id: schemaJobId
-                    }, function(pr) {
-                        if (!pr.success) return;
-                        var d = pr.data;
-                        $bar.css('width', d.percent + '%');
-                        $text.text(d.processed + ' / ' + d.total + ' <?php echo esc_js(__('posts processed', 'smart-seo-fixer')); ?> (' + d.percent + '%)');
-                        
-                        if (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') {
-                            clearInterval(schemaPollTimer);
-                            schemaPollTimer = null;
-                            $btn.prop('disabled', false);
-                            
-                            if (d.status === 'completed') {
-                                $bar.css({'width':'100%','background':'#059669'});
-                                var msg = '<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?> ' + d.processed + ' <?php echo esc_js(__('posts processed.', 'smart-seo-fixer')); ?>';
-                                if (d.failed > 0) msg += ' (' + d.failed + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>)';
-                                $text.text(msg);
-                                $log.append('<div style="color:#059669;">✓ ' + msg + '</div>');
-                            } else {
-                                $bar.css('background', '#dc2626');
-                                $text.text('<?php echo esc_js(__('Job failed or cancelled.', 'smart-seo-fixer')); ?>');
-                                $log.append('<div style="color:#dc2626;">✗ ' + (d.error_message || '<?php echo esc_js(__('Job failed', 'smart-seo-fixer')); ?>') + '</div>');
-                            }
-                            $log.scrollTop($log[0].scrollHeight);
-                            loadSchemaList();
-                        }
+                if (data.log && data.log.length) {
+                    data.log.forEach(function(entry) {
+                        $log.append('<div>' + entry + '</div>');
                     });
-                }, 5000);
+                    $log.scrollTop($log[0].scrollHeight);
+                }
+                
+                if (data.done) {
+                    $bar.css({'width':'100%','background':'#059669'});
+                    $text.text('<?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?> ' + newOffset + ' <?php echo esc_js(__('posts processed.', 'smart-seo-fixer')); ?>');
+                    $btn.prop('disabled', false);
+                    loadSchemaList();
+                } else {
+                    processBatch(newOffset);
+                }
             }).fail(function() {
+                $text.text('<?php echo esc_js(__('Request failed. Please try again.', 'smart-seo-fixer')); ?>');
                 $btn.prop('disabled', false);
-                showToast('<?php echo esc_js(__('Request failed.', 'smart-seo-fixer')); ?>', 'error');
             });
-        }).fail(function() {
-            $btn.prop('disabled', false);
-            showToast('<?php echo esc_js(__('Failed to load schema list.', 'smart-seo-fixer')); ?>', 'error');
-        });
+        }
+        
+        processBatch(0);
     });
     
     // ========================================

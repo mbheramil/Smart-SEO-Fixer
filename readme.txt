@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.3
+Stable tag: 2.0.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.4 =
+* Fix: Bulk 404 redirect reverted to reliable inline sequential processing (background job caused stalling)
+* Fix: Schema bulk regenerate reverted to inline batch processing for instant feedback
+* Fix: poll_job endpoint now actively drives job processing instead of relying solely on WP Cron
+* Enhancement: Background jobs reserved only for AI-heavy operations (Bulk AI Fix on Search Performance)
+* Enhancement: Job Queue page now shows clearer empty state with explanation of when jobs appear
+* Enhancement: Added missing type labels for Not-Indexed AI Fix and Bulk 404 Redirect jobs
+
 = 2.0.3 =
 * New: Bulk AI Fix button for "Pages Not Appearing in Search" — select pages and fix all missing titles/descriptions at once
 * New: All bulk operations (AI fix, schema regenerate, 404 redirects) now run as background jobs — you can leave the page while processing continues

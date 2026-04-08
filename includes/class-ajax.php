@@ -3984,6 +3984,14 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
         }
         
+        // Actively process the queue if job is still pending/processing
+        // This ensures progress even if WP Cron is delayed or disabled
+        if (in_array($job->status, ['pending', 'processing'])) {
+            SSF_Job_Queue::process_queue();
+            // Re-fetch after processing
+            $job = SSF_Job_Queue::get($job_id);
+        }
+        
         $total     = intval($job->total_items);
         $processed = intval($job->processed_items);
         $failed    = intval($job->failed_items);

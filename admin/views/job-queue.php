@@ -91,10 +91,13 @@ $active_count = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::active_count() : 
                 <p style="color: #64748b;"><?php esc_html_e('Loading jobs...', 'smart-seo-fixer'); ?></p>
             </div>
             
-            <div id="ssf-jobs-empty" style="text-align: center; padding: 40px; display: none;">
+            <div id="ssf-jobs-empty" style="text-align: center; padding: 40px 20px; display: none;">
                 <span class="dashicons dashicons-yes-alt" style="font-size: 48px; color: #10b981;"></span>
-                <p style="color: #64748b; margin-top: 12px;">
-                    <?php esc_html_e('No background jobs. When you run bulk operations on 10+ posts, they will appear here.', 'smart-seo-fixer'); ?>
+                <p style="color: #1e293b; margin-top: 12px; font-size: 14px; font-weight: 600;">
+                    <?php esc_html_e('All clear — no background jobs running.', 'smart-seo-fixer'); ?>
+                </p>
+                <p style="color: #64748b; margin-top: 4px; font-size: 13px; max-width: 480px; margin-left: auto; margin-right: auto;">
+                    <?php esc_html_e('Background jobs are created when you run "Bulk AI Fix" on the Search Performance page for pages not appearing in search. Jobs will appear here automatically once started.', 'smart-seo-fixer'); ?>
                 </p>
             </div>
             
@@ -164,7 +167,9 @@ jQuery(document).ready(function($) {
         var labels = {
             'bulk_ai_fix': '<?php esc_html_e('Bulk AI Fix', 'smart-seo-fixer'); ?>',
             'bulk_schema': '<?php esc_html_e('Bulk Schema', 'smart-seo-fixer'); ?>',
-            'orphan_fix_batch': '<?php esc_html_e('Orphan Fix', 'smart-seo-fixer'); ?>'
+            'orphan_fix_batch': '<?php esc_html_e('Orphan Fix', 'smart-seo-fixer'); ?>',
+            'not_indexed_ai_fix': '<?php esc_html_e('Not-Indexed AI Fix', 'smart-seo-fixer'); ?>',
+            'bulk_404_redirect': '<?php esc_html_e('Bulk 404 Redirect', 'smart-seo-fixer'); ?>'
         };
         return labels[type] || type;
     }

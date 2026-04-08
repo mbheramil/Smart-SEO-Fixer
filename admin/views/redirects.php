@@ -259,10 +259,7 @@ jQuery(document).ready(function($) {
     });
     $('#ssf-bulk-redirect-cancel').on('click', function() { $('#ssf-bulk-redirect-modal').hide(); });
     
-    // Bulk redirect confirm — dispatches background job
-    var redir404JobId = null;
-    var redir404PollTimer = null;
-    
+    // Bulk redirect confirm — inline sequential processing with progress
     $('#ssf-bulk-redirect-confirm').on('click', function() {
         var redirectTo = $('#ssf-bulk-redirect-to').val().trim();
         if (!redirectTo) { alert('<?php echo esc_js(__('Enter a redirect URL.', 'smart-seo-fixer')); ?>'); return; }
@@ -276,6 +273,8 @@ jQuery(document).ready(function($) {
         if (!urls.length) return;
         
         var total = urls.length;
+        var done = 0;
+        var failed = 0;
         var $btn = $(this).prop('disabled', true);
         $('#ssf-bulk-redirect-cancel').prop('disabled', true);
         $('#ssf-bulk-progress-wrap').show();
@@ -284,70 +283,39 @@ jQuery(document).ready(function($) {
         $('#ssf-bulk-progress-text').text('0 / ' + total);
         $('#ssf-bulk-progress-pct').text('0%');
         
-        $.post(ssfAdmin.ajax_url, {
-            action: 'ssf_dispatch_job',
-            nonce: ssfAdmin.nonce,
-            job_type: 'bulk_404_redirect',
-            items: urls,
-            payload: { redirect_to: redirectTo }
-        }, function(response) {
-            if (!response.success) {
-                $btn.prop('disabled', false);
-                $('#ssf-bulk-redirect-cancel').prop('disabled', false);
-                alert(response.data?.message || '<?php echo esc_js(__('Failed to create job.', 'smart-seo-fixer')); ?>');
+        function updateProgress() {
+            var pct = Math.round((done / total) * 100);
+            $('#ssf-bulk-progress-bar').css('width', pct + '%');
+            $('#ssf-bulk-progress-text').text(done + ' / ' + total);
+            $('#ssf-bulk-progress-pct').text(pct + '%');
+        }
+        
+        function addNext() {
+            if (done >= total) {
+                $('#ssf-bulk-progress-bar').css({'width':'100%','background':'#059669'});
+                var msg = done + ' <?php echo esc_js(__('redirects created', 'smart-seo-fixer')); ?>';
+                if (failed > 0) msg += ' (' + failed + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>)';
+                $('#ssf-bulk-progress-status').text('✓ ' + msg).show();
+                $btn.prop('disabled', false).text('<?php echo esc_js(__('Done!', 'smart-seo-fixer')); ?>');
+                $('#ssf-bulk-redirect-cancel').prop('disabled', false).text('<?php echo esc_js(__('Close', 'smart-seo-fixer')); ?>');
+                setTimeout(function() {
+                    $('#ssf-bulk-redirect-modal').hide();
+                    $('#ssf-bulk-progress-wrap').hide();
+                    $('#ssf-bulk-progress-bar').css('background', '#2271b1');
+                    $btn.text('<?php echo esc_js(__('Create Redirects', 'smart-seo-fixer')); ?>');
+                    $('#ssf-bulk-redirect-cancel').text('<?php echo esc_js(__('Cancel', 'smart-seo-fixer')); ?>');
+                    loadRedirects();
+                    load404Log();
+                }, 1500);
                 return;
             }
-            
-            redir404JobId = response.data.job_id;
-            $('#ssf-bulk-progress-text').text('<?php echo esc_js(__('Processing in background...', 'smart-seo-fixer')); ?> 0 / ' + total);
-            
-            // Start polling
-            if (redir404PollTimer) clearInterval(redir404PollTimer);
-            redir404PollTimer = setInterval(function() {
-                $.post(ssfAdmin.ajax_url, {
-                    action: 'ssf_poll_job',
-                    nonce: ssfAdmin.nonce,
-                    job_id: redir404JobId
-                }, function(pr) {
-                    if (!pr.success) return;
-                    var d = pr.data;
-                    $('#ssf-bulk-progress-bar').css('width', d.percent + '%');
-                    $('#ssf-bulk-progress-text').text(d.processed + ' / ' + d.total);
-                    $('#ssf-bulk-progress-pct').text(d.percent + '%');
-                    
-                    if (d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled') {
-                        clearInterval(redir404PollTimer);
-                        redir404PollTimer = null;
-                        
-                        if (d.status === 'completed') {
-                            $('#ssf-bulk-progress-bar').css({'width':'100%','background':'#059669'});
-                            var msg = d.processed + ' <?php echo esc_js(__('redirects created', 'smart-seo-fixer')); ?>';
-                            if (d.failed > 0) msg += ' (' + d.failed + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>)';
-                            $('#ssf-bulk-progress-status').text('✓ ' + msg).show();
-                        } else {
-                            $('#ssf-bulk-progress-bar').css('background', '#dc2626');
-                            $('#ssf-bulk-progress-status').text('✗ <?php echo esc_js(__('Job failed or cancelled', 'smart-seo-fixer')); ?>').show();
-                        }
-                        
-                        $btn.prop('disabled', false).text('<?php echo esc_js(__('Done!', 'smart-seo-fixer')); ?>');
-                        $('#ssf-bulk-redirect-cancel').prop('disabled', false).text('<?php echo esc_js(__('Close', 'smart-seo-fixer')); ?>');
-                        setTimeout(function() {
-                            $('#ssf-bulk-redirect-modal').hide();
-                            $('#ssf-bulk-progress-wrap').hide();
-                            $('#ssf-bulk-progress-bar').css('background', '#2271b1');
-                            $btn.text('<?php echo esc_js(__('Create Redirects', 'smart-seo-fixer')); ?>');
-                            $('#ssf-bulk-redirect-cancel').text('<?php echo esc_js(__('Cancel', 'smart-seo-fixer')); ?>');
-                            loadRedirects();
-                            load404Log();
-                        }, 1500);
-                    }
-                });
-            }, 5000);
-        }).fail(function() {
-            $btn.prop('disabled', false);
-            $('#ssf-bulk-redirect-cancel').prop('disabled', false);
-            alert('<?php echo esc_js(__('Request failed. Please try again.', 'smart-seo-fixer')); ?>');
-        });
+            $.post(ssfAdmin.ajax_url, {action:'ssf_add_redirect',nonce:ssfAdmin.nonce,from:urls[done],to:redirectTo,redirect_type:'301',note:'Bulk from 404 log'}, function() {
+                done++;
+                updateProgress();
+                addNext();
+            }).fail(function() { done++; failed++; updateProgress(); addNext(); });
+        }
+        addNext();
     });
     
     function escH(t) { var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; }
