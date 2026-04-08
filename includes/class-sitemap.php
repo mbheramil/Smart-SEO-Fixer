@@ -12,11 +12,16 @@ if (!defined('ABSPATH')) {
 class SSF_Sitemap {
     
     /**
+     * Max URLs per sitemap file (Google's limit is 50,000)
+     */
+    const MAX_URLS_PER_SITEMAP = 2000;
+    
+    /**
      * Constructor
      */
     public function __construct() {
         if (Smart_SEO_Fixer::get_option('enable_sitemap', true)) {
-            add_action('init', [$this, 'add_rewrite_rules']);
+            add_action('init', [$this, 'add_rewrite_rules'], 1);
             add_filter('query_vars', [$this, 'add_query_vars']);
             add_action('template_redirect', [$this, 'render_sitemap'], 1);
             
@@ -36,20 +41,43 @@ class SSF_Sitemap {
     }
     
     /**
+     * Get all public post types that should be in the sitemap.
+     */
+    private function get_sitemap_post_types() {
+        $post_types = get_post_types(['public' => true], 'objects');
+        $result = [];
+        foreach ($post_types as $pt) {
+            // Skip attachments — they are just media files
+            if ($pt->name === 'attachment') {
+                continue;
+            }
+            $result[] = $pt->name;
+        }
+        return $result;
+    }
+    
+    /**
+     * Get all public taxonomies that should be in the sitemap.
+     */
+    private function get_sitemap_taxonomies() {
+        $taxonomies = get_taxonomies(['public' => true], 'objects');
+        $result = [];
+        foreach ($taxonomies as $tax) {
+            // Skip post_format
+            if ($tax->name === 'post_format') {
+                continue;
+            }
+            $result[] = $tax->name;
+        }
+        return $result;
+    }
+    
+    /**
      * Intercept sitemap requests early before other plugins can serve theirs.
      */
     public function intercept_sitemap_request($wp) {
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
-        
-        $sitemap_map = [
-            'sitemap.xml'            => 'index',
-            'sitemap-posts.xml'      => 'posts',
-            'sitemap-pages.xml'      => 'pages',
-            'sitemap-categories.xml' => 'categories',
-            'sitemap-tags.xml'       => 'tags',
-            'sitemap-authors.xml'    => 'authors',
-        ];
         
         // Strip the site subdirectory if WordPress is in a subdirectory
         $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
@@ -57,8 +85,41 @@ class SSF_Sitemap {
             $path = substr($path, strlen($home_path) + 1);
         }
         
-        if (isset($sitemap_map[$path])) {
-            $wp->query_vars['ssf_sitemap'] = $sitemap_map[$path];
+        if ($path === 'sitemap.xml') {
+            $wp->query_vars['ssf_sitemap'] = 'index';
+            return;
+        }
+        
+        // Match post type sitemaps: sitemap-{type}.xml or sitemap-{type}{page}.xml
+        if (preg_match('/^sitemap-(.+?)(\d*)\.xml$/', $path, $m)) {
+            $slug = $m[1];
+            $page = $m[2] !== '' ? intval($m[2]) : 1;
+            
+            // Check post types
+            $post_types = $this->get_sitemap_post_types();
+            foreach ($post_types as $pt) {
+                $pt_slug = $this->post_type_slug($pt);
+                if ($slug === $pt_slug || $slug === $pt_slug . '-') {
+                    $wp->query_vars['ssf_sitemap'] = 'pt:' . $pt . ':' . $page;
+                    return;
+                }
+            }
+            
+            // Check taxonomies
+            $taxonomies = $this->get_sitemap_taxonomies();
+            foreach ($taxonomies as $tax) {
+                $tax_slug = $this->taxonomy_slug($tax);
+                if ($slug === $tax_slug || $slug === $tax_slug . '-') {
+                    $wp->query_vars['ssf_sitemap'] = 'tax:' . $tax . ':' . $page;
+                    return;
+                }
+            }
+            
+            // Authors
+            if ($slug === 'authors' || $slug === 'authors-') {
+                $wp->query_vars['ssf_sitemap'] = 'authors:' . $page;
+                return;
+            }
         }
     }
     
@@ -99,12 +160,12 @@ class SSF_Sitemap {
      * Add rewrite rules for sitemap
      */
     public function add_rewrite_rules() {
+        // Index
         add_rewrite_rule('^sitemap\.xml$', 'index.php?ssf_sitemap=index', 'top');
-        add_rewrite_rule('^sitemap-posts\.xml$', 'index.php?ssf_sitemap=posts', 'top');
-        add_rewrite_rule('^sitemap-pages\.xml$', 'index.php?ssf_sitemap=pages', 'top');
-        add_rewrite_rule('^sitemap-categories\.xml$', 'index.php?ssf_sitemap=categories', 'top');
-        add_rewrite_rule('^sitemap-tags\.xml$', 'index.php?ssf_sitemap=tags', 'top');
-        add_rewrite_rule('^sitemap-authors\.xml$', 'index.php?ssf_sitemap=authors', 'top');
+        
+        // Catch-all for any sub-sitemap: sitemap-{anything}.xml
+        // The actual parsing is done in intercept_sitemap_request
+        add_rewrite_rule('^sitemap-([a-zA-Z0-9_-]+?)(\d*)\.xml$', 'index.php?ssf_sitemap=dynamic', 'top');
     }
     
     /**
@@ -125,79 +186,140 @@ class SSF_Sitemap {
             return;
         }
         
-        header('Content-Type: application/xml; charset=UTF-8');
-        header('X-Robots-Tag: noindex, follow');
+        $output = '';
         
-        switch ($sitemap_type) {
-            case 'index':
-                echo $this->generate_index_sitemap();
-                break;
-            case 'posts':
-                echo $this->generate_posts_sitemap();
-                break;
-            case 'pages':
-                echo $this->generate_pages_sitemap();
-                break;
-            case 'categories':
-                echo $this->generate_categories_sitemap();
-                break;
-            case 'tags':
-                echo $this->generate_tags_sitemap();
-                break;
-            case 'authors':
-                echo $this->generate_authors_sitemap();
-                break;
+        if ($sitemap_type === 'index') {
+            $output = $this->generate_index_sitemap();
+        } elseif (strpos($sitemap_type, 'pt:') === 0) {
+            // Post type: pt:{post_type}:{page}
+            $parts = explode(':', $sitemap_type);
+            $pt = $parts[1] ?? 'post';
+            $page = intval($parts[2] ?? 1);
+            $output = $this->generate_post_type_sitemap($pt, $page);
+        } elseif (strpos($sitemap_type, 'tax:') === 0) {
+            // Taxonomy: tax:{taxonomy}:{page}
+            $parts = explode(':', $sitemap_type);
+            $tax = $parts[1] ?? 'category';
+            $page = intval($parts[2] ?? 1);
+            $output = $this->generate_taxonomy_sitemap($tax, $page);
+        } elseif (strpos($sitemap_type, 'authors') === 0) {
+            $parts = explode(':', $sitemap_type);
+            $page = intval($parts[1] ?? 1);
+            $output = $this->generate_authors_sitemap($page);
         }
         
+        if (empty($output)) {
+            return;
+        }
+        
+        header('Content-Type: application/xml; charset=UTF-8');
+        header('X-Robots-Tag: noindex, follow');
+        echo $output;
         exit;
     }
     
     /**
-     * Generate sitemap index
+     * Get a URL-friendly slug for a post type sitemap.
+     */
+    private function post_type_slug($post_type) {
+        $map = [
+            'post' => 'post',
+            'page' => 'page',
+        ];
+        return isset($map[$post_type]) ? $map[$post_type] : sanitize_title($post_type);
+    }
+    
+    /**
+     * Get a URL-friendly slug for a taxonomy sitemap.
+     */
+    private function taxonomy_slug($taxonomy) {
+        $map = [
+            'category' => 'category',
+            'post_tag' => 'post_tag',
+        ];
+        return isset($map[$taxonomy]) ? $map[$taxonomy] : sanitize_title($taxonomy);
+    }
+    
+    /**
+     * Count published posts for a post type.
+     */
+    private function count_posts_for_type($post_type) {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish'",
+            $post_type
+        ));
+    }
+    
+    /**
+     * Count terms for a taxonomy.
+     */
+    private function count_terms_for_tax($taxonomy) {
+        return (int) wp_count_terms(['taxonomy' => $taxonomy, 'hide_empty' => true]);
+    }
+    
+    /**
+     * Generate sitemap index — automatically includes all public post types and taxonomies.
      */
     private function generate_index_sitemap() {
         $output = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $output .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
         
-        // Posts sitemap
-        $last_post = get_posts([
-            'numberposts' => 1,
-            'post_status' => 'publish',
-            'orderby' => 'modified',
-            'order' => 'DESC',
-        ]);
-        
-        if (!empty($last_post)) {
-            $output .= $this->sitemap_entry(
-                home_url('/sitemap-posts.xml'),
-                get_post_modified_time('c', true, $last_post[0])
-            );
+        // Post type sitemaps
+        foreach ($this->get_sitemap_post_types() as $pt) {
+            $count = $this->count_posts_for_type($pt);
+            if ($count === 0) {
+                continue;
+            }
+            
+            $pages = max(1, ceil($count / self::MAX_URLS_PER_SITEMAP));
+            $slug = $this->post_type_slug($pt);
+            
+            // Get latest modified date for this post type
+            $last_post = get_posts([
+                'numberposts' => 1,
+                'post_type' => $pt,
+                'post_status' => 'publish',
+                'orderby' => 'modified',
+                'order' => 'DESC',
+            ]);
+            $lastmod = !empty($last_post) ? get_post_modified_time('c', true, $last_post[0]) : '';
+            
+            for ($p = 1; $p <= $pages; $p++) {
+                $suffix = $pages > 1 ? $p : '';
+                $output .= $this->sitemap_entry(
+                    home_url('/sitemap-' . $slug . $suffix . '.xml'),
+                    $lastmod
+                );
+            }
         }
         
-        // Pages sitemap
-        $last_page = get_posts([
-            'numberposts' => 1,
-            'post_type' => 'page',
-            'post_status' => 'publish',
-            'orderby' => 'modified',
-            'order' => 'DESC',
-        ]);
-        
-        if (!empty($last_page)) {
-            $output .= $this->sitemap_entry(
-                home_url('/sitemap-pages.xml'),
-                get_post_modified_time('c', true, $last_page[0])
-            );
+        // Taxonomy sitemaps
+        foreach ($this->get_sitemap_taxonomies() as $tax) {
+            $count = $this->count_terms_for_tax($tax);
+            if ($count === 0) {
+                continue;
+            }
+            
+            $pages = max(1, ceil($count / self::MAX_URLS_PER_SITEMAP));
+            $slug = $this->taxonomy_slug($tax);
+            
+            for ($p = 1; $p <= $pages; $p++) {
+                $suffix = $pages > 1 ? $p : '';
+                $output .= $this->sitemap_entry(
+                    home_url('/sitemap-' . $slug . $suffix . '.xml')
+                );
+            }
         }
-        
-        // Categories sitemap
-        $output .= $this->sitemap_entry(home_url('/sitemap-categories.xml'));
-        
-        // Tags sitemap
-        $output .= $this->sitemap_entry(home_url('/sitemap-tags.xml'));
         
         // Authors sitemap
-        $output .= $this->sitemap_entry(home_url('/sitemap-authors.xml'));
+        $author_count = count(get_users([
+            'has_published_posts' => true,
+            'fields' => 'ID',
+        ]));
+        if ($author_count > 0) {
+            $output .= $this->sitemap_entry(home_url('/sitemap-authors.xml'));
+        }
         
         $output .= '</sitemapindex>';
         
@@ -205,140 +327,106 @@ class SSF_Sitemap {
     }
     
     /**
-     * Generate posts sitemap
+     * Generate sitemap for any post type, with pagination.
      */
-    private function generate_posts_sitemap() {
+    private function generate_post_type_sitemap($post_type, $page = 1) {
         $output = $this->sitemap_header();
         
+        $offset = ($page - 1) * self::MAX_URLS_PER_SITEMAP;
+        
+        // Add homepage for page type, page 1
+        if ($post_type === 'page' && $page === 1) {
+            $output .= $this->url_entry(
+                home_url('/'),
+                current_time('c'),
+                'daily',
+                '1.0'
+            );
+        }
+        
         $posts = get_posts([
-            'numberposts' => 1000,
+            'numberposts' => self::MAX_URLS_PER_SITEMAP,
+            'offset'      => $offset,
+            'post_type'   => $post_type,
             'post_status' => 'publish',
-            'orderby' => 'modified',
-            'order' => 'DESC',
+            'orderby'     => 'modified',
+            'order'       => 'DESC',
         ]);
         
+        $is_page = ($post_type === 'page');
+        $front_page_id = $is_page ? (int) get_option('page_on_front') : 0;
+        
         foreach ($posts as $post) {
-            // Skip if noindex
+            // Skip noindex
             if (get_post_meta($post->ID, '_ssf_noindex', true)) {
                 continue;
             }
+            // Skip homepage (already added above)
+            if ($is_page && $post->ID === $front_page_id) {
+                continue;
+            }
+            
+            $priority = $is_page ? '0.6' : '0.8';
+            $freq = $is_page ? 'monthly' : 'weekly';
             
             $output .= $this->url_entry(
                 get_permalink($post->ID),
                 get_post_modified_time('c', true, $post),
-                'weekly',
-                '0.8'
+                $freq,
+                $priority
             );
         }
         
         $output .= '</urlset>';
-        
         return $output;
     }
     
     /**
-     * Generate pages sitemap
+     * Generate sitemap for any taxonomy, with pagination.
      */
-    private function generate_pages_sitemap() {
+    private function generate_taxonomy_sitemap($taxonomy, $page = 1) {
         $output = $this->sitemap_header();
         
-        // Add homepage
-        $output .= $this->url_entry(
-            home_url('/'),
-            current_time('c'),
-            'daily',
-            '1.0'
-        );
+        $offset = ($page - 1) * self::MAX_URLS_PER_SITEMAP;
         
-        $pages = get_posts([
-            'numberposts' => 1000,
-            'post_type' => 'page',
-            'post_status' => 'publish',
-            'orderby' => 'modified',
-            'order' => 'DESC',
-        ]);
-        
-        foreach ($pages as $page) {
-            // Skip if noindex
-            if (get_post_meta($page->ID, '_ssf_noindex', true)) {
-                continue;
-            }
-            
-            // Skip homepage (already added)
-            if ($page->ID == get_option('page_on_front')) {
-                continue;
-            }
-            
-            $output .= $this->url_entry(
-                get_permalink($page->ID),
-                get_post_modified_time('c', true, $page),
-                'monthly',
-                '0.6'
-            );
-        }
-        
-        $output .= '</urlset>';
-        
-        return $output;
-    }
-    
-    /**
-     * Generate categories sitemap
-     */
-    private function generate_categories_sitemap() {
-        $output = $this->sitemap_header();
-        
-        $categories = get_categories([
+        $terms = get_terms([
+            'taxonomy'   => $taxonomy,
             'hide_empty' => true,
+            'number'     => self::MAX_URLS_PER_SITEMAP,
+            'offset'     => $offset,
+            'orderby'    => 'count',
+            'order'      => 'DESC',
         ]);
         
-        foreach ($categories as $category) {
-            $output .= $this->url_entry(
-                get_category_link($category->term_id),
-                '',
-                'weekly',
-                '0.5'
-            );
+        if (!is_wp_error($terms)) {
+            foreach ($terms as $term) {
+                $output .= $this->url_entry(
+                    get_term_link($term),
+                    '',
+                    'weekly',
+                    '0.5'
+                );
+            }
         }
         
         $output .= '</urlset>';
-        
         return $output;
     }
     
     /**
-     * Generate tags sitemap
+     * Generate authors sitemap, with pagination.
      */
-    private function generate_tags_sitemap() {
+    private function generate_authors_sitemap($page = 1) {
         $output = $this->sitemap_header();
         
-        $tags = get_tags([
-            'hide_empty' => true,
-        ]);
-        
-        foreach ($tags as $tag) {
-            $output .= $this->url_entry(
-                get_tag_link($tag->term_id),
-                '',
-                'weekly',
-                '0.3'
-            );
-        }
-        
-        $output .= '</urlset>';
-        
-        return $output;
-    }
-    
-    /**
-     * Generate authors sitemap
-     */
-    private function generate_authors_sitemap() {
-        $output = $this->sitemap_header();
+        $offset = ($page - 1) * self::MAX_URLS_PER_SITEMAP;
         
         $authors = get_users([
-            'who' => 'authors',
             'has_published_posts' => true,
+            'number'  => self::MAX_URLS_PER_SITEMAP,
+            'offset'  => $offset,
+            'orderby' => 'post_count',
+            'order'   => 'DESC',
         ]);
         
         foreach ($authors as $author) {
@@ -351,7 +439,6 @@ class SSF_Sitemap {
         }
         
         $output .= '</urlset>';
-        
         return $output;
     }
     

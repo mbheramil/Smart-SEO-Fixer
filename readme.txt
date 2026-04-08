@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.5
+Stable tag: 2.0.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.6 =
+* Enhancement: Sitemap now automatically includes ALL public post types (services, locations, products, FAQs, etc.) — not just posts and pages
+* Enhancement: Sitemap now automatically includes ALL public taxonomies (custom categories, tags, etc.)
+* Enhancement: Large sitemaps are automatically paginated (2000 URLs per file) to handle sites with thousands of pages
+* Enhancement: Sitemap index only lists sub-sitemaps that actually contain content (no empty sitemaps)
+
 = 2.0.5 =
 * Fix: "Pages Not Appearing in Search" scanner now uses correct meta keys (_ssf_seo_title, _ssf_meta_description) — AI fix results now properly persist across page refreshes
 * Fix: AI Fix button now works without clicking Inspect first — issue name mismatch (missing_meta vs missing_description) caused fix queue to be empty
