@@ -64,6 +64,7 @@ if (!defined('ABSPATH')) {
                         <label><input type="checkbox" name="ssf_section" value="overview" checked /> <?php esc_html_e('Overview & Score', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="meta_coverage" checked /> <?php esc_html_e('Meta Tag Coverage', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="score_distribution" checked /> <?php esc_html_e('Score Distribution', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="score_factors" checked /> <?php esc_html_e('Score Factors (Why)', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="top_pages" checked /> <?php esc_html_e('Top Pages', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="content_health" checked /> <?php esc_html_e('Content Health', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="image_seo" checked /> <?php esc_html_e('Image SEO', 'smart-seo-fixer'); ?></label>
@@ -179,6 +180,16 @@ if (!defined('ABSPATH')) {
                     <?php esc_html_e('Score Distribution', 'smart-seo-fixer'); ?>
                 </h2>
                 <div class="ssf-report-bar-chart" id="ssf-dist-chart"></div>
+            </div>
+
+            <!-- Score Factors -->
+            <div class="ssf-report-section" id="ssf-section-score_factors" style="display:none;">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-info-outline"></span>
+                    <?php esc_html_e('Why Your Score Is What It Is', 'smart-seo-fixer'); ?>
+                </h2>
+                <p class="ssf-report-note" id="ssf-score-factors-subtitle"></p>
+                <div id="ssf-score-factors-list"></div>
             </div>
 
             <!-- Top Pages -->

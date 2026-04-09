@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.22
+Stable tag: 2.0.23
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.23 =
+* New: "Why Your Score Is What It Is" section — shows top 10 most common SEO issues across all pages with frequency bars
+* New: Each issue shows category (Content, Title, Description, etc.), the specific problem, and how many pages are affected
+* New: Score Factors checkbox in report config panel
+
 = 2.0.22 =
 * Fix: Image alt text count was wrong — was scanning raw post HTML instead of checking attachment metadata (_wp_attachment_image_alt)
 * Fix: Report showed >100% analyzed (e.g. 113%) because scores table included deleted/trashed/drafted posts

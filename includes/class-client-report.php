@@ -82,6 +82,7 @@ class SSF_Client_Report {
             'broken_links_fixed' => 'get_broken_links_fixed',
             'optimizations'      => 'get_optimization_count',
             'sitemap_status'     => 'get_sitemap_status',
+            'score_factors'      => 'get_score_factors',
             'worst_pages'        => 'get_worst_pages',
             'issues'             => 'get_issues',
         ];
@@ -158,6 +159,9 @@ class SSF_Client_Report {
 
             case 'sitemap_status':
                 return !empty($result['url']);
+
+            case 'score_factors':
+                return !empty($result['factors']);
 
             default:
                 return true;
@@ -793,6 +797,101 @@ class SSF_Client_Report {
             'enabled'         => true,
             'indexable_pages'  => intval($indexable_count),
             'post_types'      => $post_types,
+        ];
+    }
+
+    /**
+     * Score Factors: aggregate the most common issues dragging down SEO scores.
+     * Reads the `issues` JSON column from seo_scores to find the most frequent problems.
+     */
+    private static function get_score_factors() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            return ['factors' => []];
+        }
+
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
+        // Get issues JSON for all published posts (latest score per post)
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT t1.issues, t1.suggestions, t1.score
+                 FROM $table t1
+                 INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                 WHERE p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)",
+                ...$post_types
+            )
+        );
+
+        $total_pages = count($rows);
+        if ($total_pages === 0) {
+            return ['factors' => [], 'total_pages' => 0];
+        }
+
+        // Count how many pages have each issue
+        $issue_counts = [];
+        foreach ($rows as $row) {
+            $issues = json_decode($row->issues, true);
+            if (!is_array($issues)) continue;
+            $seen = []; // deduplicate per page
+            foreach ($issues as $issue) {
+                $text = is_array($issue) ? ($issue['message'] ?? ($issue['text'] ?? '')) : (string) $issue;
+                if (empty($text) || isset($seen[$text])) continue;
+                $seen[$text] = true;
+                if (!isset($issue_counts[$text])) {
+                    $issue_counts[$text] = 0;
+                }
+                $issue_counts[$text]++;
+            }
+        }
+
+        // Sort by frequency
+        arsort($issue_counts);
+
+        // Categorize issues
+        $categories = [
+            'Content'     => ['content', 'word', 'paragraph', 'short', 'thin', 'keyword density', 'first paragraph'],
+            'Title'       => ['title', 'seo title'],
+            'Description' => ['description', 'meta description'],
+            'Keywords'    => ['keyword', 'focus keyword'],
+            'Images'      => ['image', 'alt text', 'featured image', 'alt'],
+            'Links'       => ['link', 'internal link', 'external link'],
+            'Headings'    => ['heading', 'h1', 'h2', 'h3', 'hierarchy'],
+            'URL'         => ['slug', 'url', 'permalink'],
+            'Readability' => ['readabil', 'flesch', 'sentence', 'passive'],
+        ];
+
+        $factors = [];
+        $top_issues = array_slice($issue_counts, 0, 10, true);
+        foreach ($top_issues as $issue_text => $count) {
+            $pct = round(($count / $total_pages) * 100);
+            $category = 'Other';
+            $text_lower = strtolower($issue_text);
+            foreach ($categories as $cat => $keywords) {
+                foreach ($keywords as $kw) {
+                    if (strpos($text_lower, $kw) !== false) {
+                        $category = $cat;
+                        break 2;
+                    }
+                }
+            }
+
+            $factors[] = [
+                'issue'    => $issue_text,
+                'count'    => $count,
+                'pct'      => $pct,
+                'category' => $category,
+            ];
+        }
+
+        return [
+            'factors'     => $factors,
+            'total_pages' => $total_pages,
         ];
     }
 

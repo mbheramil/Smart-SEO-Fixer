@@ -1180,6 +1180,55 @@
 .ssf-full-mode-only { display: none; }
 .ssf-full-mode-only.visible { display: block; }
 
+/* Score Factors section */
+.ssf-factor-row {
+    margin-bottom: 14px;
+}
+.ssf-factor-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+.ssf-factor-category {
+    display: inline-block;
+    background: #f0f0f1;
+    color: #50575e;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+}
+.ssf-factor-issue {
+    flex: 1;
+    min-width: 0;
+    font-weight: 500;
+    color: #1d2327;
+}
+.ssf-factor-count {
+    flex-shrink: 0;
+    color: #757575;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.ssf-factor-bar-track {
+    width: 100%;
+    height: 6px;
+    background: #f0f0f1;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.ssf-factor-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
 /* Template banner (replaces default cover when template is active) */
 .ssf-template-banner.ssf-report-cover {
     padding: 40px;
@@ -1229,7 +1278,7 @@
     .ssf-progress-fill, .ssf-grade-badge, .ssf-note-positive,
     .ssf-report-alert, .ssf-report-issue, .ssf-issue-tag,
     .ssf-stat-warning, .ssf-stat-info, .ssf-card-error,
-    .ssf-template-banner {
+    .ssf-template-banner, .ssf-factor-bar-fill, .ssf-factor-category {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
