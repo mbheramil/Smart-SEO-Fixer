@@ -162,6 +162,8 @@ class SSF_Ajax {
         
         // Client Report
         add_action('wp_ajax_ssf_generate_client_report', [$this, 'generate_client_report']);
+        add_action('wp_ajax_ssf_fetch_report_template', [$this, 'fetch_report_template']);
+        add_action('wp_ajax_ssf_clear_report_template', [$this, 'clear_report_template']);
     }
     
     /**
@@ -4209,13 +4211,55 @@ class SSF_Ajax {
         $date_range = sanitize_text_field($_POST['date_range'] ?? '30');
         $start_date = sanitize_text_field($_POST['start_date'] ?? '');
         $end_date   = sanitize_text_field($_POST['end_date'] ?? '');
+        $mode       = sanitize_key($_POST['mode'] ?? 'positive');
+        if (!in_array($mode, ['positive', 'full'], true)) {
+            $mode = 'positive';
+        }
         $sections   = isset($_POST['sections']) && is_array($_POST['sections'])
             ? array_map('sanitize_key', $_POST['sections'])
             : [];
         
-        $data = SSF_Client_Report::generate($date_range, $start_date, $end_date, $sections);
+        $data = SSF_Client_Report::generate($date_range, $start_date, $end_date, $sections, $mode);
         
         wp_send_json_success($data);
+    }
+
+    /**
+     * Fetch and cache a report template from a URL (admin only)
+     */
+    public function fetch_report_template() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $url = esc_url_raw($_POST['template_url'] ?? '');
+        if (empty($url)) {
+            wp_send_json_error(['message' => __('Please provide a template URL.', 'smart-seo-fixer')]);
+        }
+        
+        $result = SSF_Client_Report::fetch_template($url);
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(['message' => $result['message']]);
+        }
+    }
+
+    /**
+     * Clear cached report template (admin only)
+     */
+    public function clear_report_template() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        SSF_Client_Report::clear_template();
+        wp_send_json_success(['message' => __('Template cleared.', 'smart-seo-fixer')]);
     }
 }
 

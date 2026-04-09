@@ -279,12 +279,62 @@
                 $('#ssf-custom-dates').toggle($(this).val() === 'custom');
             });
 
+            // Toggle full-mode-only checkboxes and description
+            $('#ssf-report-mode').on('change', function() {
+                var isFull = $(this).val() === 'full';
+                $('.ssf-full-mode-only').toggle(isFull);
+                $('#ssf-mode-description').text(isFull
+                    ? 'Show everything — positive results, issues, pages needing work, and recommendations.'
+                    : 'Show only positive metrics — great for client-facing reports.');
+            });
+
             $('#ssf-generate-report').on('click', this.generate.bind(this));
             $('#ssf-print-report').on('click', function() { window.print(); });
             $('#ssf-download-pdf').on('click', this.downloadPDF.bind(this));
             $('#ssf-new-report').on('click', function() {
                 $('#ssf-report-output').hide();
                 $('#ssf-report-config').show();
+            });
+
+            // Template fetch
+            $('#ssf-fetch-template').on('click', this.fetchTemplate.bind(this));
+            $('#ssf-clear-template').on('click', this.clearTemplate.bind(this));
+        },
+
+        fetchTemplate: function() {
+            var url = $('#ssf-template-url').val().trim();
+            if (!url) { alert('Please enter a template URL.'); return; }
+            var $status = $('#ssf-template-status');
+            $status.html('<span class="spinner is-active" style="float:none;margin:0 5px 0 0;"></span> Fetching template…');
+            $.post(ajaxurl, {
+                action: 'ssf_fetch_report_template',
+                nonce: SSF.nonce,
+                template_url: url
+            }).done(function(res) {
+                if (res.success) {
+                    $status.html('<span class="ssf-template-loaded">&#10003; Template loaded</span>');
+                } else {
+                    $status.html('<span style="color:#d63638;">' + (res.data || 'Failed to fetch template.') + '</span>');
+                }
+            }).fail(function() {
+                $status.html('<span style="color:#d63638;">Request failed.</span>');
+            });
+        },
+
+        clearTemplate: function() {
+            var $status = $('#ssf-template-status');
+            $.post(ajaxurl, {
+                action: 'ssf_clear_report_template',
+                nonce: SSF.nonce
+            }).done(function(res) {
+                if (res.success) {
+                    $('#ssf-template-url').val('');
+                    $status.html('<span style="color:#666;">Template cleared.</span>');
+                } else {
+                    $status.html('<span style="color:#d63638;">Failed to clear template.</span>');
+                }
+            }).fail(function() {
+                $status.html('<span style="color:#d63638;">Request failed.</span>');
             });
         },
 
@@ -308,6 +358,7 @@
                 date_range: $('#ssf-report-range').val(),
                 start_date: $('#ssf-report-start').val() || '',
                 end_date: $('#ssf-report-end').val() || '',
+                mode: $('#ssf-report-mode').val() || 'positive',
                 sections: sections
             }, function(res) {
                 $btn.prop('disabled', false).html('<span class="dashicons dashicons-analytics"></span> Generate Report');
@@ -340,11 +391,13 @@
             var sec = d.sections || {};
 
             // Toggle section visibility — only show sections with data
-            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status'];
+            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status', 'worst_pages', 'issues'];
             allSections.forEach(function(s) {
                 var $el = $('#ssf-section-' + s);
                 if (sec[s] !== undefined) { $el.show(); } else { $el.hide(); }
             });
+
+            var isFullMode = d.mode === 'full';
 
             // ── Overview & Score ──
             if (sec.overview) {
@@ -362,6 +415,12 @@
                 grid += this.statBox(ov.good_count, 'Good Score (80+)');
                 grid += this.statBox(ov.ok_count, 'OK Score (60-79)');
                 grid += this.statBox(ov.healthy_pct + '%', 'Healthy Pages', 'Scoring 60 or above');
+                if (isFullMode && ov.needs_work_count !== undefined) {
+                    grid += this.statBox(ov.needs_work_count, 'Needs Work (<60)', '', 'ssf-stat-warning');
+                }
+                if (isFullMode && ov.not_analyzed !== undefined && ov.not_analyzed > 0) {
+                    grid += this.statBox(ov.not_analyzed, 'Not Yet Analyzed', '', 'ssf-stat-info');
+                }
                 $('#ssf-overview-grid').html(grid);
             }
 
@@ -373,6 +432,16 @@
                 mh += this.progressBar('Meta Descriptions', mc.with_description, mc.total, mc.description_pct);
                 mh += this.progressBar('Focus Keywords', mc.with_keyword, mc.total, mc.keyword_pct);
                 mh += '</div>';
+                if (isFullMode && (mc.missing_title > 0 || mc.missing_description > 0)) {
+                    mh += '<div class="ssf-report-alert ssf-alert-warning" style="margin-top:16px;">';
+                    mh += '<strong>Action Needed:</strong> ';
+                    var parts = [];
+                    if (mc.missing_title > 0) parts.push(mc.missing_title + ' pages missing SEO titles');
+                    if (mc.missing_description > 0) parts.push(mc.missing_description + ' pages missing meta descriptions');
+                    if (mc.missing_keyword > 0) parts.push(mc.missing_keyword + ' pages missing focus keywords');
+                    mh += parts.join(', ') + '.';
+                    mh += '</div>';
+                }
                 $('#ssf-meta-coverage-content').html(mh);
             }
 
@@ -434,6 +503,9 @@
                     imh += '<p class="ssf-report-note ssf-note-positive">Excellent image accessibility — ' + im.alt_pct + '% of images have descriptive alt text.</p>';
                 } else if (im.alt_pct >= 50) {
                     imh += '<p class="ssf-report-note ssf-note-positive">Good progress — over half of your images have alt text for accessibility and SEO.</p>';
+                }
+                if (isFullMode && im.without_alt > 0) {
+                    imh += '<div class="ssf-report-alert ssf-alert-warning">' + im.without_alt + ' images are missing alt text. Alt text improves accessibility and helps search engines understand your images.</div>';
                 }
                 $('#ssf-image-seo-content').html(imh);
             }
@@ -503,8 +575,15 @@
                 var bl = sec.broken_links_fixed;
                 var bh = '<div class="ssf-report-info-grid">';
                 bh += this.infoCard(bl.fixed, 'Links Fixed');
+                if (isFullMode && bl.unfixed > 0) bh += this.infoCard(bl.unfixed, 'Still Broken', '', 'ssf-card-error');
+                if (isFullMode && bl.total > 0) bh += this.infoCard(bl.total, 'Total Found');
                 bh += '</div>';
-                bh += '<p class="ssf-report-note ssf-note-positive">' + bl.fixed + ' broken link(s) have been identified and addressed, keeping your visitors on the right path.</p>';
+                if (bl.fixed > 0) {
+                    bh += '<p class="ssf-report-note ssf-note-positive">' + bl.fixed + ' broken link(s) have been identified and addressed, keeping your visitors on the right path.</p>';
+                }
+                if (isFullMode && bl.unfixed > 0) {
+                    bh += '<div class="ssf-report-alert ssf-alert-error">' + bl.unfixed + ' broken link(s) still need attention. Review them in the Broken Links page.</div>';
+                }
                 $('#ssf-broken-links-content').html(bh);
             }
 
@@ -545,6 +624,41 @@
                 }
                 $('#ssf-sitemap-status-content').html(smh);
             }
+
+            // ── Worst Pages (full mode) ──
+            if (sec.worst_pages && sec.worst_pages.length) {
+                var wbody = '';
+                sec.worst_pages.forEach(function(p, i) {
+                    wbody += '<tr>';
+                    wbody += '<td>' + (i + 1) + '</td>';
+                    wbody += '<td>' + SSF_ClientReport.esc(p.title) + '</td>';
+                    wbody += '<td><span class="score-badge needs-work">' + p.score + '</span></td>';
+                    wbody += '<td>';
+                    if (p.issues && p.issues.length) {
+                        p.issues.forEach(function(issue) {
+                            wbody += '<span class="ssf-issue-tag">' + SSF_ClientReport.esc(issue) + '</span> ';
+                        });
+                    }
+                    wbody += '</td>';
+                    wbody += '</tr>';
+                });
+                $('#ssf-worst-pages-table tbody').html(wbody);
+            }
+
+            // ── Issues & Recommendations (full mode) ──
+            if (sec.issues && sec.issues.length) {
+                var ih = '';
+                sec.issues.forEach(function(issue) {
+                    var icon = issue.severity === 'error' ? 'dismiss' : (issue.severity === 'warning' ? 'warning' : 'info-outline');
+                    ih += '<div class="ssf-report-issue ssf-issue-' + issue.severity + '">';
+                    ih += '<div class="ssf-issue-icon"><span class="dashicons dashicons-' + icon + '"></span></div>';
+                    ih += '<div class="ssf-issue-body">';
+                    ih += '<strong>' + SSF_ClientReport.esc(issue.title) + '</strong>';
+                    if (issue.detail) ih += '<p>' + SSF_ClientReport.esc(issue.detail) + '</p>';
+                    ih += '</div></div>';
+                });
+                $('#ssf-issues-content').html(ih);
+            }
         },
 
         animateRing: function(score) {
@@ -571,15 +685,17 @@
             window.print();
         },
 
-        statBox: function(number, label, subtitle) {
-            var h = '<div class="ssf-report-stat-box"><span class="stat-number">' + (number !== undefined ? number : 0) + '</span><span class="stat-label">' + this.esc(label) + '</span>';
+        statBox: function(number, label, subtitle, extraClass) {
+            var cls = 'ssf-report-stat-box' + (extraClass ? ' ' + extraClass : '');
+            var h = '<div class="' + cls + '"><span class="stat-number">' + (number !== undefined ? number : 0) + '</span><span class="stat-label">' + this.esc(label) + '</span>';
             if (subtitle) h += '<span class="stat-subtitle">' + this.esc(subtitle) + '</span>';
             h += '</div>';
             return h;
         },
 
-        infoCard: function(value, label, subtitle) {
-            var h = '<div class="ssf-report-info-card"><span class="info-value">' + (value !== undefined ? value : 0) + '</span><span class="info-label">' + this.esc(label) + '</span>';
+        infoCard: function(value, label, subtitle, extraClass) {
+            var cls = 'ssf-report-info-card' + (extraClass ? ' ' + extraClass : '');
+            var h = '<div class="' + cls + '"><span class="info-value">' + (value !== undefined ? value : 0) + '</span><span class="info-label">' + this.esc(label) + '</span>';
             if (subtitle) h += '<span class="info-subtitle">' + this.esc(subtitle) + '</span>';
             h += '</div>';
             return h;

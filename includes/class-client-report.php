@@ -2,8 +2,10 @@
 /**
  * Client Report Generator
  *
- * Generates positive-only SEO reports for client presentations.
+ * Generates SEO reports for client presentations.
+ * Supports two modes: 'positive' (highlights only) and 'full' (everything including issues).
  * Admin-only access. Supports HTML preview, print, and PDF export.
+ * Optional Google Doc template injection.
  */
 
 if (!defined('ABSPATH')) {
@@ -13,15 +15,16 @@ if (!defined('ABSPATH')) {
 class SSF_Client_Report {
 
     /**
-     * Gather all positive report data for the site.
+     * Gather report data for the site.
      *
      * @param string $date_range 'all'|'30'|'60'|'90'|'custom'
      * @param string $start_date Y-m-d (for custom range)
      * @param string $end_date   Y-m-d (for custom range)
      * @param array  $sections   Which sections to include
+     * @param string $mode       'positive' or 'full'
      * @return array
      */
-    public static function generate($date_range = '30', $start_date = '', $end_date = '', $sections = []) {
+    public static function generate($date_range = '30', $start_date = '', $end_date = '', $sections = [], $mode = 'positive') {
         $dates = self::resolve_dates($date_range, $start_date, $end_date);
 
         $default_sections = [
@@ -39,6 +42,12 @@ class SSF_Client_Report {
             'sitemap_status',
         ];
 
+        // Full mode adds extra sections
+        if ($mode === 'full') {
+            $default_sections[] = 'worst_pages';
+            $default_sections[] = 'issues';
+        }
+
         if (empty($sections)) {
             $sections = $default_sections;
         }
@@ -50,8 +59,15 @@ class SSF_Client_Report {
             'site_tagline' => get_bloginfo('description'),
             'site_icon'    => get_site_icon_url(512),
             'date_range'   => $dates,
+            'mode'         => $mode,
             'sections'     => [],
         ];
+
+        // Check for cached template
+        $template = get_option('ssf_report_template', '');
+        if (!empty($template)) {
+            $data['template'] = $template;
+        }
 
         $method_map = [
             'overview'           => 'get_overview',
@@ -66,6 +82,8 @@ class SSF_Client_Report {
             'broken_links_fixed' => 'get_broken_links_fixed',
             'optimizations'      => 'get_optimization_count',
             'sitemap_status'     => 'get_sitemap_status',
+            'worst_pages'        => 'get_worst_pages',
+            'issues'             => 'get_issues',
         ];
 
         foreach ($sections as $section) {
@@ -74,12 +92,23 @@ class SSF_Client_Report {
             }
             $method = $method_map[$section];
             $needs_dates = in_array($method, ['get_overview', 'get_keyword_highlights', 'get_optimization_count']);
-            $result = $needs_dates ? self::$method($dates) : self::$method();
+            $needs_mode  = in_array($method, ['get_overview', 'get_score_distribution', 'get_broken_links_fixed', 'get_meta_coverage', 'get_image_seo']);
 
-            // Only include sections that have meaningful positive data
-            if (self::section_has_value($section, $result)) {
-                $data['sections'][$section] = $result;
+            if ($needs_dates && $needs_mode) {
+                $result = self::$method($dates, $mode);
+            } elseif ($needs_dates) {
+                $result = self::$method($dates);
+            } elseif ($needs_mode) {
+                $result = self::$method($mode);
+            } else {
+                $result = self::$method();
             }
+
+            // In positive mode, hide empty sections. In full mode, show everything.
+            if ($mode === 'positive' && !self::section_has_value($section, $result)) {
+                continue;
+            }
+            $data['sections'][$section] = $result;
         }
 
         return $data;
@@ -168,7 +197,7 @@ class SSF_Client_Report {
     /**
      * Overview: avg score, total analyzed, total published, grade, percentages.
      */
-    private static function get_overview($dates) {
+    private static function get_overview($dates, $mode = 'positive') {
         global $wpdb;
         $table = $wpdb->prefix . 'ssf_seo_scores';
 
@@ -213,7 +242,7 @@ class SSF_Client_Report {
         $ok = intval($stats->ok ?? 0);
         $healthy = $good + $ok;
 
-        return [
+        $result = [
             'avg_score'        => $avg,
             'grade'            => self::score_to_grade($avg),
             'grade_label'      => self::score_to_label($avg),
@@ -224,12 +253,29 @@ class SSF_Client_Report {
             'healthy_pct'      => $total_analyzed > 0 ? round(($healthy / $total_analyzed) * 100) : 0,
             'analyzed_pct'     => intval($total_posts) > 0 ? round(($total_analyzed / intval($total_posts)) * 100) : 0,
         ];
+
+        // Full mode: add needs-work and not-analyzed counts
+        if ($mode === 'full') {
+            $needs_work = $wpdb->get_var(
+                "SELECT COUNT(*)
+                 FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $table t1
+                    WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest
+                 WHERE score < 60"
+            );
+            $result['needs_work_count'] = intval($needs_work);
+            $result['not_analyzed']     = max(0, intval($total_posts) - $total_analyzed);
+        }
+
+        return $result;
     }
 
     /**
      * Meta coverage: % of posts with title, description, focus keyword.
      */
-    private static function get_meta_coverage() {
+    private static function get_meta_coverage($mode = 'positive') {
         global $wpdb;
 
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
@@ -278,7 +324,7 @@ class SSF_Client_Report {
             ...array_merge($post_types, [$kw_key])
         )));
 
-        return [
+        $result = [
             'total'               => $total,
             'with_title'          => $with_title,
             'with_description'    => $with_desc,
@@ -287,12 +333,21 @@ class SSF_Client_Report {
             'description_pct'     => round(($with_desc / $total) * 100),
             'keyword_pct'         => round(($with_kw / $total) * 100),
         ];
+
+        // Full mode: add missing counts
+        if ($mode === 'full') {
+            $result['missing_title']       = $total - $with_title;
+            $result['missing_description'] = $total - $with_desc;
+            $result['missing_keyword']     = $total - $with_kw;
+        }
+
+        return $result;
     }
 
     /**
-     * Score distribution — only show good & OK buckets (positive only).
+     * Score distribution — positive mode skips needs-work, full mode includes all.
      */
-    private static function get_score_distribution() {
+    private static function get_score_distribution($mode = 'positive') {
         global $wpdb;
         $table = $wpdb->prefix . 'ssf_seo_scores';
 
@@ -320,22 +375,24 @@ class SSF_Client_Report {
         );
 
         $dist = [];
-        $total_positive = 0;
+        $total_count = 0;
         foreach ($rows as $row) {
-            if ($row->bucket === 'skip') {
+            if ($row->bucket === 'skip' && $mode === 'positive') {
                 continue;
             }
             $cnt = intval($row->cnt);
-            $total_positive += $cnt;
+            $total_count += $cnt;
+            $label = $row->bucket === 'skip' ? 'Needs Work' : ucfirst($row->bucket);
             $dist[] = [
-                'label' => ucfirst($row->bucket),
-                'count' => $cnt,
+                'label'  => $label,
+                'count'  => $cnt,
+                'bucket' => $row->bucket,
             ];
         }
 
         // Add percentage
         foreach ($dist as &$item) {
-            $item['pct'] = $total_positive > 0 ? round(($item['count'] / $total_positive) * 100) : 0;
+            $item['pct'] = $total_count > 0 ? round(($item['count'] / $total_count) * 100) : 0;
         }
 
         return $dist;
@@ -422,7 +479,7 @@ class SSF_Client_Report {
     /**
      * Image SEO: images with alt text.
      */
-    private static function get_image_seo() {
+    private static function get_image_seo($mode = 'positive') {
         global $wpdb;
 
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
@@ -454,12 +511,18 @@ class SSF_Client_Report {
 
         $alt_pct = $total_images > 0 ? round(($with_alt / $total_images) * 100) : 0;
 
-        return [
+        $result = [
             'total_images'      => $total_images,
             'with_alt'          => $with_alt,
             'alt_pct'           => $alt_pct,
             'posts_with_images' => $posts_with_images,
         ];
+
+        if ($mode === 'full') {
+            $result['without_alt'] = $total_images - $with_alt;
+        }
+
+        return $result;
     }
 
     /**
@@ -583,9 +646,9 @@ class SSF_Client_Report {
     }
 
     /**
-     * Broken links fixed.
+     * Broken links fixed (and unfixed in full mode).
      */
-    private static function get_broken_links_fixed() {
+    private static function get_broken_links_fixed($mode = 'positive') {
         global $wpdb;
         $table = $wpdb->prefix . 'ssf_broken_links';
 
@@ -593,11 +656,19 @@ class SSF_Client_Report {
             return ['fixed' => 0];
         }
 
-        $fixed = $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE dismissed = 1");
+        $fixed = intval($wpdb->get_var("SELECT COUNT(*) FROM $table WHERE dismissed = 1"));
 
-        return [
-            'fixed' => intval($fixed),
+        $result = [
+            'fixed' => $fixed,
         ];
+
+        if ($mode === 'full') {
+            $unfixed = intval($wpdb->get_var("SELECT COUNT(*) FROM $table WHERE dismissed = 0"));
+            $result['unfixed'] = $unfixed;
+            $result['total']   = $fixed + $unfixed;
+        }
+
+        return $result;
     }
 
     /**
@@ -689,6 +760,260 @@ class SSF_Client_Report {
             'indexable_pages'  => intval($indexable_count),
             'post_types'      => $post_types,
         ];
+    }
+
+    /* ─────────── Full-Mode Sections ─────────── */
+
+    /**
+     * Worst 20 pages by SEO score (full mode only).
+     */
+    private static function get_worst_pages() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            return [];
+        }
+
+        $rows = $wpdb->get_results(
+            "SELECT latest.post_id, latest.score, p.post_title, p.post_type
+             FROM (
+                SELECT t1.post_id, t1.score
+                FROM $table t1
+                WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+             ) latest
+             INNER JOIN {$wpdb->posts} p ON latest.post_id = p.ID
+             WHERE latest.score < 60 AND p.post_status = 'publish'
+             ORDER BY latest.score ASC
+             LIMIT 20"
+        );
+
+        $pages = [];
+        foreach ($rows as $row) {
+            $score = intval($row->score);
+            $issues = [];
+            // Check what's missing for this post
+            $title = get_post_meta($row->post_id, '_ssf_seo_title', true);
+            $desc  = get_post_meta($row->post_id, '_ssf_meta_description', true);
+            $kw    = get_post_meta($row->post_id, '_ssf_focus_keyword', true);
+            if (empty($title)) $issues[] = 'Missing SEO title';
+            if (empty($desc))  $issues[] = 'Missing meta description';
+            if (empty($kw))    $issues[] = 'No focus keyword';
+
+            $pages[] = [
+                'title'     => $row->post_title,
+                'url'       => get_permalink($row->post_id),
+                'score'     => $score,
+                'grade'     => self::score_to_grade($score),
+                'post_type' => $row->post_type,
+                'issues'    => $issues,
+            ];
+        }
+        return $pages;
+    }
+
+    /**
+     * Aggregate issues and recommendations (full mode only).
+     */
+    private static function get_issues() {
+        global $wpdb;
+        $issues = [];
+
+        // 1. Check for pages without SEO titles
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        $total = intval($wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ($placeholders)",
+                ...$post_types
+            )
+        ));
+
+        $without_title = $total - intval($wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT p.ID)
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+             WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
+             AND pm.meta_key = '_ssf_seo_title' AND pm.meta_value != ''",
+            ...$post_types
+        )));
+
+        $without_desc = $total - intval($wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT p.ID)
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+             WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
+             AND pm.meta_key = '_ssf_meta_description' AND pm.meta_value != ''",
+            ...$post_types
+        )));
+
+        if ($without_title > 0) {
+            $issues[] = [
+                'severity' => 'warning',
+                'title'    => sprintf(__('%d pages missing SEO titles', 'smart-seo-fixer'), $without_title),
+                'detail'   => __('Custom SEO titles help search engines understand your content. Use AI Bulk Fix to generate them quickly.', 'smart-seo-fixer'),
+            ];
+        }
+
+        if ($without_desc > 0) {
+            $issues[] = [
+                'severity' => 'warning',
+                'title'    => sprintf(__('%d pages missing meta descriptions', 'smart-seo-fixer'), $without_desc),
+                'detail'   => __('Meta descriptions appear in search results and improve click-through rates.', 'smart-seo-fixer'),
+            ];
+        }
+
+        // 2. Check for unfixed broken links
+        $bl_table = $wpdb->prefix . 'ssf_broken_links';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$bl_table'") === $bl_table) {
+            $unfixed = intval($wpdb->get_var("SELECT COUNT(*) FROM $bl_table WHERE dismissed = 0"));
+            if ($unfixed > 0) {
+                $issues[] = [
+                    'severity' => 'error',
+                    'title'    => sprintf(__('%d broken links need attention', 'smart-seo-fixer'), $unfixed),
+                    'detail'   => __('Broken links hurt user experience and search rankings. Review and fix them in the Broken Links page.', 'smart-seo-fixer'),
+                ];
+            }
+        }
+
+        // 3. Check for low-scoring pages
+        $scores_table = $wpdb->prefix . 'ssf_seo_scores';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$scores_table'") === $scores_table) {
+            $low_score = intval($wpdb->get_var(
+                "SELECT COUNT(*) FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $scores_table t1
+                    WHERE t1.id = (SELECT MAX(t2.id) FROM $scores_table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest WHERE score < 40"
+            ));
+            if ($low_score > 0) {
+                $issues[] = [
+                    'severity' => 'error',
+                    'title'    => sprintf(__('%d pages scoring below 40', 'smart-seo-fixer'), $low_score),
+                    'detail'   => __('These pages have significant SEO issues. Prioritize them for optimization.', 'smart-seo-fixer'),
+                ];
+            }
+
+            // 4. Not analyzed pages
+            $analyzed = intval($wpdb->get_var(
+                "SELECT COUNT(DISTINCT post_id) FROM $scores_table"
+            ));
+            $not_analyzed = $total - $analyzed;
+            if ($not_analyzed > 0) {
+                $issues[] = [
+                    'severity' => 'info',
+                    'title'    => sprintf(__('%d pages not yet analyzed', 'smart-seo-fixer'), $not_analyzed),
+                    'detail'   => __('Run a bulk analysis to get SEO scores for all your content.', 'smart-seo-fixer'),
+                ];
+            }
+        }
+
+        // 5. Image alt text coverage
+        $posts = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, post_content FROM {$wpdb->posts}
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
+                 AND post_content LIKE '%s'",
+                ...array_merge($post_types, ['%<img%'])
+            )
+        );
+        $imgs_without_alt = 0;
+        foreach ($posts as $post) {
+            if (preg_match_all('/<img\s[^>]+>/is', $post->post_content, $matches)) {
+                foreach ($matches[0] as $img_tag) {
+                    if (!preg_match('/alt=["\']([^"\']+)["\']/i', $img_tag, $alt_match) || empty(trim($alt_match[1]))) {
+                        $imgs_without_alt++;
+                    }
+                }
+            }
+        }
+        if ($imgs_without_alt > 0) {
+            $issues[] = [
+                'severity' => 'warning',
+                'title'    => sprintf(__('%d images missing alt text', 'smart-seo-fixer'), $imgs_without_alt),
+                'detail'   => __('Alt text improves accessibility and helps search engines understand your images.', 'smart-seo-fixer'),
+            ];
+        }
+
+        // Sort: errors first, then warnings, then info
+        $order = ['error' => 0, 'warning' => 1, 'info' => 2];
+        usort($issues, function($a, $b) use ($order) {
+            return ($order[$a['severity']] ?? 3) - ($order[$b['severity']] ?? 3);
+        });
+
+        return $issues;
+    }
+
+    /* ─────────── Template ─────────── */
+
+    /**
+     * Fetch a Google Doc (or any URL) as HTML and cache it.
+     *
+     * @param string $url The document URL.
+     * @return array ['success' => bool, 'html' => string, 'message' => string]
+     */
+    public static function fetch_template($url) {
+        // Validate URL
+        $url = esc_url_raw($url);
+        if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['success' => false, 'message' => __('Invalid URL.', 'smart-seo-fixer')];
+        }
+
+        // Auto-convert Google Docs edit URL to export URL
+        if (preg_match('#docs\.google\.com/document/d/([a-zA-Z0-9_-]+)#', $url, $m)) {
+            $doc_id = $m[1];
+            $url = 'https://docs.google.com/document/d/' . $doc_id . '/export?format=html';
+        }
+
+        $response = wp_remote_get($url, [
+            'timeout'    => 30,
+            'user-agent' => 'Mozilla/5.0 (WordPress/' . get_bloginfo('version') . '; Smart SEO Fixer)',
+        ]);
+
+        if (is_wp_error($response)) {
+            return ['success' => false, 'message' => $response->get_error_message()];
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code !== 200) {
+            if ($code === 401 || $code === 403) {
+                return ['success' => false, 'message' => __('Access denied. Please make the document publicly viewable (Share > Anyone with the link > Viewer).', 'smart-seo-fixer')];
+            }
+            return ['success' => false, 'message' => sprintf(__('HTTP error %d.', 'smart-seo-fixer'), $code)];
+        }
+
+        $html = wp_remote_retrieve_body($response);
+        if (empty($html) || strlen($html) < 50) {
+            return ['success' => false, 'message' => __('The document appears to be empty.', 'smart-seo-fixer')];
+        }
+
+        // Extract just the <style> and <body> content
+        $style = '';
+        if (preg_match('/<style[^>]*>(.*?)<\/style>/si', $html, $sm)) {
+            $style = '<style>' . $sm[1] . '</style>';
+        }
+        $body = '';
+        if (preg_match('/<body[^>]*>(.*?)<\/body>/si', $html, $bm)) {
+            $body = $bm[1];
+        } else {
+            $body = $html;
+        }
+
+        $template_html = $style . "\n" . $body;
+
+        // Cache in options
+        update_option('ssf_report_template', $template_html);
+        update_option('ssf_report_template_url', $url);
+
+        return ['success' => true, 'html' => $template_html, 'message' => __('Template loaded and cached.', 'smart-seo-fixer')];
+    }
+
+    /**
+     * Clear cached template.
+     */
+    public static function clear_template() {
+        delete_option('ssf_report_template');
+        delete_option('ssf_report_template_url');
     }
 
     /* ─────────── Helpers ─────────── */

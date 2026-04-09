@@ -25,6 +25,16 @@ if (!defined('ABSPATH')) {
         </div>
         <div class="ssf-card-body">
             <div class="ssf-report-options-grid">
+                <!-- Report Mode -->
+                <div class="ssf-option-group">
+                    <label for="ssf-report-mode"><?php esc_html_e('Report Mode', 'smart-seo-fixer'); ?></label>
+                    <select id="ssf-report-mode">
+                        <option value="positive"><?php esc_html_e('Positive Only — highlights & wins', 'smart-seo-fixer'); ?></option>
+                        <option value="full"><?php esc_html_e('Full Report — everything including issues', 'smart-seo-fixer'); ?></option>
+                    </select>
+                    <p class="description" id="ssf-mode-description"><?php esc_html_e('Show only positive metrics — great for client-facing reports.', 'smart-seo-fixer'); ?></p>
+                </div>
+
                 <!-- Date Range -->
                 <div class="ssf-option-group">
                     <label for="ssf-report-range"><?php esc_html_e('Date Range', 'smart-seo-fixer'); ?></label>
@@ -63,6 +73,32 @@ if (!defined('ABSPATH')) {
                         <label><input type="checkbox" name="ssf_section" value="broken_links_fixed" checked /> <?php esc_html_e('Broken Links Fixed', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="optimizations" checked /> <?php esc_html_e('Optimizations Made', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="sitemap_status" checked /> <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?></label>
+                        <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="worst_pages" checked /> <?php esc_html_e('Pages Needing Work', 'smart-seo-fixer'); ?></label>
+                        <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="issues" checked /> <?php esc_html_e('Issues & Recommendations', 'smart-seo-fixer'); ?></label>
+                    </div>
+                </div>
+
+                <!-- Template URL -->
+                <div class="ssf-option-group">
+                    <label for="ssf-template-url"><?php esc_html_e('Template URL (optional)', 'smart-seo-fixer'); ?></label>
+                    <div style="display:flex; gap:8px; align-items:flex-start;">
+                        <input type="url" id="ssf-template-url" placeholder="https://docs.google.com/document/d/..." style="flex:1;" value="<?php echo esc_attr(get_option('ssf_report_template_url', '')); ?>" />
+                        <button type="button" class="button" id="ssf-fetch-template">
+                            <span class="dashicons dashicons-download" style="vertical-align:middle;margin-top:-2px;"></span>
+                            <?php esc_html_e('Fetch', 'smart-seo-fixer'); ?>
+                        </button>
+                        <?php if (get_option('ssf_report_template', '')): ?>
+                        <button type="button" class="button" id="ssf-clear-template" style="color:#dc2626;">
+                            <span class="dashicons dashicons-dismiss" style="vertical-align:middle;margin-top:-2px;"></span>
+                            <?php esc_html_e('Clear', 'smart-seo-fixer'); ?>
+                        </button>
+                        <?php endif; ?>
+                    </div>
+                    <p class="description"><?php esc_html_e('Paste a Google Doc URL or any public HTML page. The document\'s styling will be used as a wrapper for the report. The document must be publicly viewable.', 'smart-seo-fixer'); ?></p>
+                    <div id="ssf-template-status">
+                        <?php if ($tpl_url = get_option('ssf_report_template_url', '')): ?>
+                            <span class="ssf-template-loaded"><span class="dashicons dashicons-yes-alt"></span> <?php esc_html_e('Template loaded', 'smart-seo-fixer'); ?></span>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -235,6 +271,34 @@ if (!defined('ABSPATH')) {
                     <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?>
                 </h2>
                 <div id="ssf-sitemap-status-content"></div>
+            </div>
+
+            <!-- Pages Needing Work (full mode) -->
+            <div class="ssf-report-section" id="ssf-section-worst_pages">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-warning"></span>
+                    <?php esc_html_e('Pages Needing Improvement', 'smart-seo-fixer'); ?>
+                </h2>
+                <table class="ssf-report-table" id="ssf-worst-pages-table">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e('#', 'smart-seo-fixer'); ?></th>
+                            <th><?php esc_html_e('Page', 'smart-seo-fixer'); ?></th>
+                            <th><?php esc_html_e('Score', 'smart-seo-fixer'); ?></th>
+                            <th><?php esc_html_e('Issues', 'smart-seo-fixer'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Issues & Recommendations (full mode) -->
+            <div class="ssf-report-section" id="ssf-section-issues">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-flag"></span>
+                    <?php esc_html_e('Issues & Recommendations', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-issues-content"></div>
             </div>
 
             <!-- Footer -->

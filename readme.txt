@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.15
+Stable tag: 2.0.16
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.16 =
+* New: Report Mode toggle — choose between Positive Only or Full Report (includes issues, negatives, recommendations)
+* New: Template URL — paste a Google Doc or any URL to use its HTML/CSS as the report template
+* New: Worst Pages section in full mode — bottom 20 pages by score with per-page issue tags
+* New: Issues & Recommendations section in full mode — aggregated problems sorted by severity
+* Improved: Full mode shows missing meta counts, unfixed broken links, needs-work scores, and unanalyzed pages
+* Improved: Score distribution includes "Needs Work" bucket in full mode
+
 = 2.0.15 =
 * Improved: Client Report — comprehensive rewrite for much more useful, impressive reports
 * New: Meta Tag Coverage section with progress bars (SEO titles, descriptions, focus keywords)
