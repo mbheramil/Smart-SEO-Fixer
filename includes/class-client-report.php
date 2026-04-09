@@ -224,16 +224,22 @@ class SSF_Client_Report {
             )
         );
 
-        // Use latest score per post (avoid duplicates from re-analysis)
+        // Use latest score per post — only for currently published posts in active post types
         $stats = $wpdb->get_row(
-            "SELECT COUNT(*) as total, ROUND(AVG(score), 0) as avg_score,
-                    SUM(CASE WHEN score >= 80 THEN 1 ELSE 0 END) as good,
-                    SUM(CASE WHEN score >= 60 AND score < 80 THEN 1 ELSE 0 END) as ok
-             FROM (
-                SELECT post_id, score
-                FROM $table t1
-                WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
-             ) latest"
+            $wpdb->prepare(
+                "SELECT COUNT(*) as total, ROUND(AVG(score), 0) as avg_score,
+                        SUM(CASE WHEN score >= 80 THEN 1 ELSE 0 END) as good,
+                        SUM(CASE WHEN score >= 60 AND score < 80 THEN 1 ELSE 0 END) as ok
+                 FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $table t1
+                    INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest",
+                ...$post_types
+            )
         );
 
         $avg = intval($stats->avg_score ?? 0);
@@ -251,19 +257,25 @@ class SSF_Client_Report {
             'good_count'       => $good,
             'ok_count'         => $ok,
             'healthy_pct'      => $total_analyzed > 0 ? round(($healthy / $total_analyzed) * 100) : 0,
-            'analyzed_pct'     => intval($total_posts) > 0 ? round(($total_analyzed / intval($total_posts)) * 100) : 0,
+            'analyzed_pct'     => intval($total_posts) > 0 ? min(100, round(($total_analyzed / intval($total_posts)) * 100)) : 0,
         ];
 
         // Full mode: add needs-work and not-analyzed counts
         if ($mode === 'full') {
             $needs_work = $wpdb->get_var(
-                "SELECT COUNT(*)
-                 FROM (
-                    SELECT t1.post_id, t1.score
-                    FROM $table t1
-                    WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
-                 ) latest
-                 WHERE score < 60"
+                $wpdb->prepare(
+                    "SELECT COUNT(*)
+                     FROM (
+                        SELECT t1.post_id, t1.score
+                        FROM $table t1
+                        INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                        WHERE p.post_status = 'publish'
+                        AND p.post_type IN ($placeholders)
+                        AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                     ) latest
+                     WHERE score < 60",
+                    ...$post_types
+                )
             );
             $result['needs_work_count'] = intval($needs_work);
             $result['not_analyzed']     = max(0, intval($total_posts) - $total_analyzed);
@@ -355,23 +367,32 @@ class SSF_Client_Report {
             return [];
         }
 
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
         $rows = $wpdb->get_results(
-            "SELECT
-                CASE
-                    WHEN score >= 90 THEN 'excellent'
-                    WHEN score >= 80 THEN 'good'
-                    WHEN score >= 70 THEN 'fair'
-                    WHEN score >= 60 THEN 'ok'
-                    ELSE 'skip'
-                END as bucket,
-                COUNT(*) as cnt
-             FROM (
-                SELECT post_id, score
-                FROM $table t1
-                WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
-             ) latest
-             GROUP BY bucket
-             ORDER BY FIELD(bucket, 'excellent', 'good', 'fair', 'ok', 'skip')"
+            $wpdb->prepare(
+                "SELECT
+                    CASE
+                        WHEN score >= 90 THEN 'excellent'
+                        WHEN score >= 80 THEN 'good'
+                        WHEN score >= 70 THEN 'fair'
+                        WHEN score >= 60 THEN 'ok'
+                        ELSE 'skip'
+                    END as bucket,
+                    COUNT(*) as cnt
+                 FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $table t1
+                    INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest
+                 GROUP BY bucket
+                 ORDER BY FIELD(bucket, 'excellent', 'good', 'fair', 'ok', 'skip')",
+                ...$post_types
+            )
         );
 
         $dist = [];
@@ -410,17 +431,26 @@ class SSF_Client_Report {
             return [];
         }
 
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
         $rows = $wpdb->get_results(
-            "SELECT latest.post_id, latest.score, p.post_title, p.post_type
-             FROM (
-                SELECT t1.post_id, t1.score
-                FROM $table t1
-                WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
-             ) latest
-             INNER JOIN {$wpdb->posts} p ON latest.post_id = p.ID
-             WHERE latest.score >= 70 AND p.post_status = 'publish'
-             ORDER BY latest.score DESC
-             LIMIT 20"
+            $wpdb->prepare(
+                "SELECT latest.post_id, latest.score, p.post_title, p.post_type
+                 FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $table t1
+                    INNER JOIN {$wpdb->posts} p2 ON t1.post_id = p2.ID
+                    WHERE p2.post_status = 'publish'
+                    AND p2.post_type IN ($placeholders)
+                    AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest
+                 INNER JOIN {$wpdb->posts} p ON latest.post_id = p.ID
+                 WHERE latest.score >= 70
+                 ORDER BY latest.score DESC
+                 LIMIT 20",
+                ...$post_types
+            )
         );
 
         $pages = [];
@@ -478,36 +508,40 @@ class SSF_Client_Report {
 
     /**
      * Image SEO: images with alt text.
+     * Checks actual attachment metadata (_wp_attachment_image_alt) instead of
+     * parsing raw post_content HTML, which misses alt text added by WordPress/themes/builders.
      */
     private static function get_image_seo($mode = 'positive') {
         global $wpdb;
 
+        // Count all image attachments
+        $total_images = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'attachment'
+             AND post_mime_type LIKE 'image/%'"
+        );
+
+        // Count images WITH non-empty alt text
+        $with_alt = (int) $wpdb->get_var(
+            "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE 'image/%'
+             AND pm.meta_key = '_wp_attachment_image_alt'
+             AND pm.meta_value != ''"
+        );
+
+        // Count posts that have at least one image in content
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
-
-        $posts = $wpdb->get_results(
+        $posts_with_images = (int) $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT ID, post_content FROM {$wpdb->posts}
+                "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish' AND post_type IN ($placeholders)
                  AND post_content LIKE '%s'",
                 ...array_merge($post_types, ['%<img%'])
             )
         );
-
-        $total_images = 0;
-        $with_alt = 0;
-        $posts_with_images = count($posts);
-
-        foreach ($posts as $post) {
-            if (preg_match_all('/<img\s[^>]+>/is', $post->post_content, $matches)) {
-                foreach ($matches[0] as $img_tag) {
-                    $total_images++;
-                    if (preg_match('/alt=["\']([^"\']+)["\']/i', $img_tag, $alt_match) && !empty(trim($alt_match[1]))) {
-                        $with_alt++;
-                    }
-                }
-            }
-        }
 
         $alt_pct = $total_images > 0 ? round(($with_alt / $total_images) * 100) : 0;
 
@@ -775,17 +809,26 @@ class SSF_Client_Report {
             return [];
         }
 
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
         $rows = $wpdb->get_results(
-            "SELECT latest.post_id, latest.score, p.post_title, p.post_type
-             FROM (
-                SELECT t1.post_id, t1.score
-                FROM $table t1
-                WHERE t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
-             ) latest
-             INNER JOIN {$wpdb->posts} p ON latest.post_id = p.ID
-             WHERE latest.score < 60 AND p.post_status = 'publish'
-             ORDER BY latest.score ASC
-             LIMIT 20"
+            $wpdb->prepare(
+                "SELECT latest.post_id, latest.score, p.post_title, p.post_type
+                 FROM (
+                    SELECT t1.post_id, t1.score
+                    FROM $table t1
+                    INNER JOIN {$wpdb->posts} p2 ON t1.post_id = p2.ID
+                    WHERE p2.post_status = 'publish'
+                    AND p2.post_type IN ($placeholders)
+                    AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest
+                 INNER JOIN {$wpdb->posts} p ON latest.post_id = p.ID
+                 WHERE latest.score < 60
+                 ORDER BY latest.score ASC
+                 LIMIT 20",
+                ...$post_types
+            )
         );
 
         $pages = [];
@@ -876,15 +919,21 @@ class SSF_Client_Report {
             }
         }
 
-        // 3. Check for low-scoring pages
+        // 3. Check for low-scoring pages (only published posts in active types)
         $scores_table = $wpdb->prefix . 'ssf_seo_scores';
         if ($wpdb->get_var("SHOW TABLES LIKE '$scores_table'") === $scores_table) {
             $low_score = intval($wpdb->get_var(
-                "SELECT COUNT(*) FROM (
-                    SELECT t1.post_id, t1.score
-                    FROM $scores_table t1
-                    WHERE t1.id = (SELECT MAX(t2.id) FROM $scores_table t2 WHERE t2.post_id = t1.post_id)
-                 ) latest WHERE score < 40"
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM (
+                        SELECT t1.post_id, t1.score
+                        FROM $scores_table t1
+                        INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                        WHERE p.post_status = 'publish'
+                        AND p.post_type IN ($placeholders)
+                        AND t1.id = (SELECT MAX(t2.id) FROM $scores_table t2 WHERE t2.post_id = t1.post_id)
+                     ) latest WHERE score < 40",
+                    ...$post_types
+                )
             ));
             if ($low_score > 0) {
                 $issues[] = [
@@ -896,7 +945,13 @@ class SSF_Client_Report {
 
             // 4. Not analyzed pages
             $analyzed = intval($wpdb->get_var(
-                "SELECT COUNT(DISTINCT post_id) FROM $scores_table"
+                $wpdb->prepare(
+                    "SELECT COUNT(DISTINCT t.post_id)
+                     FROM $scores_table t
+                     INNER JOIN {$wpdb->posts} p ON t.post_id = p.ID
+                     WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)",
+                    ...$post_types
+                )
             ));
             $not_analyzed = $total - $analyzed;
             if ($not_analyzed > 0) {
@@ -908,25 +963,14 @@ class SSF_Client_Report {
             }
         }
 
-        // 5. Image alt text coverage
-        $posts = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT ID, post_content FROM {$wpdb->posts}
-                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
-                 AND post_content LIKE '%s'",
-                ...array_merge($post_types, ['%<img%'])
-            )
+        // 5. Image alt text coverage — check actual attachment metadata
+        $imgs_without_alt = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attachment_image_alt'
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE 'image/%'
+             AND (pm.meta_value IS NULL OR pm.meta_value = '')"
         );
-        $imgs_without_alt = 0;
-        foreach ($posts as $post) {
-            if (preg_match_all('/<img\s[^>]+>/is', $post->post_content, $matches)) {
-                foreach ($matches[0] as $img_tag) {
-                    if (!preg_match('/alt=["\']([^"\']+)["\']/i', $img_tag, $alt_match) || empty(trim($alt_match[1]))) {
-                        $imgs_without_alt++;
-                    }
-                }
-            }
-        }
         if ($imgs_without_alt > 0) {
             $issues[] = [
                 'severity' => 'warning',
