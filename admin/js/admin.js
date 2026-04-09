@@ -314,7 +314,8 @@
                 if (res.success) {
                     $status.html('<span class="ssf-template-loaded">&#10003; Template loaded</span>');
                 } else {
-                    $status.html('<span style="color:#d63638;">' + (res.data || 'Failed to fetch template.') + '</span>');
+                    var msg = (res.data && res.data.message) ? res.data.message : 'Failed to fetch template.';
+                    $status.html('<span style="color:#d63638;">' + msg + '</span>');
                 }
             }).fail(function() {
                 $status.html('<span style="color:#d63638;">Request failed.</span>');
