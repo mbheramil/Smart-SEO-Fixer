@@ -1180,6 +1180,15 @@
 .ssf-full-mode-only { display: none; }
 .ssf-full-mode-only.visible { display: block; }
 
+/* Template banner (injected from fetched template) */
+.ssf-template-banner {
+    margin-bottom: 0;
+}
+.ssf-template-banner img {
+    max-width: 100%;
+    height: auto;
+}
+
 /* ==========================================================================
    Client Report — Print Styles
    ========================================================================== */
@@ -1210,7 +1219,8 @@
     .ssf-report-stat-box, .ssf-report-info-card,
     .ssf-progress-fill, .ssf-grade-badge, .ssf-note-positive,
     .ssf-report-alert, .ssf-report-issue, .ssf-issue-tag,
-    .ssf-stat-warning, .ssf-stat-info, .ssf-card-error {
+    .ssf-stat-warning, .ssf-stat-info, .ssf-card-error,
+    .ssf-template-banner {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }

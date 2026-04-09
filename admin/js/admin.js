@@ -377,6 +377,25 @@
         },
 
         render: function(d) {
+            // Apply template styles if available
+            $('#ssf-template-styles').remove();
+            if (d.template) {
+                // Extract <style> tags from template
+                var styleMatch = d.template.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+                if (styleMatch) {
+                    var styles = styleMatch.join('\n');
+                    $('head').append('<div id="ssf-template-styles">' + styles + '</div>');
+                }
+                // Extract body content (non-style parts) as a banner/wrapper above report
+                var bodyContent = d.template.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').trim();
+                if (bodyContent) {
+                    $('#ssf-template-banner').remove();
+                    $('#ssf-report').prepend('<div id="ssf-template-banner" class="ssf-template-banner">' + bodyContent + '</div>');
+                }
+            } else {
+                $('#ssf-template-banner').remove();
+            }
+
             // Cover
             if (d.site_icon) {
                 $('#ssf-report-icon').html('<img src="' + this.esc(d.site_icon) + '" alt="" />');
