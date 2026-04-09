@@ -17,6 +17,10 @@ class SSF_Image_SEO {
      */
     public static function init() {
         if (is_admin()) {
+            // Auto alt text on upload
+            if (Smart_SEO_Fixer::get_option('auto_alt_text', false)) {
+                add_action('add_attachment', [__CLASS__, 'auto_alt_on_upload']);
+            }
             return;
         }
         
@@ -228,5 +232,127 @@ class SSF_Image_SEO {
         }
         
         return $issues;
+    }
+
+    /**
+     * Generate alt text from an image filename.
+     * Strips extension, replaces separators with spaces, capitalizes words.
+     *
+     * @param string $filename  The image filename (e.g., "bounce-house_rental-nj.jpg")
+     * @return string           Cleaned alt text (e.g., "Bounce House Rental Nj")
+     */
+    public static function generate_alt_from_filename($filename) {
+        // Remove extension
+        $name = pathinfo($filename, PATHINFO_FILENAME);
+        // Remove size suffix like -300x200
+        $name = preg_replace('/-\d+x\d+$/', '', $name);
+        // Replace separators with spaces
+        $name = str_replace(['-', '_', '.', '+'], ' ', $name);
+        // Remove extra spaces
+        $name = preg_replace('/\s+/', ' ', trim($name));
+        // Remove leading numbers/hashes (e.g., "123 " or "IMG ")
+        $name = preg_replace('/^(IMG|DSC|DSCN|DSCF|P|DC|MOV|VID|WP|wp|Screenshot)\s*/i', '', $name);
+        $name = preg_replace('/^\d+\s*/', '', $name);
+        // Capitalize words
+        $name = ucwords(strtolower($name));
+        return $name;
+    }
+
+    /**
+     * Auto-generate alt text when an image is uploaded.
+     * Only sets alt if the image is an image type and has no alt text yet.
+     *
+     * @param int $attachment_id
+     */
+    public static function auto_alt_on_upload($attachment_id) {
+        $mime = get_post_mime_type($attachment_id);
+        if (!$mime || strpos($mime, 'image/') !== 0) {
+            return;
+        }
+
+        // Only set if no alt text exists
+        $existing_alt = get_post_meta($attachment_id, '_wp_attachment_image_alt', true);
+        if (!empty(trim($existing_alt))) {
+            return;
+        }
+
+        $filename = basename(get_attached_file($attachment_id));
+        $alt_text = self::generate_alt_from_filename($filename);
+
+        if (!empty($alt_text)) {
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+        }
+    }
+
+    /**
+     * Bulk generate alt text for all images missing it.
+     * Processes in batches to avoid timeouts.
+     *
+     * @param int $batch_size  Number of images to process per call
+     * @return array           Results with counts
+     */
+    public static function bulk_generate_alt_text($batch_size = 100) {
+        global $wpdb;
+
+        // Find image attachments missing alt text
+        $attachment_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT p.ID FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attachment_image_alt'
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE %s
+             AND (pm.meta_value IS NULL OR pm.meta_value = '')
+             LIMIT %d",
+            'image/%',
+            $batch_size
+        ));
+
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($attachment_ids as $id) {
+            $filename = basename(get_attached_file($id));
+            $alt_text = self::generate_alt_from_filename($filename);
+
+            if (!empty($alt_text)) {
+                update_post_meta($id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+                $updated++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        // Count remaining
+        $remaining = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attachment_image_alt'
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE %s
+             AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+            'image/%'
+        ));
+
+        return [
+            'updated'   => $updated,
+            'skipped'   => $skipped,
+            'remaining' => $remaining,
+            'done'      => $remaining === 0,
+        ];
+    }
+
+    /**
+     * Count images missing alt text.
+     *
+     * @return int
+     */
+    public static function count_missing_alt() {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attachment_image_alt'
+             WHERE p.post_type = 'attachment'
+             AND p.post_mime_type LIKE %s
+             AND (pm.meta_value IS NULL OR pm.meta_value = '')",
+            'image/%'
+        ));
     }
 }

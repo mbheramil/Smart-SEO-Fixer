@@ -164,6 +164,10 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_generate_client_report', [$this, 'generate_client_report']);
         add_action('wp_ajax_ssf_fetch_report_template', [$this, 'fetch_report_template']);
         add_action('wp_ajax_ssf_clear_report_template', [$this, 'clear_report_template']);
+
+        // Image Alt Text
+        add_action('wp_ajax_ssf_bulk_generate_alt', [$this, 'bulk_generate_alt']);
+        add_action('wp_ajax_ssf_count_missing_alt', [$this, 'count_missing_alt']);
     }
     
     /**
@@ -4260,6 +4264,38 @@ class SSF_Ajax {
         
         SSF_Client_Report::clear_template();
         wp_send_json_success(['message' => __('Template cleared.', 'smart-seo-fixer')]);
+    }
+
+    /**
+     * Bulk generate alt text for images missing it (admin only).
+     * Processes in batches — call repeatedly until done.
+     */
+    public function bulk_generate_alt() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $batch_size = isset($_POST['batch_size']) ? absint($_POST['batch_size']) : 100;
+        $batch_size = min($batch_size, 500); // cap at 500
+
+        $result = SSF_Image_SEO::bulk_generate_alt_text($batch_size);
+        wp_send_json_success($result);
+    }
+
+    /**
+     * Count images missing alt text (admin only).
+     */
+    public function count_missing_alt() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $count = SSF_Image_SEO::count_missing_alt();
+        wp_send_json_success(['count' => $count]);
     }
 }
 

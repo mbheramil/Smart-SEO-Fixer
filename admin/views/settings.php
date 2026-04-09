@@ -574,11 +574,22 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
                                        name="auto_alt_text" 
                                        value="1" 
                                        <?php checked($auto_alt_text, true); ?>>
-                                <?php esc_html_e('Automatically generate alt text for images using AI', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('Automatically generate alt text for new image uploads', 'smart-seo-fixer'); ?>
                             </label>
                             <p class="description">
-                                <?php esc_html_e('When enabled, AI will suggest alt text for images missing it.', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('When enabled, alt text is auto-generated from the image filename whenever you upload a new image. Existing images with alt text are not changed.', 'smart-seo-fixer'); ?>
                             </p>
+                            <div style="margin-top: 12px; padding: 14px; background: #f6f7f7; border: 1px solid #ddd; border-radius: 6px;">
+                                <strong><?php esc_html_e('Bulk Generate Alt Text', 'smart-seo-fixer'); ?></strong>
+                                <p class="description" style="margin: 6px 0 10px;">
+                                    <?php esc_html_e('Generate alt text from filenames for all existing images that are missing it. Processes 100 images at a time.', 'smart-seo-fixer'); ?>
+                                </p>
+                                <button type="button" class="button button-secondary" id="ssf-bulk-alt-btn">
+                                    <span class="dashicons dashicons-images-alt2" style="margin-top: 4px;"></span>
+                                    <?php esc_html_e('Generate Missing Alt Text', 'smart-seo-fixer'); ?>
+                                </button>
+                                <span id="ssf-bulk-alt-status" style="margin-left: 10px;"></span>
+                            </div>
                         </td>
                     </tr>
                     <tr>

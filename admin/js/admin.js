@@ -753,6 +753,56 @@
     };
 
     window.SSF_ClientReport = SSF_ClientReport;
-    
+
+    /* ======================================================================
+       Bulk Alt Text Generator
+       ====================================================================== */
+    $(document).ready(function() {
+        var $btn = $('#ssf-bulk-alt-btn');
+        var $status = $('#ssf-bulk-alt-status');
+        if (!$btn.length) return;
+
+        var totalProcessed = 0;
+        var running = false;
+
+        $btn.on('click', function() {
+            if (running) return;
+            running = true;
+            totalProcessed = 0;
+            $btn.prop('disabled', true);
+            $status.html('<span class="spinner is-active" style="float:none;margin:0 5px 0 0;"></span> Processing...');
+            processBatch();
+        });
+
+        function processBatch() {
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_bulk_generate_alt',
+                nonce: ssfAdmin.nonce,
+                batch_size: 100
+            }).done(function(res) {
+                if (res.success) {
+                    totalProcessed += res.data.updated;
+                    if (res.data.done) {
+                        running = false;
+                        $btn.prop('disabled', false);
+                        $status.html('<span style="color:#00a32a;font-weight:600;">&#10003; Done! ' + totalProcessed + ' images updated.</span>');
+                    } else {
+                        $status.html('<span class="spinner is-active" style="float:none;margin:0 5px 0 0;"></span> ' + totalProcessed + ' updated, ' + res.data.remaining + ' remaining...');
+                        processBatch();
+                    }
+                } else {
+                    running = false;
+                    $btn.prop('disabled', false);
+                    var msg = (res.data && res.data.message) ? res.data.message : 'Failed.';
+                    $status.html('<span style="color:#d63638;">' + msg + '</span>');
+                }
+            }).fail(function() {
+                running = false;
+                $btn.prop('disabled', false);
+                $status.html('<span style="color:#d63638;">Request failed.</span>');
+            });
+        }
+    });
+
 })(jQuery);
 
