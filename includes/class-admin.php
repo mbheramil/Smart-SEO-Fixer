@@ -369,6 +369,7 @@ class SSF_Admin {
         
         wp_localize_script('ssf-admin', 'ssfAdmin', [
             'ajax_url' => admin_url('admin-ajax.php'),
+            'admin_url' => admin_url(),
             'nonce' => wp_create_nonce('ssf_nonce'),
             'post_id' => $post ? $post->ID : 0,
             'strings' => [

@@ -501,17 +501,19 @@
                 $('#ssf-score-factors-subtitle').text(
                     'Based on analysis of ' + sf.total_pages + ' pages, these are the most common issues affecting your SEO score:'
                 );
+                var postsUrl = ssfAdmin.admin_url + 'admin.php?page=smart-seo-fixer-posts&issue=';
                 var fhtml = '';
                 sf.factors.forEach(function(f) {
                     var barColor = f.pct >= 50 ? '#d63638' : (f.pct >= 25 ? '#dba617' : '#72aee6');
-                    fhtml += '<div class="ssf-factor-row">';
+                    var href = postsUrl + encodeURIComponent(f.issue);
+                    fhtml += '<a class="ssf-factor-row" href="' + SSF_ClientReport.esc(href) + '" target="_blank" title="View affected pages">';
                     fhtml += '<div class="ssf-factor-header">';
                     fhtml += '<span class="ssf-factor-category">' + SSF_ClientReport.esc(f.category) + '</span>';
                     fhtml += '<span class="ssf-factor-issue">' + SSF_ClientReport.esc(f.issue) + '</span>';
                     fhtml += '<span class="ssf-factor-count">' + f.count + ' pages (' + f.pct + '%)</span>';
                     fhtml += '</div>';
                     fhtml += '<div class="ssf-factor-bar-track"><div class="ssf-factor-bar-fill" style="width:' + f.pct + '%;background:' + barColor + ';"></div></div>';
-                    fhtml += '</div>';
+                    fhtml += '</a>';
                 });
                 $('#ssf-score-factors-list').html(fhtml);
             }

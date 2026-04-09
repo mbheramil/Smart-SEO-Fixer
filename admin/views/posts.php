@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) {
 global $wpdb;
 
 $filter = isset($_GET['filter']) ? sanitize_text_field($_GET['filter']) : '';
+$issue_filter = isset($_GET['issue']) ? sanitize_text_field(wp_unslash($_GET['issue'])) : '';
 $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
 $per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 20;
 $per_page = in_array($per_page, [10, 20, 50, 100, 200]) ? $per_page : 20;
@@ -30,6 +31,11 @@ if ($filter === 'good') {
     $where .= " AND s.score < 60";
 } elseif ($filter === 'unanalyzed') {
     $where .= " AND s.post_id IS NULL";
+}
+
+if ($issue_filter !== '') {
+    $issue_like = '%' . $wpdb->esc_like($issue_filter) . '%';
+    $where .= $wpdb->prepare(" AND s.issues LIKE %s", $issue_like);
 }
 
 // Get total count
@@ -59,10 +65,23 @@ $total_pages = ceil($total / $per_page);
         <span class="ssf-version">v<?php echo esc_html(SSF_VERSION); ?></span>
     </h1>
     
+    <?php if ($issue_filter !== ''): ?>
+    <div class="ssf-issue-filter-notice">
+        <span class="dashicons dashicons-filter"></span>
+        <?php printf(
+            esc_html__('Showing pages with issue: %s', 'smart-seo-fixer'),
+            '<strong>' . esc_html($issue_filter) . '</strong>'
+        ); ?>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-posts')); ?>" class="ssf-clear-issue-filter">
+            &times; <?php esc_html_e('Clear filter', 'smart-seo-fixer'); ?>
+        </a>
+    </div>
+    <?php endif; ?>
+
     <!-- Filters -->
     <div class="ssf-filters">
         <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-posts')); ?>" 
-           class="ssf-filter-btn <?php echo empty($filter) ? 'active' : ''; ?>">
+           class="ssf-filter-btn <?php echo empty($filter) && empty($issue_filter) ? 'active' : ''; ?>">
             <?php esc_html_e('All', 'smart-seo-fixer'); ?>
         </a>
         <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-posts&filter=good')); ?>" 
@@ -216,6 +235,9 @@ $total_pages = ceil($total / $per_page);
         $base_url = admin_url('admin.php?page=smart-seo-fixer-posts');
         if ($filter) {
             $base_url .= '&filter=' . $filter;
+        }
+        if ($issue_filter !== '') {
+            $base_url .= '&issue=' . urlencode($issue_filter);
         }
         $base_url .= '&per_page=' . $per_page;
         

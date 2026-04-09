@@ -329,6 +329,34 @@
 /* ==========================================================================
    Filters
    ========================================================================== */
+.ssf-issue-filter-notice {
+    background: #fff8e5;
+    border: 1px solid #dba617;
+    border-left: 4px solid #dba617;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ssf-issue-filter-notice .dashicons {
+    color: #dba617;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+.ssf-clear-issue-filter {
+    margin-left: auto;
+    color: #b32d2e;
+    text-decoration: none;
+    font-weight: 600;
+}
+.ssf-clear-issue-filter:hover {
+    color: #d63638;
+}
+
 .ssf-filters {
     display: flex;
     gap: 8px;
@@ -1182,7 +1210,22 @@
 
 /* Score Factors section */
 .ssf-factor-row {
+    display: block;
     margin-bottom: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.ssf-factor-row:hover {
+    background: #f6f7f7;
+    text-decoration: none;
+    color: inherit;
+}
+.ssf-factor-row:hover .ssf-factor-issue {
+    color: #2271b1;
 }
 .ssf-factor-header {
     display: flex;
