@@ -251,6 +251,17 @@ if (!defined('ABSPATH')) {
                         <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
                     </a>
                     
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-client-report')); ?>" class="ssf-nav-card">
+                        <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                            <span class="dashicons dashicons-media-document"></span>
+                        </div>
+                        <div class="ssf-nav-info">
+                            <strong><?php esc_html_e('Client Report', 'smart-seo-fixer'); ?></strong>
+                            <small><?php esc_html_e('Generate positive-only SEO reports for clients', 'smart-seo-fixer'); ?></small>
+                        </div>
+                        <span class="dashicons dashicons-arrow-right-alt2 ssf-nav-arrow"></span>
+                    </a>
+                    
                     <a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-wp-standards')); ?>" class="ssf-nav-card">
                         <div class="ssf-nav-icon" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
                             <span class="dashicons dashicons-editor-code"></span>

@@ -159,6 +159,9 @@ class SSF_Ajax {
         // Generic background job dispatch & polling
         add_action('wp_ajax_ssf_dispatch_job', [$this, 'dispatch_job']);
         add_action('wp_ajax_ssf_poll_job', [$this, 'poll_job']);
+        
+        // Client Report
+        add_action('wp_ajax_ssf_generate_client_report', [$this, 'generate_client_report']);
     }
     
     /**
@@ -4187,6 +4190,32 @@ class SSF_Ajax {
         $perf->clear();
         
         wp_send_json_success(['message' => __('Performance data cleared.', 'smart-seo-fixer')]);
+    }
+    
+    /**
+     * Generate client SEO report (admin only)
+     */
+    public function generate_client_report() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied. Admin access required.', 'smart-seo-fixer')]);
+        }
+        
+        if (!class_exists('SSF_Client_Report')) {
+            wp_send_json_error(['message' => __('Client Report module is not available.', 'smart-seo-fixer')]);
+        }
+        
+        $date_range = sanitize_text_field($_POST['date_range'] ?? '30');
+        $start_date = sanitize_text_field($_POST['start_date'] ?? '');
+        $end_date   = sanitize_text_field($_POST['end_date'] ?? '');
+        $sections   = isset($_POST['sections']) && is_array($_POST['sections'])
+            ? array_map('sanitize_key', $_POST['sections'])
+            : [];
+        
+        $data = SSF_Client_Report::generate($date_range, $start_date, $end_date, $sections);
+        
+        wp_send_json_success($data);
     }
 }
 

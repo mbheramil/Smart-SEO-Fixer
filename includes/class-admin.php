@@ -297,6 +297,9 @@ class SSF_Admin {
         add_submenu_page('smart-seo-fixer', __('Social Preview', 'smart-seo-fixer'), __('Social Preview', 'smart-seo-fixer'), 'edit_posts', 'smart-seo-fixer-social-preview', [$this, 'render_social_preview']);
         add_submenu_page('smart-seo-fixer', __('Keyword Tracker', 'smart-seo-fixer'), __('Keywords', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-keywords', [$this, 'render_keyword_tracker']);
         
+        // ── Reports ──
+        add_submenu_page('smart-seo-fixer', __('Client Report', 'smart-seo-fixer'), __('Client Report', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-client-report', [$this, 'render_client_report']);
+        
         // ── System ──
         add_submenu_page('smart-seo-fixer', __('Background Jobs', 'smart-seo-fixer'), __('Jobs', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-jobs', [$this, 'render_job_queue']);
         add_submenu_page('smart-seo-fixer', __('Change History', 'smart-seo-fixer'), __('History', 'smart-seo-fixer'), 'manage_options', 'smart-seo-fixer-history', [$this, 'render_change_history']);
@@ -339,6 +342,7 @@ class SSF_Admin {
             'smart-seo_page_smart-seo-fixer-content-suggestions',
             'smart-seo_page_smart-seo-fixer-wp-standards',
             'smart-seo_page_smart-seo-fixer-performance',
+            'smart-seo_page_smart-seo-fixer-client-report',
         ];
         
         $is_our_page = in_array($hook, $our_pages);
@@ -520,6 +524,13 @@ class SSF_Admin {
      */
     public function render_performance() {
         include SSF_PLUGIN_DIR . 'admin/views/performance.php';
+    }
+    
+    /**
+     * Render Client Report page
+     */
+    public function render_client_report() {
+        include SSF_PLUGIN_DIR . 'admin/views/client-report.php';
     }
     
     /**

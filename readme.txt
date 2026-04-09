@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.13
+Stable tag: 2.0.14
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.14 =
+* New: Client SEO Report — generate positive-only SEO reports for clients with animated score ring, score distribution, top pages, schema coverage, redirects, keyword rankings, broken links fixed, and optimizations performed
+* New: Configurable date range (30/60/90 days, all time, or custom) and section toggles
+* New: Print-friendly and PDF-ready output with clean styling (hides all WP admin chrome)
+* New: Admin-only access (manage_options capability required)
+* New: Dashboard nav card for quick access to Client Report
+
 = 2.0.13 =
 * Fix: Yoast meta description still duplicating after v2.0.12 — remove_action during init fires before Yoast registers its wp_head hook so the removal was silently ignored; now removes wpseo_head inside a wp_head priority-0 callback, which runs after Yoast has registered but before it fires
 
