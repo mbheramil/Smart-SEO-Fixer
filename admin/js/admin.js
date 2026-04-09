@@ -506,6 +506,7 @@
                 sf.factors.forEach(function(f) {
                     var barColor = f.pct >= 50 ? '#d63638' : (f.pct >= 25 ? '#dba617' : '#72aee6');
                     var href = postsUrl + encodeURIComponent(f.issue);
+                    fhtml += '<div class="ssf-factor-row-wrap">';
                     fhtml += '<a class="ssf-factor-row" href="' + SSF_ClientReport.esc(href) + '" target="_blank" title="View affected pages">';
                     fhtml += '<div class="ssf-factor-header">';
                     fhtml += '<span class="ssf-factor-category">' + SSF_ClientReport.esc(f.category) + '</span>';
@@ -514,6 +515,10 @@
                     fhtml += '</div>';
                     fhtml += '<div class="ssf-factor-bar-track"><div class="ssf-factor-bar-fill" style="width:' + f.pct + '%;background:' + barColor + ';"></div></div>';
                     fhtml += '</a>';
+                    fhtml += '<button type="button" class="button button-small ssf-factor-fix-btn" data-issue="' + SSF_ClientReport.esc(f.issue) + '" data-category="' + SSF_ClientReport.esc(f.category) + '" data-count="' + f.count + '">';
+                    fhtml += '<span class="dashicons dashicons-admin-generic"></span> AI Fix';
+                    fhtml += '</button>';
+                    fhtml += '</div>';
                 });
                 $('#ssf-score-factors-list').html(fhtml);
             }
@@ -776,6 +781,115 @@
     };
 
     window.SSF_ClientReport = SSF_ClientReport;
+
+    /* ======================================================================
+       Score Factor AI Fix Handler
+       ====================================================================== */
+    $(document).on('click', '.ssf-factor-fix-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        var $btn = $(this);
+        var issueText = $btn.data('issue');
+        var category = $btn.data('category');
+        var count = parseInt($btn.data('count'), 10);
+
+        if (!confirm('AI Fix "' + issueText + '" across ' + count + ' pages?\n\nThis will generate missing SEO titles, descriptions, and keywords for affected pages.')) {
+            return;
+        }
+
+        // Auto-detect fix options based on category
+        var options = { generate_title: true, generate_desc: true, generate_keywords: true, overwrite: false };
+        var catLower = category.toLowerCase();
+        if (catLower === 'title') {
+            options = { generate_title: true, generate_desc: false, generate_keywords: true, overwrite: true };
+        } else if (catLower === 'description') {
+            options = { generate_title: false, generate_desc: true, generate_keywords: true, overwrite: true };
+        } else if (catLower === 'keywords') {
+            options = { generate_title: false, generate_desc: false, generate_keywords: true, overwrite: true };
+        }
+
+        var $modal = $('#ssf-factor-fix-modal');
+        var $status = $('#ssf-factor-fix-status');
+        var $bar = $('#ssf-factor-fix-bar');
+        var $log = $('#ssf-factor-fix-log');
+        var $title = $('#ssf-factor-fix-title');
+
+        $title.text('AI Fix: ' + issueText);
+        $status.text('Fetching affected pages...');
+        $bar.css('width', '0%');
+        $log.html('');
+        $modal.show();
+        $btn.prop('disabled', true).text('Fixing...');
+
+        // Step 1: Get post IDs with this issue
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_get_posts_by_issue',
+            nonce: ssfAdmin.nonce,
+            issue: issueText
+        }, function(res) {
+            if (!res.success || !res.data.post_ids.length) {
+                $status.text('No pages found with this issue.');
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-admin-generic"></span> AI Fix');
+                return;
+            }
+
+            var postIds = res.data.post_ids;
+            var total = postIds.length;
+            var index = 0;
+            var successCount = 0;
+            var failCount = 0;
+
+            $status.text('Fixing 0 of ' + total + ' pages...');
+
+            function fixNext() {
+                if (index >= total) {
+                    var pct = 100;
+                    $bar.css('width', pct + '%');
+                    $status.html('<strong>Done!</strong> ' + successCount + ' fixed, ' + failCount + ' failed out of ' + total + ' pages.');
+                    $btn.prop('disabled', false).html('<span class="dashicons dashicons-yes-alt"></span> Done');
+                    return;
+                }
+
+                $.post(ssfAdmin.ajax_url, {
+                    action: 'ssf_ai_fix_single',
+                    nonce: ssfAdmin.nonce,
+                    post_id: postIds[index],
+                    options: options
+                }, function(resp) {
+                    index++;
+                    var pct = Math.round((index / total) * 100);
+                    $bar.css('width', pct + '%');
+                    $status.text('Fixing ' + index + ' of ' + total + ' pages...');
+
+                    if (resp.success) {
+                        successCount++;
+                        $log.prepend('<div class="ssf-fix-log-item ssf-fix-success">\u2705 ' + SSF_ClientReport.esc(resp.data.title) + ' &mdash; ' + SSF_ClientReport.esc(resp.data.message) + '</div>');
+                    } else {
+                        failCount++;
+                        $log.prepend('<div class="ssf-fix-log-item ssf-fix-fail">\u274c ' + SSF_ClientReport.esc(resp.data ? resp.data.message : 'Unknown error') + '</div>');
+                    }
+
+                    setTimeout(fixNext, 300);
+                }).fail(function() {
+                    index++;
+                    failCount++;
+                    $log.prepend('<div class="ssf-fix-log-item ssf-fix-fail">\u274c Request failed for post #' + postIds[index - 1] + '</div>');
+                    setTimeout(fixNext, 300);
+                });
+            }
+
+            fixNext();
+        }).fail(function() {
+            $status.text('Failed to fetch pages. Please try again.');
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-admin-generic"></span> AI Fix');
+        });
+    });
+
+    // Close factor fix modal
+    $(document).on('click', '#ssf-factor-fix-close', function() {
+        $('#ssf-factor-fix-modal').hide();
+    });
 
     /* ======================================================================
        Bulk Alt Text Generator

@@ -322,4 +322,22 @@ if (!defined('ABSPATH')) {
             </div>
         </div><!-- .ssf-report -->
     </div><!-- #ssf-report-output -->
+
+    <!-- AI Fix Progress Modal -->
+    <div class="ssf-modal" id="ssf-factor-fix-modal" style="display:none;">
+        <div class="ssf-modal-content">
+            <div class="ssf-modal-header">
+                <h3 id="ssf-factor-fix-title"><?php esc_html_e('AI Fix in Progress', 'smart-seo-fixer'); ?></h3>
+                <button type="button" class="ssf-modal-close" id="ssf-factor-fix-close">&times;</button>
+            </div>
+            <div class="ssf-modal-body">
+                <p id="ssf-factor-fix-status"></p>
+                <div class="ssf-progress-bar">
+                    <div class="ssf-progress-fill" id="ssf-factor-fix-bar"></div>
+                </div>
+                <div class="ssf-factor-fix-log" id="ssf-factor-fix-log"></div>
+            </div>
+        </div>
+    </div>
+
 </div>

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.24
+Stable tag: 2.0.25
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.25 =
+* New: AI Fix button on each score factor row — fixes the issue across all affected pages with one click
+* New: Auto-detects fix type based on issue category (Title, Description, Keywords, or all)
+* New: Progress modal with live log showing each page being fixed
+
 = 2.0.24 =
 * New: Click any issue in "Why Your Score Is What It Is" to open the affected pages in a new tab
 * New: Posts page now supports filtering by specific SEO issue text

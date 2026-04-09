@@ -1209,9 +1209,16 @@
 .ssf-full-mode-only.visible { display: block; }
 
 /* Score Factors section */
+.ssf-factor-row-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
 .ssf-factor-row {
     display: block;
-    margin-bottom: 14px;
+    flex: 1;
+    min-width: 0;
     padding: 8px 12px;
     border-radius: 6px;
     text-decoration: none;
@@ -1226,6 +1233,26 @@
 }
 .ssf-factor-row:hover .ssf-factor-issue {
     color: #2271b1;
+}
+.ssf-factor-fix-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px !important;
+    padding: 4px 10px !important;
+    white-space: nowrap;
+    border-radius: 4px;
+}
+.ssf-factor-fix-btn .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+}
+.ssf-factor-fix-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 .ssf-factor-header {
     display: flex;
@@ -1272,6 +1299,24 @@
     transition: width 0.6s ease;
 }
 
+/* Factor Fix Modal */
+.ssf-factor-fix-log {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 12px;
+    font-size: 12px;
+}
+.ssf-fix-log-item {
+    padding: 4px 8px;
+    border-bottom: 1px solid #f0f0f1;
+}
+.ssf-fix-success {
+    color: #00a32a;
+}
+.ssf-fix-fail {
+    color: #d63638;
+}
+
 /* Template banner (replaces default cover when template is active) */
 .ssf-template-banner.ssf-report-cover {
     padding: 40px;
@@ -1298,7 +1343,8 @@
     #wpadminbar, #adminmenumain, #wpfooter,
     .ssf-report-config, .ssf-report-action-bar,
     .ssf-page-title, .notice, .update-nag,
-    #screen-meta, #screen-meta-links { display: none !important; }
+    #screen-meta, #screen-meta-links,
+    .ssf-factor-fix-btn, #ssf-factor-fix-modal { display: none !important; }
 
     #wpcontent, #wpbody, #wpbody-content,
     .wrap, .ssf-wrap { margin: 0 !important; padding: 0 !important; }

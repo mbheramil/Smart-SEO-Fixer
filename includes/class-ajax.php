@@ -58,6 +58,7 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_gsc_submit_sitemap', [$this, 'gsc_submit_sitemap']);
         add_action('wp_ajax_ssf_gsc_not_indexed', [$this, 'gsc_not_indexed']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
+        add_action('wp_ajax_ssf_get_posts_by_issue', [$this, 'get_posts_by_issue']);
         
         // Schema tools
         add_action('wp_ajax_ssf_toggle_local_schema', [$this, 'toggle_local_schema']);
@@ -1755,6 +1756,48 @@ class SSF_Ajax {
             'message' => sprintf(__('Generated: %s (Score: %d)', 'smart-seo-fixer'), implode(', ', $generated), $analysis['score'] ?? 0),
             'generated' => $generated,
             'score' => $analysis['score'] ?? 0,
+        ]);
+    }
+    
+    /**
+     * Get post IDs that have a specific SEO issue
+     */
+    public function get_posts_by_issue() {
+        $this->verify_nonce();
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        
+        $issue_text = sanitize_text_field(wp_unslash($_POST['issue'] ?? ''));
+        if (empty($issue_text)) {
+            wp_send_json_error(['message' => __('No issue specified.', 'smart-seo-fixer')]);
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        
+        $issue_like = '%' . $wpdb->esc_like($issue_text) . '%';
+        $params = array_merge($post_types, [$issue_like]);
+        
+        $post_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT s.post_id FROM $table s
+                 INNER JOIN {$wpdb->posts} p ON s.post_id = p.ID
+                 WHERE p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)
+                 AND s.issues LIKE %s
+                 ORDER BY s.score ASC
+                 LIMIT 200",
+                ...$params
+            )
+        );
+        
+        wp_send_json_success([
+            'post_ids' => array_map('intval', $post_ids),
+            'count' => count($post_ids),
         ]);
     }
     
