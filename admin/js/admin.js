@@ -306,9 +306,9 @@
             if (!url) { alert('Please enter a template URL.'); return; }
             var $status = $('#ssf-template-status');
             $status.html('<span class="spinner is-active" style="float:none;margin:0 5px 0 0;"></span> Fetching template…');
-            $.post(ajaxurl, {
+            $.post(ssfAdmin.ajax_url, {
                 action: 'ssf_fetch_report_template',
-                nonce: SSF.nonce,
+                nonce: ssfAdmin.nonce,
                 template_url: url
             }).done(function(res) {
                 if (res.success) {
@@ -324,9 +324,9 @@
 
         clearTemplate: function() {
             var $status = $('#ssf-template-status');
-            $.post(ajaxurl, {
+            $.post(ssfAdmin.ajax_url, {
                 action: 'ssf_clear_report_template',
-                nonce: SSF.nonce
+                nonce: ssfAdmin.nonce
             }).done(function(res) {
                 if (res.success) {
                     $('#ssf-template-url').val('');
