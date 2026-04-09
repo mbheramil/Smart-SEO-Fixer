@@ -377,23 +377,38 @@
         },
 
         render: function(d) {
-            // Apply template styles if available
+            // Apply template if available — replaces the default cover
             $('#ssf-template-styles').remove();
+            $('#ssf-template-banner').remove();
             if (d.template) {
-                // Extract <style> tags from template
+                // Extract <style> tags — scope them inside .ssf-template-banner
                 var styleMatch = d.template.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
                 if (styleMatch) {
-                    var styles = styleMatch.join('\n');
-                    $('head').append('<div id="ssf-template-styles">' + styles + '</div>');
+                    // Rewrite selectors to scope inside .ssf-template-banner
+                    var scoped = styleMatch.map(function(s) {
+                        return s.replace(/<style[^>]*>([\s\S]*?)<\/style>/i, function(m, css) {
+                            // Prefix each rule with .ssf-template-banner
+                            var scopedCss = css.replace(/([^\r\n,{}]+)(,(?=[^}]*{)|\s*{)/g, function(match, selector, sep) {
+                                selector = selector.trim();
+                                if (!selector || selector.indexOf('@') === 0 || selector === 'body' || selector === 'html') return match;
+                                return '.ssf-template-banner ' + selector + sep;
+                            });
+                            return '<style>' + scopedCss + '</style>';
+                        });
+                    }).join('\n');
+                    $('head').append('<div id="ssf-template-styles">' + scoped + '</div>');
                 }
-                // Extract body content (non-style parts) as a banner/wrapper above report
+                // Extract body content — use as the cover replacement
                 var bodyContent = d.template.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').trim();
                 if (bodyContent) {
-                    $('#ssf-template-banner').remove();
-                    $('#ssf-report').prepend('<div id="ssf-template-banner" class="ssf-template-banner">' + bodyContent + '</div>');
+                    // Hide default cover, show template content as cover
+                    $('.ssf-report-cover').hide();
+                    $('.ssf-report-cover').before('<div id="ssf-template-banner" class="ssf-template-banner ssf-report-cover">' + bodyContent + '</div>');
+                } else {
+                    $('.ssf-report-cover').show();
                 }
             } else {
-                $('#ssf-template-banner').remove();
+                $('.ssf-report-cover').show();
             }
 
             // Cover

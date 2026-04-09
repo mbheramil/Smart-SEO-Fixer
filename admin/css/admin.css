@@ -1180,13 +1180,22 @@
 .ssf-full-mode-only { display: none; }
 .ssf-full-mode-only.visible { display: block; }
 
-/* Template banner (injected from fetched template) */
-.ssf-template-banner {
-    margin-bottom: 0;
+/* Template banner (replaces default cover when template is active) */
+.ssf-template-banner.ssf-report-cover {
+    padding: 40px;
+    text-align: center;
 }
 .ssf-template-banner img {
     max-width: 100%;
     height: auto;
+}
+.ssf-template-banner p {
+    margin: 8px 0;
+}
+.ssf-template-banner h1,
+.ssf-template-banner h2,
+.ssf-template-banner h3 {
+    margin: 12px 0;
 }
 
 /* ==========================================================================
