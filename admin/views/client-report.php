@@ -52,13 +52,17 @@ if (!defined('ABSPATH')) {
                     <label><?php esc_html_e('Sections to Include', 'smart-seo-fixer'); ?></label>
                     <div class="ssf-checkbox-grid">
                         <label><input type="checkbox" name="ssf_section" value="overview" checked /> <?php esc_html_e('Overview & Score', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="meta_coverage" checked /> <?php esc_html_e('Meta Tag Coverage', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="score_distribution" checked /> <?php esc_html_e('Score Distribution', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="top_pages" checked /> <?php esc_html_e('Top Pages', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="content_health" checked /> <?php esc_html_e('Content Health', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="image_seo" checked /> <?php esc_html_e('Image SEO', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="schema_coverage" checked /> <?php esc_html_e('Schema Coverage', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="redirects" checked /> <?php esc_html_e('Redirects', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="keywords" checked /> <?php esc_html_e('Keyword Rankings', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="broken_links_fixed" checked /> <?php esc_html_e('Broken Links Fixed', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="optimizations" checked /> <?php esc_html_e('Optimizations Made', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="sitemap_status" checked /> <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?></label>
                     </div>
                 </div>
             </div>
@@ -118,8 +122,18 @@ if (!defined('ABSPATH')) {
                         </svg>
                         <span class="ssf-ring-value" id="ssf-ring-value">0</span>
                     </div>
+                    <div class="ssf-report-grade" id="ssf-report-grade"></div>
                 </div>
                 <div class="ssf-report-overview-grid" id="ssf-overview-grid"></div>
+            </div>
+
+            <!-- Meta Tag Coverage -->
+            <div class="ssf-report-section" id="ssf-section-meta_coverage">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-editor-code"></span>
+                    <?php esc_html_e('Meta Tag Coverage', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-meta-coverage-content"></div>
             </div>
 
             <!-- Score Distribution -->
@@ -149,6 +163,24 @@ if (!defined('ABSPATH')) {
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+
+            <!-- Content Health -->
+            <div class="ssf-report-section" id="ssf-section-content_health">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-text-page"></span>
+                    <?php esc_html_e('Content Health', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-content-health-content"></div>
+            </div>
+
+            <!-- Image SEO -->
+            <div class="ssf-report-section" id="ssf-section-image_seo">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-format-image"></span>
+                    <?php esc_html_e('Image SEO', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-image-seo-content"></div>
             </div>
 
             <!-- Schema Coverage -->
@@ -194,6 +226,15 @@ if (!defined('ABSPATH')) {
                     <?php esc_html_e('SEO Optimizations Performed', 'smart-seo-fixer'); ?>
                 </h2>
                 <div id="ssf-optimizations-content"></div>
+            </div>
+
+            <!-- Sitemap Status -->
+            <div class="ssf-report-section" id="ssf-section-sitemap_status">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-networking"></span>
+                    <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-sitemap-status-content"></div>
             </div>
 
             <!-- Footer -->

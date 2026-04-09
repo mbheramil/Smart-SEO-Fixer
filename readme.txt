@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.14
+Stable tag: 2.0.15
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,23 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.15 =
+* Improved: Client Report — comprehensive rewrite for much more useful, impressive reports
+* New: Meta Tag Coverage section with progress bars (SEO titles, descriptions, focus keywords)
+* New: Content Health section (avg word count, total words, readability score, images/links per page)
+* New: Image SEO section (total images, alt text coverage percentage)
+* New: Sitemap Status section (indexable pages, content types, sitemap URL)
+* Fix: Top Pages table was empty due to duplicate score entries — now uses latest score per post
+* Improved: Sections with zero/empty data are automatically hidden (true positive-only filtering)
+* Improved: Score ring now shows grade badge (A/B/C+/C/D) with label (Excellent/Good/Fair/etc)
+* Improved: Overview shows healthy-page percentage and analyzed-content percentage
+* Improved: Score distribution bars show percentages alongside counts
+* Improved: Schema section shows auto-coverage note explaining automatic structured data
+* Improved: Optimizations section shows breakdown by type (titles, descriptions, keywords, schema, social)
+* Improved: Keywords section shows total clicks and impressions
+* Improved: Positive contextual notes throughout the report
+* Improved: Print CSS with @page margin and color-adjust for new elements
+
 = 2.0.14 =
 * New: Client SEO Report — generate positive-only SEO reports for clients with animated score ring, score distribution, top pages, schema coverage, redirects, keyword rankings, broken links fixed, and optimizations performed
 * New: Configurable date range (30/60/90 days, all time, or custom) and section toggles

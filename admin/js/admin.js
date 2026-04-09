@@ -339,27 +339,44 @@
 
             var sec = d.sections || {};
 
-            // Toggle section visibility
-            var allSections = ['overview', 'score_distribution', 'top_pages', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations'];
+            // Toggle section visibility — only show sections with data
+            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status'];
             allSections.forEach(function(s) {
                 var $el = $('#ssf-section-' + s);
                 if (sec[s] !== undefined) { $el.show(); } else { $el.hide(); }
             });
 
-            // Overview & Score
+            // ── Overview & Score ──
             if (sec.overview) {
                 var ov = sec.overview;
                 var score = ov.avg_score || 0;
                 this.animateRing(score);
+
+                // Grade label under score ring
+                if (ov.grade_label) {
+                    $('#ssf-report-grade').html('<span class="ssf-grade-badge grade-' + (ov.grade || '').toLowerCase().replace('+','plus') + '">' + this.esc(ov.grade) + ' — ' + this.esc(ov.grade_label) + '</span>');
+                }
+
                 var grid = '';
-                grid += this.statBox(ov.total_analyzed, 'Pages Analyzed');
+                grid += this.statBox(ov.total_analyzed, 'Pages Analyzed', ov.analyzed_pct ? ov.analyzed_pct + '% of published content' : '');
                 grid += this.statBox(ov.good_count, 'Good Score (80+)');
                 grid += this.statBox(ov.ok_count, 'OK Score (60-79)');
-                grid += this.statBox(ov.total_posts, 'Total Published');
+                grid += this.statBox(ov.healthy_pct + '%', 'Healthy Pages', 'Scoring 60 or above');
                 $('#ssf-overview-grid').html(grid);
             }
 
-            // Score distribution
+            // ── Meta Tag Coverage ──
+            if (sec.meta_coverage) {
+                var mc = sec.meta_coverage;
+                var mh = '<div class="ssf-report-progress-list">';
+                mh += this.progressBar('SEO Titles', mc.with_title, mc.total, mc.title_pct);
+                mh += this.progressBar('Meta Descriptions', mc.with_description, mc.total, mc.description_pct);
+                mh += this.progressBar('Focus Keywords', mc.with_keyword, mc.total, mc.keyword_pct);
+                mh += '</div>';
+                $('#ssf-meta-coverage-content').html(mh);
+            }
+
+            // ── Score distribution ──
             if (sec.score_distribution && sec.score_distribution.length) {
                 var maxCount = Math.max.apply(null, sec.score_distribution.map(function(b) { return b.count; }));
                 var html = '';
@@ -368,13 +385,13 @@
                     html += '<div class="ssf-bar-row">';
                     html += '<span class="ssf-bar-label">' + SSF_ClientReport.esc(b.label) + '</span>';
                     html += '<div class="ssf-bar-track"><div class="ssf-bar-fill ' + b.label.toLowerCase() + '" style="width:' + pct + '%"></div></div>';
-                    html += '<span class="ssf-bar-count">' + b.count + '</span>';
+                    html += '<span class="ssf-bar-count">' + b.count + ' <small>(' + (b.pct || 0) + '%)</small></span>';
                     html += '</div>';
                 });
                 $('#ssf-dist-chart').html(html);
             }
 
-            // Top pages
+            // ── Top pages ──
             if (sec.top_pages && sec.top_pages.length) {
                 var tbody = '';
                 sec.top_pages.forEach(function(p, i) {
@@ -390,11 +407,48 @@
                 $('#ssf-top-pages-table tbody').html(tbody);
             }
 
-            // Schema
+            // ── Content Health ──
+            if (sec.content_health) {
+                var ch = sec.content_health;
+                var chh = '<div class="ssf-report-info-grid">';
+                chh += this.infoCard(ch.avg_word_count.toLocaleString(), 'Avg. Word Count');
+                chh += this.infoCard(ch.total_words.toLocaleString(), 'Total Words');
+                chh += this.infoCard(ch.avg_readability, 'Readability Score', ch.readability_label || '');
+                chh += this.infoCard(ch.avg_images, 'Avg. Images/Page');
+                chh += this.infoCard(ch.avg_links, 'Avg. Links/Page');
+                chh += this.infoCard(ch.total_analyzed.toLocaleString(), 'Pages Analyzed');
+                chh += '</div>';
+                $('#ssf-content-health-content').html(chh);
+            }
+
+            // ── Image SEO ──
+            if (sec.image_seo) {
+                var im = sec.image_seo;
+                var imh = '<div class="ssf-report-info-grid" style="margin-bottom:16px;">';
+                imh += this.infoCard(im.total_images.toLocaleString(), 'Total Images');
+                imh += this.infoCard(im.with_alt.toLocaleString(), 'With Alt Text');
+                imh += this.infoCard(im.alt_pct + '%', 'Alt Text Coverage');
+                imh += this.infoCard(im.posts_with_images.toLocaleString(), 'Pages With Images');
+                imh += '</div>';
+                if (im.alt_pct >= 80) {
+                    imh += '<p class="ssf-report-note ssf-note-positive">Excellent image accessibility — ' + im.alt_pct + '% of images have descriptive alt text.</p>';
+                } else if (im.alt_pct >= 50) {
+                    imh += '<p class="ssf-report-note ssf-note-positive">Good progress — over half of your images have alt text for accessibility and SEO.</p>';
+                }
+                $('#ssf-image-seo-content').html(imh);
+            }
+
+            // ── Schema ──
             if (sec.schema_coverage) {
                 var sc = sec.schema_coverage;
-                var sh = '<div class="ssf-report-info-grid">';
-                sh += this.infoCard(sc.custom_schema, 'Custom Schema');
+                var sh = '';
+                if (sc.auto_coverage_note) {
+                    sh += '<p class="ssf-report-note ssf-note-positive">' + this.esc(sc.auto_coverage_note) + '</p>';
+                }
+                sh += '<div class="ssf-report-info-grid">';
+                if (sc.custom_schema > 0) {
+                    sh += this.infoCard(sc.custom_schema, 'Custom Schema Entries');
+                }
                 sh += this.infoCard(sc.auto_schema_types ? sc.auto_schema_types.length : 0, 'Auto Schema Types');
                 sh += '</div>';
                 if (sc.auto_schema_types && sc.auto_schema_types.length) {
@@ -407,24 +461,25 @@
                 $('#ssf-schema-coverage-content').html(sh);
             }
 
-            // Redirects
+            // ── Redirects ──
             if (sec.redirects) {
                 var rd = sec.redirects;
                 var rh = '<div class="ssf-report-info-grid">';
                 rh += this.infoCard(rd.total_active, 'Active Redirects');
-                rh += this.infoCard(rd.auto_created, 'Auto-Created');
-                rh += this.infoCard(rd.manual, 'Manual');
+                if (rd.auto_created > 0) rh += this.infoCard(rd.auto_created, 'Auto-Created');
+                if (rd.manual > 0) rh += this.infoCard(rd.manual, 'Manual');
                 rh += '</div>';
-                rh += '<p style="margin-top:12px;color:#6b7280;font-size:13px;">Active redirects protect your link equity by ensuring old URLs reach the right destination.</p>';
+                rh += '<p class="ssf-report-note">Active redirects protect your link equity by ensuring old URLs reach the right destination.</p>';
                 $('#ssf-redirects-content').html(rh);
             }
 
-            // Keywords
+            // ── Keywords ──
             if (sec.keywords) {
                 var kw = sec.keywords;
                 var kh = '<div class="ssf-report-info-grid" style="margin-bottom:16px;">';
                 kh += this.infoCard(kw.total_tracked, 'Keywords Tracked');
-                kh += this.infoCard(kw.top_keywords ? kw.top_keywords.length : 0, 'Top Performing');
+                if (kw.total_clicks > 0) kh += this.infoCard(kw.total_clicks.toLocaleString(), 'Total Clicks');
+                if (kw.total_impressions > 0) kh += this.infoCard(kw.total_impressions.toLocaleString(), 'Total Impressions');
                 kh += '</div>';
                 if (kw.top_keywords && kw.top_keywords.length) {
                     kh += '<table class="ssf-report-kw-table"><thead><tr>';
@@ -443,27 +498,52 @@
                 $('#ssf-keywords-content').html(kh);
             }
 
-            // Broken links
+            // ── Broken links ──
             if (sec.broken_links_fixed) {
                 var bl = sec.broken_links_fixed;
                 var bh = '<div class="ssf-report-info-grid">';
                 bh += this.infoCard(bl.fixed, 'Links Fixed');
                 bh += '</div>';
-                if (bl.fixed > 0) {
-                    bh += '<p style="margin-top:12px;color:#6b7280;font-size:13px;">' + bl.fixed + ' broken link(s) have been identified and addressed.</p>';
-                }
+                bh += '<p class="ssf-report-note ssf-note-positive">' + bl.fixed + ' broken link(s) have been identified and addressed, keeping your visitors on the right path.</p>';
                 $('#ssf-broken-links-content').html(bh);
             }
 
-            // Optimizations
+            // ── Optimizations ──
             if (sec.optimizations) {
                 var op = sec.optimizations;
                 var oh = '<div class="ssf-report-info-grid">';
                 oh += this.infoCard(op.total, 'Total Changes');
-                oh += this.infoCard(op.ai_generated, 'AI-Generated');
-                oh += this.infoCard(op.manual, 'Manual Edits');
+                if (op.posts_optimized > 0) oh += this.infoCard(op.posts_optimized, 'Pages Optimized');
+                if (op.ai_generated > 0) oh += this.infoCard(op.ai_generated, 'AI-Generated');
+                if (op.manual > 0) oh += this.infoCard(op.manual, 'Manual Edits');
                 oh += '</div>';
+                if (op.by_type && op.by_type.length) {
+                    oh += '<div class="ssf-report-tag-list" style="margin-top:16px;">';
+                    op.by_type.forEach(function(t) {
+                        oh += '<span class="ssf-report-tag">' + SSF_ClientReport.esc(t.category) + ': ' + t.count + '</span>';
+                    });
+                    oh += '</div>';
+                }
                 $('#ssf-optimizations-content').html(oh);
+            }
+
+            // ── Sitemap Status ──
+            if (sec.sitemap_status) {
+                var sm = sec.sitemap_status;
+                var smh = '<div class="ssf-report-info-grid">';
+                smh += this.infoCard('<span class="dashicons dashicons-yes-alt" style="color:#22c55e;font-size:28px;"></span>', 'Sitemap Active');
+                smh += this.infoCard(sm.indexable_pages.toLocaleString(), 'Indexable Pages');
+                smh += this.infoCard(sm.post_types.length, 'Content Types');
+                smh += '</div>';
+                smh += '<p class="ssf-report-note">Sitemap URL: <a href="' + this.esc(sm.url) + '" target="_blank">' + this.esc(sm.url) + '</a></p>';
+                if (sm.post_types && sm.post_types.length) {
+                    smh += '<div class="ssf-report-tag-list">';
+                    sm.post_types.forEach(function(pt) {
+                        smh += '<span class="ssf-report-tag">' + SSF_ClientReport.esc(pt) + '</span>';
+                    });
+                    smh += '</div>';
+                }
+                $('#ssf-sitemap-status-content').html(smh);
             }
         },
 
@@ -491,12 +571,26 @@
             window.print();
         },
 
-        statBox: function(number, label) {
-            return '<div class="ssf-report-stat-box"><span class="stat-number">' + (number || 0) + '</span><span class="stat-label">' + this.esc(label) + '</span></div>';
+        statBox: function(number, label, subtitle) {
+            var h = '<div class="ssf-report-stat-box"><span class="stat-number">' + (number !== undefined ? number : 0) + '</span><span class="stat-label">' + this.esc(label) + '</span>';
+            if (subtitle) h += '<span class="stat-subtitle">' + this.esc(subtitle) + '</span>';
+            h += '</div>';
+            return h;
         },
 
-        infoCard: function(value, label) {
-            return '<div class="ssf-report-info-card"><span class="info-value">' + (value || 0) + '</span><span class="info-label">' + this.esc(label) + '</span></div>';
+        infoCard: function(value, label, subtitle) {
+            var h = '<div class="ssf-report-info-card"><span class="info-value">' + (value !== undefined ? value : 0) + '</span><span class="info-label">' + this.esc(label) + '</span>';
+            if (subtitle) h += '<span class="info-subtitle">' + this.esc(subtitle) + '</span>';
+            h += '</div>';
+            return h;
+        },
+
+        progressBar: function(label, count, total, pct) {
+            var color = pct >= 80 ? '#22c55e' : (pct >= 50 ? '#f59e0b' : '#ef4444');
+            return '<div class="ssf-report-progress-item">' +
+                '<div class="ssf-progress-header"><span class="ssf-progress-label">' + this.esc(label) + '</span><span class="ssf-progress-value">' + count + ' / ' + total + ' (' + pct + '%)</span></div>' +
+                '<div class="ssf-progress-track"><div class="ssf-progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+                '</div>';
         },
 
         esc: function(str) {

@@ -958,6 +958,92 @@
     border-top: 1px solid var(--ssf-gray-200);
 }
 
+/* Grade badge under score ring */
+.ssf-report-grade {
+    text-align: center;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+.ssf-grade-badge {
+    display: inline-block;
+    padding: 4px 18px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #fff;
+}
+.ssf-grade-badge.grade-a { background: #059669; }
+.ssf-grade-badge.grade-b { background: #22c55e; }
+.ssf-grade-badge.grade-cplus { background: #f59e0b; color: #1a1a1a; }
+.ssf-grade-badge.grade-c { background: #fb923c; color: #1a1a1a; }
+.ssf-grade-badge.grade-d { background: #ef4444; }
+
+/* Stat / info subtitles */
+.ssf-report-stat-box .stat-subtitle,
+.ssf-report-info-card .info-subtitle {
+    display: block;
+    font-size: 11px;
+    color: var(--ssf-gray-400);
+    margin-top: 2px;
+}
+
+/* Progress bars for meta coverage */
+.ssf-report-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.ssf-report-progress-item {
+    /* item */
+}
+.ssf-progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+.ssf-progress-label {
+    font-weight: 600;
+    color: var(--ssf-gray-900);
+}
+.ssf-progress-value {
+    color: var(--ssf-gray-500);
+    font-size: 13px;
+}
+.ssf-progress-track {
+    height: 12px;
+    background: var(--ssf-gray-100);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.ssf-progress-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.8s ease-out;
+    min-width: 2px;
+}
+
+/* Notes */
+.ssf-report-note {
+    margin-top: 12px;
+    color: var(--ssf-gray-500);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ssf-report-note.ssf-note-positive {
+    color: #065f46;
+    background: #ecfdf5;
+    border-radius: var(--ssf-radius);
+    padding: 10px 16px;
+}
+.ssf-report-note a {
+    color: var(--ssf-primary);
+    text-decoration: none;
+}
+.ssf-report-note a:hover {
+    text-decoration: underline;
+}
+
 /* ==========================================================================
    Client Report — Print Styles
    ========================================================================== */
@@ -985,9 +1071,13 @@
     .ssf-report-section { break-inside: avoid; }
 
     .ssf-bar-fill, .ssf-ring-fg, .score-badge, .ssf-report-tag,
-    .ssf-report-stat-box, .ssf-report-info-card {
+    .ssf-report-stat-box, .ssf-report-info-card,
+    .ssf-progress-fill, .ssf-grade-badge, .ssf-note-positive {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
+
+    /* Hide browser URL in print footer */
+    @page { margin: 0.5in; }
 }
 
