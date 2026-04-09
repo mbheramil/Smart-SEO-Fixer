@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.25
+Stable tag: 2.0.26
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.26 =
+* Fix: Sub-sitemaps (sitemap-post.xml, sitemap-page.xml, etc.) returning blog page instead of XML
+* Fix: Rewrite rules were registered too late (init priority bug) - now applied correctly
+* Fix: Added fallback URL re-parsing in sitemap renderer when query var is missing or stuck as 'dynamic'
+* Fix: flush_rewrite_rules() now called on plugin activation so sitemap URLs route correctly from day one
+
 = 2.0.25 =
 * New: AI Fix button on each score factor row — fixes the issue across all affected pages with one click
 * New: Auto-detects fix type based on issue category (Title, Description, Keywords, or all)

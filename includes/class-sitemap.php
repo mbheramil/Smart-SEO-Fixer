@@ -21,7 +21,9 @@ class SSF_Sitemap {
      */
     public function __construct() {
         if (Smart_SEO_Fixer::get_option('enable_sitemap', true)) {
-            add_action('init', [$this, 'add_rewrite_rules'], 1);
+            // Register rewrite rules now (constructor runs during init priority 10;
+            // hooking init at priority 1 would be too late, so call directly)
+            $this->add_rewrite_rules();
             add_filter('query_vars', [$this, 'add_query_vars']);
             add_action('template_redirect', [$this, 'render_sitemap'], 1);
             
@@ -196,6 +198,11 @@ class SSF_Sitemap {
     public function render_sitemap() {
         $sitemap_type = get_query_var('ssf_sitemap');
         
+        // Fallback: re-parse from REQUEST_URI if query var is missing or still 'dynamic'
+        if (empty($sitemap_type) || $sitemap_type === 'dynamic') {
+            $sitemap_type = $this->detect_sitemap_type_from_uri();
+        }
+        
         if (empty($sitemap_type)) {
             return;
         }
@@ -241,6 +248,47 @@ class SSF_Sitemap {
         header('X-Robots-Tag: noindex, follow');
         echo $output;
         exit;
+    }
+    
+    /**
+     * Detect the sitemap type by parsing REQUEST_URI directly.
+     * Used as a fallback when query vars aren't reliably available.
+     */
+    private function detect_sitemap_type_from_uri() {
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '';
+        $path = trim(parse_url($request_uri, PHP_URL_PATH), '/');
+        
+        $home_path = trim(parse_url(home_url(), PHP_URL_PATH) ?: '', '/');
+        if ($home_path && strpos($path, $home_path . '/') === 0) {
+            $path = substr($path, strlen($home_path) + 1);
+        }
+        
+        if ($path === 'sitemap.xml')              return 'index';
+        if ($path === 'ssf-sitemap-index.xsl')    return 'xsl-index';
+        if ($path === 'ssf-sitemap.xsl')          return 'xsl';
+        
+        if (preg_match('/^sitemap-(.+?)(\d*)\.xml$/', $path, $m)) {
+            $slug = $m[1];
+            $page = $m[2] !== '' ? intval($m[2]) : 1;
+            
+            foreach ($this->get_sitemap_post_types() as $pt) {
+                $pt_slug = $this->post_type_slug($pt);
+                if ($slug === $pt_slug) {
+                    return 'pt:' . $pt . ':' . $page;
+                }
+            }
+            foreach ($this->get_sitemap_taxonomies() as $tax) {
+                $tax_slug = $this->taxonomy_slug($tax);
+                if ($slug === $tax_slug) {
+                    return 'tax:' . $tax . ':' . $page;
+                }
+            }
+            if ($slug === 'authors') {
+                return 'authors:' . $page;
+            }
+        }
+        
+        return '';
     }
     
     /**

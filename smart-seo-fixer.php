@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
- * Version: 2.0.25
+ * Version: 2.0.26
  * Author: mbheramil
  * Author URI: https://github.com/mbheramil
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.25');
+define('SSF_VERSION', '2.0.26');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -293,6 +293,9 @@ final class Smart_SEO_Fixer {
         
         // Create database tables if needed
         $this->create_tables();
+        
+        // Flush rewrite rules so sitemap URLs are properly routed (force=true to also update .htaccess)
+        flush_rewrite_rules(true);
         
         // Trigger setup wizard redirect on first activation
         if (!get_option('ssf_setup_completed', false)) {
