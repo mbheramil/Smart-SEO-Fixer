@@ -99,6 +99,7 @@ class SSF_Ajax {
         // Job Queue
         add_action('wp_ajax_ssf_get_job_status', [$this, 'get_job_status']);
         add_action('wp_ajax_ssf_get_jobs', [$this, 'get_jobs']);
+        add_action('wp_ajax_ssf_get_job', [$this, 'get_job']);
         add_action('wp_ajax_ssf_cancel_job', [$this, 'cancel_job']);
         add_action('wp_ajax_ssf_retry_job', [$this, 'retry_job']);
         
@@ -1835,8 +1836,11 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
         }
         
-        // For large batches (10+ posts), use background job queue
-        $use_background = !empty($_POST['background']) || count($post_ids) > 10;
+        // For batches of 5+ posts, use background job queue so the UI can show
+        // live progress on the Job Queue page and the work is processed in
+        // parallel batches of 20 (when Bedrock is active) without browser
+        // timeouts. Small batches (<5) run in-request for instant feedback.
+        $use_background = !empty($_POST['background']) || count($post_ids) >= 5;
         if ($use_background && class_exists('SSF_Job_Queue')) {
             $payload = [
                 'generate_title'    => $generate_title,
@@ -1856,7 +1860,7 @@ class SSF_Ajax {
                 'job_id'    => $job_id,
                 'total'     => count($post_ids),
                 'message'   => sprintf(
-                    __('Queued %d posts for background processing. Check the Job Queue page for progress.', 'smart-seo-fixer'),
+                    __('Queued %d posts for background processing.', 'smart-seo-fixer'),
                     count($post_ids)
                 ),
             ]);
@@ -1868,6 +1872,107 @@ class SSF_Ajax {
         
         $analyzer = class_exists('SSF_Analyzer') ? new SSF_Analyzer() : null;
         $log = [];
+
+        // Parallel fast path: one curl_multi call builds title+desc for all
+        // posts in this (small) batch. Keeps the in-request path fast for
+        // batches <5 so the user sees instant results without waiting for cron.
+        $use_parallel = (
+            $openai instanceof SSF_Bedrock
+            && function_exists('curl_multi_init')
+            && method_exists($openai, 'request_multi')
+            && method_exists($openai, 'build_title_messages')
+            && method_exists($openai, 'build_desc_messages')
+        );
+
+        if ($use_parallel) {
+            $work = [];
+            $jobs = [];
+            foreach ($posts as $post_id) {
+                $post = get_post($post_id);
+                if (!$post) { $log[] = sprintf('⚠️ Post #%d — Not found, skipped', $post_id); continue; }
+                $clean = wp_strip_all_tags(strip_shortcodes($post->post_content));
+                if (str_word_count($clean) < 10) {
+                    $log[] = sprintf('⏭️ %s — Skipped (content too short for AI)', esc_html($post->post_title));
+                    continue;
+                }
+                $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+
+                if ($generate_keywords) {
+                    $current_kw = trim((string) $focus_keyword);
+                    if ($apply_to === 'all' || empty($current_kw)) {
+                        $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                        if (!empty($kw)) {
+                            update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+                            $focus_keyword = $kw;
+                        }
+                    }
+                }
+
+                $needs_title = false;
+                $needs_desc  = false;
+                if ($generate_title) {
+                    $current_title = trim((string) get_post_meta($post_id, '_ssf_seo_title', true));
+                    if ($apply_to === 'all' || empty($current_title)) { $needs_title = true; }
+                }
+                if ($generate_desc) {
+                    $current_desc = trim((string) get_post_meta($post_id, '_ssf_meta_description', true));
+                    if ($apply_to === 'all' || empty($current_desc)) { $needs_desc = true; }
+                }
+
+                $work[$post_id] = ['post' => $post, 'kw' => $focus_keyword, 'needs_title' => $needs_title, 'needs_desc' => $needs_desc];
+                if ($needs_title) {
+                    $jobs["t_{$post_id}"] = [
+                        'messages'    => $openai->build_title_messages($post->post_content, $post->post_title, $focus_keyword),
+                        'max_tokens'  => 100,
+                        'temperature' => 0.7,
+                    ];
+                }
+                if ($needs_desc) {
+                    $jobs["d_{$post_id}"] = [
+                        'messages'    => $openai->build_desc_messages($post->post_content, '', $focus_keyword),
+                        'max_tokens'  => 200,
+                        'temperature' => 0.7,
+                    ];
+                }
+            }
+
+            $responses = !empty($jobs) ? $openai->request_multi($jobs) : [];
+
+            foreach ($work as $post_id => $w) {
+                $generated = [];
+                if ($w['needs_title']) {
+                    $r = $responses["t_{$post_id}"] ?? null;
+                    if (!is_wp_error($r) && !empty(trim((string) $r))) {
+                        $title = SSF_Validator::enforce_seo_title(trim((string) $r, " \t\n\r\0\x0B\"'"), 60);
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+                        $generated[] = 'title';
+                    }
+                }
+                if ($w['needs_desc']) {
+                    $r = $responses["d_{$post_id}"] ?? null;
+                    if (!is_wp_error($r) && !empty(trim((string) $r))) {
+                        $desc = SSF_Validator::enforce_meta_description(trim((string) $r, " \t\n\r\0\x0B\"'"), 160);
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+                        $generated[] = 'description';
+                    }
+                }
+                $score = 0;
+                if ($analyzer) {
+                    $analysis = $analyzer->analyze_post($post_id);
+                    $score = $analysis['score'] ?? 0;
+                }
+                if (!empty($generated)) {
+                    $log[] = sprintf('✅ %s — Generated: %s (Score: %d)', esc_html($w['post']->post_title), implode(', ', $generated), $score);
+                } else {
+                    $log[] = sprintf('⏭️ %s — Skipped (already has SEO data)', esc_html($w['post']->post_title));
+                }
+            }
+
+            wp_send_json_success([
+                'processed' => count($posts),
+                'log' => $log,
+            ]);
+        }
         
         foreach ($posts as $post_id) {
             $post = get_post($post_id);
@@ -4367,7 +4472,40 @@ class SSF_Ajax {
             'failed'    => isset($counts['failed'])    ? intval($counts['failed']->cnt)    : 0,
         ]);
     }
-    
+
+    /**
+     * Get a single job by ID (for live progress polling).
+     */
+    public function get_job() {
+        $this->verify_nonce();
+        $job_id = intval($_POST['job_id'] ?? 0);
+        if (!$job_id) {
+            wp_send_json_error(['message' => __('Missing job_id.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_Job_Queue')) {
+            wp_send_json_error(['message' => 'Job queue not available.']);
+        }
+        $job = SSF_Job_Queue::get($job_id);
+        if (!$job) {
+            wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
+        }
+        $total     = is_array($job->items) ? count($job->items) : intval($job->total_items ?? 0);
+        $processed = intval($job->processed_count ?? 0);
+        $percent   = $total > 0 ? round(($processed / $total) * 100) : 0;
+        wp_send_json_success([
+            'id'          => intval($job->id),
+            'job_type'    => $job->job_type,
+            'status'      => $job->status,
+            'total'       => $total,
+            'processed'   => $processed,
+            'failed'      => intval($job->failed_count ?? 0),
+            'percent'     => $percent,
+            'created_at'  => $job->created_at,
+            'updated_at'  => $job->updated_at ?? null,
+            'error'       => $job->error_message ?? '',
+        ]);
+    }
+
     /**
      * Get jobs list
      */

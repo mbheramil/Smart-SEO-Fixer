@@ -339,68 +339,124 @@ jQuery(document).ready(function($) {
     });
 
     function runBulk(options, postIds) {
-        var batchSize = 5, processed = 0, total = postIds.length;
+        var total = postIds.length;
 
-        function next() {
-            if (processed >= total) {
-                $('#bulk-progress-title').html('<span class="dashicons dashicons-yes-alt" style="color:#059669;"></span> <?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
-                $('#bulk-progress-fill').css('width', '100%');
-                $('#bulk-progress-text').text('100% (' + total + '/' + total + ')');
+        // Always send the whole selection in one request. The server decides:
+        //   - 5+ posts  → queued as a background job (visible on Job Queue page)
+        //                → we poll progress every 2s and show a live progress bar
+        //   - <5 posts  → run in-request with parallel Bedrock curl_multi and
+        //                return immediately
+        $('#bulk-progress-fill').css('width', '0%');
+        $('#bulk-progress-text').text('0% (0/' + total + ')');
+        $('#bulk-progress-log').html('');
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_bulk_ai_fix',
+            nonce: ssfAdmin.nonce,
+            post_ids: postIds,
+            options: options
+        }, function(response) {
+            if (!response.success) {
+                var msg = (response.data && response.data.message) || '<?php echo esc_js(__('Unknown error', 'smart-seo-fixer')); ?>';
+                $('#bulk-progress-log').append('<div style="color:#dc2626;">❌ ' + esc(msg) + '</div>');
+                $('#bulk-progress-title').html('<span class="dashicons dashicons-warning" style="color:#dc2626;"></span> <?php echo esc_js(__('Error', 'smart-seo-fixer')); ?>');
                 $('#bulk-done-btn').show();
                 return;
             }
 
-            var batch = postIds.slice(processed, processed + batchSize);
-
-            $.post(ssfAdmin.ajax_url, {
-                action: 'ssf_bulk_ai_fix',
-                nonce: ssfAdmin.nonce,
-                post_ids: batch,
-                options: options
-            }, function(response) {
-                if (response.success) {
-                    // Check if job was queued for background processing
-                    if (response.data.queued) {
-                        $('#bulk-progress-fill').css('width', '100%').css('background', '#7c3aed');
-                        $('#bulk-progress-text').text('<?php echo esc_js(__('Queued for background processing', 'smart-seo-fixer')); ?>');
-                        $('#bulk-progress-log').append(
-                            '<div style="padding: 12px; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; margin-top: 8px;">' +
-                            '<strong><?php echo esc_js(__('Background Job Created', 'smart-seo-fixer')); ?></strong><br>' +
-                            esc(response.data.message) + '<br><br>' +
-                            '<a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-jobs')); ?>" class="button button-primary">' +
-                            '<?php echo esc_js(__('View Job Queue', 'smart-seo-fixer')); ?></a></div>'
-                        );
-                        $('#bulk-done-btn').show();
-                        return;
-                    }
-                    
-                    processed += response.data.processed || batch.length;
-                    var pct = total > 0 ? Math.round((processed / total) * 100) : 100;
-                    $('#bulk-progress-fill').css('width', pct + '%');
-                    $('#bulk-progress-text').text(pct + '% (' + processed + '/' + total + ')');
-
-                    if (response.data.log) {
-                        response.data.log.forEach(function(e) {
-                            $('#bulk-progress-log').append('<div>' + e + '</div>');
-                        });
-                        var el = document.getElementById('bulk-progress-log');
-                        el.scrollTop = el.scrollHeight;
-                    }
-
-                    setTimeout(next, 300);
-                } else {
-                    var msg = (response.data && response.data.message) || '<?php echo esc_js(__('Unknown error', 'smart-seo-fixer')); ?>';
-                    $('#bulk-progress-log').append('<div style="color:#dc2626;">❌ ' + esc(msg) + '</div>');
-                    $('#bulk-progress-title').html('<span class="dashicons dashicons-warning" style="color:#dc2626;"></span> <?php echo esc_js(__('Error', 'smart-seo-fixer')); ?>');
-                    $('#bulk-done-btn').show();
+            // Small batch — synchronous response, already done.
+            if (!response.data.queued) {
+                $('#bulk-progress-fill').css('width', '100%');
+                $('#bulk-progress-text').text('100% (' + total + '/' + total + ')');
+                if (response.data.log) {
+                    response.data.log.forEach(function(e) {
+                        $('#bulk-progress-log').append('<div>' + e + '</div>');
+                    });
+                    var el = document.getElementById('bulk-progress-log');
+                    el.scrollTop = el.scrollHeight;
                 }
+                $('#bulk-progress-title').html('<span class="dashicons dashicons-yes-alt" style="color:#059669;"></span> <?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
+                $('#bulk-done-btn').show();
+                return;
+            }
+
+            // Background job queued — poll for progress.
+            var jobId = response.data.job_id;
+            $('#bulk-progress-log').append(
+                '<div style="padding:10px 12px; background:#eff6ff; border-left:4px solid #2563eb; border-radius:4px; margin-bottom:10px;">' +
+                '<strong><?php echo esc_js(__('Queued in background (Job #', 'smart-seo-fixer')); ?>' + jobId + ')</strong> — ' +
+                esc(response.data.message) + ' ' +
+                '<a href="<?php echo esc_url(admin_url('admin.php?page=smart-seo-fixer-jobs')); ?>" target="_blank"><?php echo esc_js(__('Open Job Queue page', 'smart-seo-fixer')); ?></a>' +
+                '</div>'
+            );
+
+            // Kick the queue immediately so we don't wait for WP cron's 60s tick.
+            $.post(ssfAdmin.ajax_url, { action: 'ssf_queue_tick', token: '<?php echo esc_js(SSF_Job_Queue::get_tick_token()); ?>' });
+
+            pollJob(jobId, total);
+        }).fail(function() {
+            $('#bulk-progress-log').append('<div style="color:#dc2626;"><?php echo esc_js(__('Request failed.', 'smart-seo-fixer')); ?></div>');
+            $('#bulk-done-btn').show();
+        });
+    }
+
+    function pollJob(jobId, total) {
+        var stallCount = 0;
+        var lastProcessed = 0;
+
+        function tick() {
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_get_job',
+                nonce: ssfAdmin.nonce,
+                job_id: jobId
+            }, function(r) {
+                if (!r.success) {
+                    $('#bulk-progress-log').append('<div style="color:#dc2626;"><?php echo esc_js(__('Failed to read job status.', 'smart-seo-fixer')); ?></div>');
+                    $('#bulk-done-btn').show();
+                    return;
+                }
+                var j = r.data;
+                var pct = j.percent || 0;
+                $('#bulk-progress-fill').css('width', pct + '%');
+                $('#bulk-progress-text').text(pct + '% (' + j.processed + '/' + j.total + ') — ' + j.status);
+
+                if (j.status === 'completed') {
+                    $('#bulk-progress-title').html('<span class="dashicons dashicons-yes-alt" style="color:#059669;"></span> <?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
+                    $('#bulk-progress-log').append('<div style="color:#059669;">✅ <?php echo esc_js(__('Background job completed.', 'smart-seo-fixer')); ?> (' + j.processed + '/' + j.total + ')</div>');
+                    $('#bulk-done-btn').show();
+                    return;
+                }
+                if (j.status === 'failed') {
+                    $('#bulk-progress-title').html('<span class="dashicons dashicons-warning" style="color:#dc2626;"></span> <?php echo esc_js(__('Failed', 'smart-seo-fixer')); ?>');
+                    $('#bulk-progress-log').append('<div style="color:#dc2626;">❌ ' + esc(j.error || '<?php echo esc_js(__('Unknown error', 'smart-seo-fixer')); ?>') + '</div>');
+                    $('#bulk-done-btn').show();
+                    return;
+                }
+                if (j.status === 'cancelled') {
+                    $('#bulk-progress-title').html('<span class="dashicons dashicons-no" style="color:#64748b;"></span> <?php echo esc_js(__('Cancelled', 'smart-seo-fixer')); ?>');
+                    $('#bulk-done-btn').show();
+                    return;
+                }
+
+                // Self-tick the queue if progress stalls (WP cron can be slow).
+                if (j.processed === lastProcessed) {
+                    stallCount++;
+                    if (stallCount >= 2) {
+                        $.post(ssfAdmin.ajax_url, { action: 'ssf_queue_tick', token: '<?php echo esc_js(SSF_Job_Queue::get_tick_token()); ?>' });
+                        stallCount = 0;
+                    }
+                } else {
+                    stallCount = 0;
+                    lastProcessed = j.processed;
+                }
+
+                setTimeout(tick, 2000);
             }).fail(function() {
-                $('#bulk-progress-log').append('<div style="color:#dc2626;"><?php echo esc_js(__('Request failed. Retrying...', 'smart-seo-fixer')); ?></div>');
-                setTimeout(next, 2000);
+                setTimeout(tick, 3000);
             });
         }
 
-        next();
+        tick();
     }
 
     // Done button — go back to config

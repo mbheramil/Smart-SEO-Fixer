@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.37
+Stable tag: 2.0.38
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.38 =
+* Fixed: Bulk AI Fix now routes batches of 5+ posts through the Job Queue so they are visible on the Background Jobs page (previously the client-side loop never triggered queuing because it fragmented into batches of 5).
+* Fixed: Bulk AI Fix is dramatically faster. Instead of the browser firing 299 sequential HTTP requests of 5 posts each (each request doing 10 sequential AI calls), the entire selection is now sent once and processed server-side in parallel batches of 20 with curl_multi. For 1,494 posts this drops processing from hours to minutes on Bedrock.
+* New: Live progress bar on the Bulk AI Fix page polls the Job Queue every 2 seconds and shows processed/total count + status. Progress stalls automatically trigger a queue self-tick so you don't have to wait for WordPress cron.
+* New: `ssf_get_job` AJAX endpoint returns a single job's progress (id, status, total, processed, percent, failed, error) for live UI polling by third-party integrations.
+* In-request fast path: batches of <5 posts still run synchronously and now use the same parallel curl_multi Bedrock call for instant results.
+
 = 2.0.37 =
 * New: Thin-content auto-noindex. Posts below the word threshold (default 50 words) are automatically marked noindex so Google won't count them against your site's SEO. Applies to image-only posts and super-short "thank you" style reviews. If a post grows above the threshold later, the plugin lifts the noindex automatically. Fully configurable in Settings → General → Thin Content Auto-Noindex.
 * New: Image-only SEO enrichment. When a post is mostly images (e.g. a client-review gallery), the plugin now feeds every image's alt text, caption, title, and description to the AI — so it can still generate a relevant SEO title, meta description, and focus keyword instead of skipping the post.
