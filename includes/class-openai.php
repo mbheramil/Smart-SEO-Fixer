@@ -335,6 +335,7 @@ class SSF_OpenAI {
         $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
         $prompt .= "Content:\n" . $clean_content . "\n\n";
         
+        $prompt .= "CRITICAL: Every keyword you suggest (primary, secondary, long-tail) MUST appear as a VERBATIM substring in the title or content above — case-insensitive. Do NOT invent new phrases. Pick keywords that are already in the text.\n\n";
         $prompt .= "Suggest 5 focus keywords with:\n";
         $prompt .= "- Primary keyword (main focus)\n";
         $prompt .= "- Secondary keywords (supporting)\n";

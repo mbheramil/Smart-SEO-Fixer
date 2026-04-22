@@ -112,6 +112,19 @@ if (!defined('ABSPATH')) {
                     <span class="dashicons dashicons-analytics"></span>
                     <?php esc_html_e('Generate Report', 'smart-seo-fixer'); ?>
                 </button>
+                <button type="button" class="button button-secondary button-hero" id="ssf-reanalyze-all" title="<?php esc_attr_e('Re-run the SEO analyzer on every published page so scores reflect the latest content and meta.', 'smart-seo-fixer'); ?>">
+                    <span class="dashicons dashicons-update"></span>
+                    <?php esc_html_e('Re-analyze All Pages', 'smart-seo-fixer'); ?>
+                </button>
+            </div>
+            <div id="ssf-reanalyze-progress" style="display:none; margin-top:12px; padding:14px; background:#f0f9ff; border-left:4px solid #0284c7; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong id="ssf-reanalyze-label"><?php esc_html_e('Re-analyzing pages…', 'smart-seo-fixer'); ?></strong>
+                    <span id="ssf-reanalyze-count" style="color:#64748b; font-size:13px;">0 / 0</span>
+                </div>
+                <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+                    <div id="ssf-reanalyze-bar" style="height:100%; width:0%; background:#0284c7; transition:width .3s;"></div>
+                </div>
             </div>
         </div>
     </div>

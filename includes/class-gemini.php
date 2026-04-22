@@ -226,6 +226,7 @@ class SSF_Gemini {
         if (!empty($title)) $prompt .= "Title: {$title}\n\n";
         $clean = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
         $prompt .= "Content:\n{$clean}\n\n";
+        $prompt .= "CRITICAL: Every keyword you suggest MUST appear as a VERBATIM substring in the title or content above (case-insensitive). Do NOT invent new phrases.\n\n";
         $prompt .= "Suggest 5 focus keywords with:\n- Primary keyword (main focus)\n- Secondary keywords (supporting)\n- Long-tail variations\n\n";
         $prompt .= "Format as JSON:\n";
         $prompt .= '{"primary": "keyword", "secondary": ["kw1", "kw2"], "long_tail": ["phrase1", "phrase2"]}';

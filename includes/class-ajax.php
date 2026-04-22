@@ -1689,16 +1689,14 @@ class SSF_Ajax {
             if ($generate_keywords) {
                 $current_kw = trim(get_post_meta($post_id, '_ssf_focus_keyword', true));
                 if ($apply_to === 'all' || empty($current_kw)) {
-                    $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
-                    if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
-                        $kw = sanitize_text_field(trim($keywords['primary']));
-                        if (!empty($kw)) {
-                            update_post_meta($post_id, '_ssf_focus_keyword', $kw);
-                            $focus_keyword = $kw;
-                            $generated[] = 'keyword';
-                        }
-                    } elseif (is_wp_error($keywords)) {
-                        $errors[] = 'keyword: ' . $keywords->get_error_message();
+                    // Use grounded helper — guarantees keyword exists in the content
+                    $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                    if (!empty($kw)) {
+                        update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+                        $focus_keyword = $kw;
+                        $generated[] = 'keyword';
+                    } else {
+                        $errors[] = 'keyword: could not extract a grounded keyword';
                     }
                 }
             }
@@ -1804,10 +1802,10 @@ class SSF_Ajax {
         if ($generate_keywords) {
             $current_kw = get_post_meta($post_id, '_ssf_focus_keyword', true);
             if ($overwrite || empty($current_kw)) {
-                $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
-                if (!is_wp_error($keywords) && !empty($keywords['primary'])) {
-                    update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
-                    $focus_keyword = $keywords['primary']; // Use for title/desc generation
+                $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                if (!empty($kw)) {
+                    update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+                    $focus_keyword = $kw;
                     $generated[] = 'keyword';
                 }
             }

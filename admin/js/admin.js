@@ -289,6 +289,7 @@
             });
 
             $('#ssf-generate-report').on('click', this.generate.bind(this));
+            $('#ssf-reanalyze-all').on('click', this.reanalyzeAll.bind(this));
             $('#ssf-print-report').on('click', function() { window.print(); });
             $('#ssf-download-pdf').on('click', this.downloadPDF.bind(this));
             $('#ssf-new-report').on('click', function() {
@@ -872,6 +873,75 @@
                 $btn.prop('disabled', false).html(originalHtml);
                 window.print();
             });
+        },
+
+        reanalyzeAll: function() {
+            var self = this;
+            if (!window.confirm('Re-analyze every published page? This recalculates all SEO scores using the current content and meta. On large sites this may take a few minutes.')) {
+                return;
+            }
+
+            var $btn = $('#ssf-reanalyze-all');
+            var $gen = $('#ssf-generate-report');
+            var $progress = $('#ssf-reanalyze-progress');
+            var $bar = $('#ssf-reanalyze-bar');
+            var $label = $('#ssf-reanalyze-label');
+            var $count = $('#ssf-reanalyze-count');
+
+            var originalBtn = $btn.html();
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update ssf-spin"></span> Re-analyzing…');
+            $gen.prop('disabled', true);
+            $progress.show();
+            $bar.css('width', '0%');
+            $label.text('Starting…');
+            $count.text('0 / 0');
+
+            var offset = 0;
+            var batchSize = 10;
+            var total = 0;
+            var processed = 0;
+
+            function step() {
+                $.post(ssfAdmin.ajax_url, {
+                    action: 'ssf_bulk_analyze',
+                    nonce: ssfAdmin.nonce,
+                    offset: offset,
+                    batch_size: batchSize,
+                    analyze_mode: 'all'
+                }).done(function(resp) {
+                    if (!resp || !resp.success) {
+                        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Analyze failed.';
+                        $label.text('Error: ' + msg);
+                        $btn.prop('disabled', false).html(originalBtn);
+                        $gen.prop('disabled', false);
+                        return;
+                    }
+                    var data = resp.data || {};
+                    total = parseInt(data.total, 10) || total;
+                    processed += parseInt(data.processed, 10) || 0;
+                    offset += batchSize;
+
+                    var pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+                    $bar.css('width', pct + '%');
+                    $count.text(processed + ' / ' + total);
+                    $label.text('Re-analyzing pages… (' + pct + '%)');
+
+                    if (data.done) {
+                        $bar.css('width', '100%');
+                        $label.html('<span class="dashicons dashicons-yes-alt" style="color:#16a34a;"></span> Done — ' + processed + ' pages re-analyzed. Click <strong>Generate Report</strong> to see the updated score.');
+                        $btn.prop('disabled', false).html(originalBtn);
+                        $gen.prop('disabled', false);
+                    } else {
+                        step();
+                    }
+                }).fail(function(xhr) {
+                    $label.text('Network error: ' + (xhr.statusText || 'failed'));
+                    $btn.prop('disabled', false).html(originalBtn);
+                    $gen.prop('disabled', false);
+                });
+            }
+
+            step();
         },
 
         statBox: function(number, label, subtitle, extraClass) {

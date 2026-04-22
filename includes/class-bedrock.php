@@ -556,6 +556,7 @@ class SSF_Bedrock {
         if ( ! empty( $title ) ) $prompt .= "Title: {$title}\n\n";
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
         $prompt .= "Content:\n{$clean}\n\n";
+        $prompt .= "CRITICAL: Every keyword you suggest MUST appear as a VERBATIM substring in the title or content above (case-insensitive). Do NOT invent new phrases.\n\n";
         $prompt .= "Suggest 5 focus keywords with primary, secondary, and long-tail variations.\n\n";
         $prompt .= 'Format as JSON: {"primary":"keyword","secondary":["kw1","kw2"],"long_tail":["phrase1","phrase2"]}';
 

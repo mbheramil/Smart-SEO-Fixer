@@ -785,9 +785,9 @@ class SSF_Admin {
         
         // Auto-generate focus keyword if empty
         if (empty($focus_keyword)) {
-            $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
-            if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
-                update_post_meta($post->ID, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
+            $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+            if (!empty($kw)) {
+                update_post_meta($post->ID, '_ssf_focus_keyword', $kw);
             }
         }
         

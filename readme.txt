@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.31
+Stable tag: 2.0.32
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.32 =
+* Fixed: AI-generated focus keywords were often invented phrases that didn't appear in the post, causing the analyzer to deduct points for "keyword not found in title/content" even when meta coverage was 100%
+* New: `SSF_AI::pick_grounded_keyword()` — AI suggestions are now validated against the actual post text; if no suggested keyword appears verbatim, a frequency-based n-gram is extracted from the title + content as a fallback
+* New: AI keyword prompts now explicitly tell the model "every keyword MUST appear verbatim in the content"
+* New: "Re-analyze All Pages" button on the Client Report page — batches through every published page and refreshes scores, so your Generated report reflects the latest state
+
 = 2.0.31 =
 * New: Client Report "Download PDF" now generates a real PDF file (using bundled html2pdf.js) instead of opening the browser's print dialog, so the exported file no longer contains the admin URL, page numbers, or the date/title header bar
 * New: PDF files are auto-named `seo-report-<site>-<YYYY-MM-DD>.pdf`
