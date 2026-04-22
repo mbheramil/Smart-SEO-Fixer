@@ -546,6 +546,7 @@ unset($available_post_types['attachment']);
                         <p class="description" style="margin:0 0 10px;">
                             <?php esc_html_e('Shows every GA4 property the connected Google account can read — including properties owned by your clients, agencies, or other accounts that have granted you access.', 'smart-seo-fixer'); ?>
                         </p>
+                        <div id="ssf-ga-picker-error" style="display:none; margin-bottom:12px;"></div>
                         <p>
                             <select id="ssf_ga_property_select" style="min-width:420px; max-width:100%;">
                                 <option value=""><?php esc_html_e('Loading properties…', 'smart-seo-fixer'); ?></option>
@@ -1291,7 +1292,13 @@ jQuery(document).ready(function($) {
                 ssfGaRenderLog($log, resp.data, false);
                 setTimeout(function() { window.location.reload(); }, 2500);
             } else {
-                ssfGaRenderLog($log, resp.data || {message: 'Setup failed.'}, true);
+                var data = resp && resp.data ? resp.data : {message: 'Setup failed.'};
+                var detected = ssfGaDetectApiEnableError(data.message || '');
+                if (detected) {
+                    ssfGaRenderApiEnableBanner($log, data.message, detected);
+                } else {
+                    ssfGaRenderLog($log, data, true);
+                }
                 $btn.prop('disabled', false).html('<span class="dashicons dashicons-plus-alt2" style="vertical-align:text-bottom;"></span> Auto-Create GA4 Property for This Site');
             }
         }).fail(function() {
@@ -1323,7 +1330,12 @@ jQuery(document).ready(function($) {
                 ).show();
             } else {
                 var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Test failed.';
-                $log.html('<div style="padding:12px 14px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:4px;">' + $('<div>').text(msg).html() + '</div>').show();
+                var detected = ssfGaDetectApiEnableError(msg);
+                if (detected) {
+                    ssfGaRenderApiEnableBanner($log, msg, detected);
+                } else {
+                    $log.html('<div style="padding:12px 14px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:4px;">' + $('<div>').text(msg).html() + '</div>').show();
+                }
             }
         }).fail(function() {
             $btn.prop('disabled', false).html('<span class="dashicons dashicons-chart-line" style="vertical-align:text-bottom;"></span> Test Data Fetch (Last 7 Days)');
@@ -1344,10 +1356,56 @@ jQuery(document).ready(function($) {
     });
 
     // Existing-property picker
+    // Detect Google's "API not enabled" error message and extract its enable
+    // URL so we can render a proper clickable link instead of raw text.
+    function ssfGaDetectApiEnableError(msg) {
+        if (!msg) return null;
+        // Google error format:
+        //   "Google ... API has not been used in project NNN before or it is disabled.
+        //    Enable it by visiting https://console.developers.google.com/apis/api/X/overview?project=NNN then retry."
+        var linkRe = /https:\/\/console\.(?:developers|cloud)\.google\.com\/apis\/api\/[^\s]+?project=\d+/i;
+        var m = msg.match(linkRe);
+        if (!m) return null;
+        var apiName = 'Google Analytics API';
+        var apiMatch = msg.match(/(Google [A-Za-z0-9 ]+API) has not been used/);
+        if (apiMatch) apiName = apiMatch[1];
+        return { url: m[0], apiName: apiName };
+    }
+
+    function ssfGaRenderApiEnableBanner($container, msg, detected) {
+        var html = '<div style="padding:14px 16px; background:#fff7ed; border:1px solid #fdba74; border-left:4px solid #f97316; border-radius:6px; color:#7c2d12;">' +
+            '<p style="margin:0 0 8px; font-weight:600;">' +
+                '<span class="dashicons dashicons-warning" style="color:#f97316;"></span> ' +
+                'Google API needs to be enabled' +
+            '</p>' +
+            '<p style="margin:0 0 10px;">' +
+                'The <strong>' + $('<div>').text(detected.apiName).html() + '</strong> is not enabled in your Google Cloud project. ' +
+                'Click below to enable it, wait ~1 minute, then retry.' +
+            '</p>' +
+            '<p style="margin:0 0 10px;">' +
+                '<a href="' + detected.url + '" target="_blank" rel="noopener" class="button button-primary">' +
+                    '<span class="dashicons dashicons-external" style="vertical-align:text-bottom;"></span> ' +
+                    'Enable ' + $('<div>').text(detected.apiName).html() +
+                '</a> ' +
+                '<a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener" class="button">' +
+                    'Also enable Analytics Data API' +
+                '</a>' +
+            '</p>' +
+            '<details style="margin-top:6px;"><summary style="cursor:pointer; color:#7c2d12;">Raw error from Google</summary>' +
+                '<pre style="white-space:pre-wrap; font-size:11px; background:#fff; padding:8px; border:1px solid #fed7aa; border-radius:4px; margin-top:6px; color:#7c2d12;">' +
+                    $('<div>').text(msg).html() +
+                '</pre>' +
+            '</details>' +
+            '</div>';
+        $container.html(html).show();
+    }
+
     $('#ssf-ga-use-existing').on('click', function() {
         var $picker = $('#ssf-ga-existing-picker');
         var $select = $('#ssf_ga_property_select');
+        var $err    = $('#ssf-ga-picker-error');
         $picker.slideDown();
+        $err.hide().empty();
         $select.html('<option value="">Loading properties…</option>').prop('disabled', true);
 
         $.post(ssfAdmin.ajax_url, {
@@ -1384,7 +1442,13 @@ jQuery(document).ready(function($) {
                 $select.html(html).prop('disabled', false);
             } else {
                 var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Failed to load properties.';
-                $select.html('<option value="">' + $('<div>').text(msg).html() + '</option>').prop('disabled', true);
+                var detected = ssfGaDetectApiEnableError(msg);
+                if (detected) {
+                    $select.html('<option value="">API needs to be enabled — see instructions above</option>').prop('disabled', true);
+                    ssfGaRenderApiEnableBanner($err, msg, detected);
+                } else {
+                    $select.html('<option value="">' + $('<div>').text(msg).html() + '</option>').prop('disabled', true);
+                }
             }
         }).fail(function() {
             $select.html('<option value="">Request failed.</option>').prop('disabled', true);
