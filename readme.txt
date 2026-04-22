@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.39
+Stable tag: 2.0.40
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.40 =
+* Fixed: Job Queue page always said "OpenAI Rate Limit" even when the site was wired to AWS Bedrock, Claude, or Gemini. The card now reflects the active AI provider's label and reads that provider's actual rate-limiter bucket. No behavior change — the bulk pipeline was already using the correctly configured provider; only the label was wrong.
+* Fixed: Job Queue page description said "10+ posts, 5 items per minute" which no longer matched the current parallel pipeline. Updated to "5+ posts, batches of 20 in parallel on Bedrock".
+
 = 2.0.39 =
 * Fixed: Job Queue page "Recent Jobs" was always empty even when jobs existed in the database. The `ssf_get_jobs` response returned `items` but the view expected `jobs`, so the table never rendered. Now returns both keys and also computes the `progress` percentage per row.
 * Fixed: Bulk AI Fix progress bar stuck at 0/N. The `ssf_get_job` polling endpoint was reading non-existent columns (`processed_count`/`failed_count` instead of `processed_items`/`failed_items`), so it always reported zero progress even while batches were actually being processed.

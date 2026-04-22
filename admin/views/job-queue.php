@@ -23,33 +23,41 @@ $active_count = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::active_count() : 
     </h1>
     
     <p class="description" style="margin-bottom: 20px;">
-        <?php esc_html_e('Large operations (10+ posts) are automatically queued here and processed in the background. Each batch processes 5 items per minute to respect API rate limits.', 'smart-seo-fixer'); ?>
+        <?php esc_html_e("Large operations (5+ posts) are automatically queued here and processed in the background. On AWS Bedrock, batches of 20 items run in parallel; other providers process sequentially within the provider's rate limit.", 'smart-seo-fixer'); ?>
     </p>
     
     <!-- Rate Limit Status -->
-    <?php if (class_exists('SSF_Rate_Limiter')): 
-        $openai_usage = SSF_Rate_Limiter::get_usage('openai');
+    <?php if (class_exists('SSF_Rate_Limiter')):
+        // Show the ACTIVE AI provider's rate limiter bucket, not a hard-coded
+        // "OpenAI" one. Before v2.0.40 this card always said "OpenAI Rate
+        // Limit" and read the openai bucket even when the site was wired to
+        // Bedrock/Claude/Gemini — which (a) was confusing ("why does it say
+        // OpenAI when I'm on Bedrock?") and (b) hid the real bucket actually
+        // being consumed by Bulk AI Fix.
+        $ai_provider_slug = class_exists('SSF_AI') ? SSF_AI::active_provider() : 'openai';
+        $ai_provider_label = class_exists('SSF_AI') ? SSF_AI::provider_label() : 'OpenAI';
+        $ai_usage = SSF_Rate_Limiter::get_usage($ai_provider_slug);
         $gsc_usage = SSF_Rate_Limiter::get_usage('gsc');
     ?>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
         <div class="ssf-card" style="padding: 20px;">
             <h3 style="margin: 0 0 12px; font-size: 14px; color: #64748b;">
                 <span class="dashicons dashicons-admin-generic" style="font-size: 16px; vertical-align: text-bottom;"></span>
-                <?php esc_html_e('OpenAI Rate Limit', 'smart-seo-fixer'); ?>
+                <?php printf(esc_html__('%s Rate Limit', 'smart-seo-fixer'), esc_html($ai_provider_label)); ?>
             </h3>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <span style="font-size: 24px; font-weight: 700; color: <?php echo $openai_usage['remaining'] < 5 ? '#dc2626' : '#059669'; ?>;">
-                        <?php echo intval($openai_usage['remaining']); ?>
+                    <span style="font-size: 24px; font-weight: 700; color: <?php echo $ai_usage['remaining'] < 5 ? '#dc2626' : '#059669'; ?>;">
+                        <?php echo intval($ai_usage['remaining']); ?>
                     </span>
-                    <span style="color: #64748b; font-size: 13px;">/ <?php echo intval($openai_usage['limit']); ?> <?php esc_html_e('remaining', 'smart-seo-fixer'); ?></span>
+                    <span style="color: #64748b; font-size: 13px;">/ <?php echo intval($ai_usage['limit']); ?> <?php esc_html_e('remaining', 'smart-seo-fixer'); ?></span>
                 </div>
-                <?php if ($openai_usage['resets_in'] > 0): ?>
-                    <span style="font-size: 12px; color: #94a3b8;"><?php printf(esc_html__('Resets in %ds', 'smart-seo-fixer'), $openai_usage['resets_in']); ?></span>
+                <?php if ($ai_usage['resets_in'] > 0): ?>
+                    <span style="font-size: 12px; color: #94a3b8;"><?php printf(esc_html__('Resets in %ds', 'smart-seo-fixer'), $ai_usage['resets_in']); ?></span>
                 <?php endif; ?>
             </div>
             <div style="margin-top: 8px; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
-                <div style="height: 100%; width: <?php echo $openai_usage['limit'] > 0 ? round(($openai_usage['remaining'] / $openai_usage['limit']) * 100) : 100; ?>%; background: <?php echo $openai_usage['remaining'] < 5 ? '#dc2626' : '#059669'; ?>; border-radius: 2px; transition: width 0.3s;"></div>
+                <div style="height: 100%; width: <?php echo $ai_usage['limit'] > 0 ? round(($ai_usage['remaining'] / $ai_usage['limit']) * 100) : 100; ?>%; background: <?php echo $ai_usage['remaining'] < 5 ? '#dc2626' : '#059669'; ?>; border-radius: 2px; transition: width 0.3s;"></div>
             </div>
         </div>
         
