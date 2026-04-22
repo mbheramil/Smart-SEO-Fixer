@@ -710,11 +710,12 @@ class SSF_Search_Console {
                 if (!$post) continue;
                 
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
                 if ($meta_key === '_ssf_seo_title') {
-                    $new_value = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                    $new_value = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                 } else {
-                    $new_value = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    $new_value = $openai->generate_meta_description($enriched, '', $focus_keyword);
                 }
                 
                 if (!is_wp_error($new_value) && !empty(trim($new_value))) {
@@ -782,13 +783,15 @@ class SSF_Search_Console {
         
         foreach ($posts as $post_id) {
             $post = get_post($post_id);
-            if (!$post || str_word_count(strip_tags($post->post_content)) < 10) continue;
-            
+            if (!$post) continue;
+            $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+            if (str_word_count(strip_tags($enriched)) < 10) continue;
+
             $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
             
             $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
             if (empty($seo_title)) {
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                     $gen_count++;
@@ -797,7 +800,7 @@ class SSF_Search_Console {
             
             $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
             if (empty($meta_desc)) {
-                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                     $gen_count++;
@@ -971,10 +974,11 @@ class SSF_Search_Console {
                 
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
                 $errors = [];
-                
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
                 // Generate focus keyword first (improves title/desc quality)
                 if (empty($focus_keyword)) {
-                    $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                    $keywords = $openai->suggest_keywords($enriched, $post->post_title);
                     if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
                         $kw = sanitize_text_field(trim($keywords['primary']));
                         if (!empty($kw)) {
@@ -990,7 +994,7 @@ class SSF_Search_Console {
                 // Generate SEO title
                 $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
                 if (empty($seo_title)) {
-                    $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                    $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                     if (!is_wp_error($title) && !empty(trim($title))) {
                         $clean = sanitize_text_field(trim($title));
                         if (!empty($clean)) {
@@ -1005,7 +1009,7 @@ class SSF_Search_Console {
                 // Generate meta description
                 $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
                 if (empty($meta_desc)) {
-                    $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                     if (!is_wp_error($desc) && !empty(trim($desc))) {
                         $clean = sanitize_textarea_field(trim($desc));
                         if (!empty($clean)) {
@@ -1037,7 +1041,8 @@ class SSF_Search_Console {
                     $current_seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
                     
                     // Tell AI to generate a DIFFERENT title than the current one
-                    $content = wp_trim_words(wp_strip_all_tags($post->post_content), 500);
+                    $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+                    $content = wp_trim_words(wp_strip_all_tags($enriched), 500);
                     $prompt = "You are an SEO expert. Generate a NEW, UNIQUE SEO title for this page.\n\n";
                     $prompt .= "CRITICAL: The title MUST be completely different from the current one. Do NOT reuse the same wording.\n\n";
                     $prompt .= "Requirements:\n- Maximum 60 characters\n- Include focus keyword naturally if provided\n- Make it compelling and click-worthy\n- Must be DIFFERENT from current title\n\n";
@@ -1089,7 +1094,8 @@ class SSF_Search_Console {
                     $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
                     
                     // Tell AI to generate a DIFFERENT description
-                    $content = wp_trim_words(wp_strip_all_tags($post->post_content), 500);
+                    $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+                    $content = wp_trim_words(wp_strip_all_tags($enriched), 500);
                     $prompt = "You are an SEO expert. Generate a NEW, UNIQUE meta description for this page.\n\n";
                     $prompt .= "CRITICAL: The description MUST be completely different from the current one. Do NOT reuse the same wording.\n\n";
                     $prompt .= "Requirements:\n- Between 150-160 characters\n- Include focus keyword naturally if provided\n- Include a subtle call-to-action\n- Must be DIFFERENT from current description\n\n";

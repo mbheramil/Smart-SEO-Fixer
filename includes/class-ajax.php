@@ -369,8 +369,9 @@ class SSF_Ajax {
             wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
         $result = $openai->generate_title(
-            $post->post_content,
+            $enriched,
             $post->post_title,
             $focus_keyword
         );
@@ -423,9 +424,10 @@ class SSF_Ajax {
         }
         
         $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
-        
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
         $result = $openai->generate_meta_description(
-            $post->post_content,
+            $enriched,
             $current_desc,
             $focus_keyword
         );
@@ -501,8 +503,9 @@ class SSF_Ajax {
             wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
         $result = $openai->analyze_content(
-            $post->post_content,
+            $enriched,
             $post->post_title,
             $focus_keyword
         );
@@ -543,7 +546,8 @@ class SSF_Ajax {
             wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
-        $result = $openai->suggest_keywords($post->post_content, $post->post_title);
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+        $result = $openai->suggest_keywords($enriched, $post->post_title);
         
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()]);
@@ -886,7 +890,8 @@ class SSF_Ajax {
             case 'title_too_short':
             case 'keyword_not_in_title':
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+                $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                 
                 if (is_wp_error($title)) {
                     wp_send_json_error(['message' => $title->get_error_message()]);
@@ -904,7 +909,8 @@ class SSF_Ajax {
             case 'meta_too_short':
             case 'keyword_not_in_meta':
                 $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+                $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                 
                 if (is_wp_error($desc)) {
                     wp_send_json_error(['message' => $desc->get_error_message()]);
@@ -994,16 +1000,17 @@ class SSF_Ajax {
                     'post' => $post, 'kw' => $focus_keyword,
                     'needs_title' => $needs_title, 'needs_desc' => $needs_desc,
                 ];
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
                 if ($needs_title) {
                     $jobs["t_{$post_id}"] = [
-                        'messages'    => $openai->build_title_messages($post->post_content, $post->post_title, $focus_keyword),
+                        'messages'    => $openai->build_title_messages($enriched, $post->post_title, $focus_keyword),
                         'max_tokens'  => 100,
                         'temperature' => 0.7,
                     ];
                 }
                 if ($needs_desc) {
                     $jobs["d_{$post_id}"] = [
-                        'messages'    => $openai->build_desc_messages($post->post_content, '', $focus_keyword),
+                        'messages'    => $openai->build_desc_messages($enriched, '', $focus_keyword),
                         'max_tokens'  => 200,
                         'temperature' => 0.7,
                     ];
@@ -1058,12 +1065,13 @@ class SSF_Ajax {
             
             $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
             $fixed = [];
-            
+            $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
             // Generate title if needed
             if (in_array('title', $issue_types)) {
                 $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
                 if (empty($current_title) || strlen($current_title) < 30) {
-                    $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                    $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                     if (!is_wp_error($title) && !empty(trim($title))) {
                         $title = SSF_Validator::enforce_seo_title(trim($title), 60);
                         update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
@@ -1076,7 +1084,7 @@ class SSF_Ajax {
             if (in_array('meta', $issue_types)) {
                 $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
                 if (empty($current_desc) || strlen($current_desc) < 120) {
-                    $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                     if (!is_wp_error($desc) && !empty(trim($desc))) {
                         $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
                         update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
@@ -1890,8 +1898,10 @@ class SSF_Ajax {
             foreach ($posts as $post_id) {
                 $post = get_post($post_id);
                 if (!$post) { $log[] = sprintf('⚠️ Post #%d — Not found, skipped', $post_id); continue; }
-                $clean = wp_strip_all_tags(strip_shortcodes($post->post_content));
-                if (str_word_count($clean) < 10) {
+                // Enrich with excerpt / public meta / image alt so page-builder
+                // and location-template CPTs aren't silently skipped.
+                $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+                if (str_word_count($enriched) < 10) {
                     $log[] = sprintf('⏭️ %s — Skipped (content too short for AI)', esc_html($post->post_title));
                     continue;
                 }
@@ -1900,7 +1910,7 @@ class SSF_Ajax {
                 if ($generate_keywords) {
                     $current_kw = trim((string) $focus_keyword);
                     if ($apply_to === 'all' || empty($current_kw)) {
-                        $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                        $kw = SSF_AI::pick_grounded_keyword($enriched, $post->post_title);
                         if (!empty($kw)) {
                             update_post_meta($post_id, '_ssf_focus_keyword', $kw);
                             $focus_keyword = $kw;
@@ -1922,14 +1932,14 @@ class SSF_Ajax {
                 $work[$post_id] = ['post' => $post, 'kw' => $focus_keyword, 'needs_title' => $needs_title, 'needs_desc' => $needs_desc];
                 if ($needs_title) {
                     $jobs["t_{$post_id}"] = [
-                        'messages'    => $openai->build_title_messages($post->post_content, $post->post_title, $focus_keyword),
+                        'messages'    => $openai->build_title_messages($enriched, $post->post_title, $focus_keyword),
                         'max_tokens'  => 100,
                         'temperature' => 0.7,
                     ];
                 }
                 if ($needs_desc) {
                     $jobs["d_{$post_id}"] = [
-                        'messages'    => $openai->build_desc_messages($post->post_content, '', $focus_keyword),
+                        'messages'    => $openai->build_desc_messages($enriched, '', $focus_keyword),
                         'max_tokens'  => 200,
                         'temperature' => 0.7,
                     ];
@@ -1991,13 +2001,14 @@ class SSF_Ajax {
             $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
             $generated = [];
             $errors = [];
+            $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
             
             // Generate keywords first (used for better title/desc generation)
             if ($generate_keywords) {
                 $current_kw = trim(get_post_meta($post_id, '_ssf_focus_keyword', true));
                 if ($apply_to === 'all' || empty($current_kw)) {
                     // Use grounded helper — guarantees keyword exists in the content
-                    $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                    $kw = SSF_AI::pick_grounded_keyword($enriched, $post->post_title);
                     if (!empty($kw)) {
                         update_post_meta($post_id, '_ssf_focus_keyword', $kw);
                         $focus_keyword = $kw;
@@ -2012,7 +2023,7 @@ class SSF_Ajax {
             if ($generate_title) {
                 $current_title = trim(get_post_meta($post_id, '_ssf_seo_title', true));
                 if ($apply_to === 'all' || empty($current_title)) {
-                    $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                    $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                     if (!is_wp_error($title) && !empty(trim($title))) {
                         $clean_title = sanitize_text_field(trim($title));
                         if (!empty($clean_title)) {
@@ -2029,7 +2040,7 @@ class SSF_Ajax {
             if ($generate_desc) {
                 $current_desc = trim(get_post_meta($post_id, '_ssf_meta_description', true));
                 if ($apply_to === 'all' || empty($current_desc)) {
-                    $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                    $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                     if (!is_wp_error($desc) && !empty(trim($desc))) {
                         $clean_desc = sanitize_textarea_field(trim($desc));
                         if (!empty($clean_desc)) {
@@ -2104,12 +2115,13 @@ class SSF_Ajax {
         
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
         $generated = [];
-        
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
         // Generate keywords first if requested (so it can be used for title/desc)
         if ($generate_keywords) {
             $current_kw = get_post_meta($post_id, '_ssf_focus_keyword', true);
             if ($overwrite || empty($current_kw)) {
-                $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                $kw = SSF_AI::pick_grounded_keyword($enriched, $post->post_title);
                 if (!empty($kw)) {
                     update_post_meta($post_id, '_ssf_focus_keyword', $kw);
                     $focus_keyword = $kw;
@@ -2122,7 +2134,7 @@ class SSF_Ajax {
         if ($generate_title) {
             $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
             if ($overwrite || empty($current_title)) {
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                     $generated[] = 'title';
@@ -2134,7 +2146,7 @@ class SSF_Ajax {
         if ($generate_desc) {
             $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
             if ($overwrite || empty($current_desc)) {
-                $desc = $openai->generate_meta_description($post->post_content, $current_desc, $focus_keyword);
+                $desc = $openai->generate_meta_description($enriched, $current_desc, $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                     $generated[] = 'description';

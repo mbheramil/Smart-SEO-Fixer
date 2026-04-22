@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.41
+Stable tag: 2.0.42
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.42 =
+* Fixed: Applied the v2.0.41 enriched-context helper (post_content + post_excerpt + public post_meta + image alt/caption) to EVERY remaining AI generation entry point, not just Bulk AI Fix. Previously these paths still read raw `$post->post_content` and silently skipped page-builder / location-template CPTs the same way Bulk AI Fix did: post-save cron auto-SEO (`smart-seo-fixer.php` + `class-admin.php`), per-post meta-box Generate buttons for title / description / keywords / analyze, Fix Issue (title & description), bulk_fix sequential + parallel, bulk_ai_fix in-request + sequential fallback, ai_fix_single, Search Console duplicate-regen, fix_missing_seo_data, not-indexed AI fix (keyword + title + description), generate_unique_title, generate_unique_desc, content suggestions generator, and the job queue `process_not_indexed_fix` sequential path. All of these now pass the same enriched string used by the parallel Bulk AI Fix pipeline, so page-builder and location CPTs produce real SEO output across every UI surface.
+
 = 2.0.41 =
 * Fixed: Bulk AI Fix reported "999/999 completed" but post_meta wasn't actually written for page-builder / location-template post types. Root cause: post_content on those CPTs is empty (real content lives in post_excerpt, ACF/page-builder meta, or attached image alt text), so the word-count gate skipped every post silently as "content too short" and counted the skip as success. Both the parallel and sequential bulk paths now call a new `enrich_post_context()` helper that combines body + excerpt + public meta + image alt/caption before the word-count gate and before prompting the AI.
 * New: Completion screen now shows a real outcome breakdown — "N generated · M skipped · K failed" with per-reason skip counts. If every post was skipped, a warning is surfaced so the user knows the job was a no-op instead of quietly assuming success.

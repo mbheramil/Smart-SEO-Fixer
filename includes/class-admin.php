@@ -968,10 +968,14 @@ class SSF_Admin {
         if (!$openai->is_configured()) {
             return;
         }
-        
+
+        // Enrich with excerpt / public meta / image alts so page-builder and
+        // location CPTs with empty post_content still get real AI output.
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+
         // Auto-generate SEO title if empty
         if (empty($seo_title)) {
-            $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+            $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
             if (!is_wp_error($title) && !empty(trim($title))) {
                 $title = SSF_Validator::enforce_seo_title(trim($title), 60);
                 update_post_meta($post->ID, '_ssf_seo_title', sanitize_text_field($title));
@@ -980,7 +984,7 @@ class SSF_Admin {
         
         // Auto-generate meta description if empty
         if (empty($meta_desc)) {
-            $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+            $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
             if (!is_wp_error($desc) && !empty(trim($desc))) {
                 $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
                 update_post_meta($post->ID, '_ssf_meta_description', sanitize_textarea_field($desc));
@@ -989,7 +993,7 @@ class SSF_Admin {
         
         // Auto-generate focus keyword if empty
         if (empty($focus_keyword)) {
-            $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+            $kw = SSF_AI::pick_grounded_keyword($enriched, $post->post_title);
             if (!empty($kw)) {
                 update_post_meta($post->ID, '_ssf_focus_keyword', $kw);
             }

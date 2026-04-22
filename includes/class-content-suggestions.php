@@ -21,7 +21,10 @@ class SSF_Content_Suggestions {
             return new WP_Error('invalid_post', __('Post not found.', 'smart-seo-fixer'));
         }
         
-        $content = wp_strip_all_tags(strip_shortcodes($post->post_content));
+        // Use enriched context so page-builder / location CPTs with empty
+        // post_content still receive AI suggestions based on meta / excerpt / image alts.
+        $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+        $content = wp_strip_all_tags(strip_shortcodes($enriched));
         $word_count = str_word_count($content);
         
         if ($word_count < 20) {

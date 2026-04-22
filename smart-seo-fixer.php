@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
- * Version: 2.0.41
+ * Version: 2.0.42
  * Author: 
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.41');
+define('SSF_VERSION', '2.0.42');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -426,16 +426,21 @@ final class Smart_SEO_Fixer {
         
         foreach ($posts_missing_title as $post_id) {
             $post = get_post($post_id);
-            if (!$post || str_word_count(strip_tags($post->post_content)) < 10) {
+            if (!$post) { continue; }
+            // Use enriched context (body + excerpt + public meta + image alts)
+            // so page-builder / location CPTs with empty post_content still
+            // get processed. See SSF_Job_Queue::enrich_post_context().
+            $enriched = class_exists('SSF_Job_Queue') ? SSF_Job_Queue::enrich_post_context($post) : (string) $post->post_content;
+            if (str_word_count(strip_tags($enriched)) < 10) {
                 continue;
             }
-            
+
             $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-            
+
             // Generate title
             $seo_title = get_post_meta($post_id, '_ssf_seo_title', true);
             if (empty($seo_title)) {
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $title = $openai->generate_title($enriched, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
                     $generated_count++;
@@ -445,7 +450,7 @@ final class Smart_SEO_Fixer {
             // Generate description
             $meta_desc = get_post_meta($post_id, '_ssf_meta_description', true);
             if (empty($meta_desc)) {
-                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                $desc = $openai->generate_meta_description($enriched, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
                 }
@@ -453,7 +458,7 @@ final class Smart_SEO_Fixer {
             
             // Generate focus keyword if empty
             if (empty($focus_keyword)) {
-                $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                $keywords = $openai->suggest_keywords($enriched, $post->post_title);
                 if (!is_wp_error($keywords) && is_array($keywords) && !empty($keywords['primary'])) {
                     update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
                 }

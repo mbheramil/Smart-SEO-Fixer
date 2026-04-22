@@ -814,11 +814,14 @@ class SSF_Job_Queue {
         $generated = [];
         
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-        $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
-        
+        // Enriched context for page-builder / location CPTs where post_content
+        // alone is too sparse for the AI to produce useful SEO data.
+        $enriched_content = self::enrich_post_context($post);
+        $clean_content = $enriched_content;
+
         // Generate keyword if missing
         if (empty($focus_keyword) && str_word_count($clean_content) >= 10) {
-            $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+            $keywords = $openai->suggest_keywords($enriched_content, $post->post_title);
             if (!is_wp_error($keywords) && !empty($keywords['primary'])) {
                 $focus_keyword = sanitize_text_field($keywords['primary']);
                 update_post_meta($post_id, '_ssf_focus_keyword', $focus_keyword);
@@ -829,7 +832,7 @@ class SSF_Job_Queue {
         // Fix missing title
         if (in_array('missing_title', $issues) || empty(get_post_meta($post_id, '_ssf_seo_title', true))) {
             if (str_word_count($clean_content) >= 10) {
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $title = $openai->generate_title($enriched_content, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
                     $title = SSF_Validator::enforce_seo_title(trim($title), 60);
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
@@ -841,7 +844,7 @@ class SSF_Job_Queue {
         // Fix missing description
         if (in_array('missing_description', $issues) || in_array('missing_meta', $issues) || empty(get_post_meta($post_id, '_ssf_meta_description', true))) {
             if (str_word_count($clean_content) >= 10) {
-                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                $desc = $openai->generate_meta_description($enriched_content, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
                     $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
