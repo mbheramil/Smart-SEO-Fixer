@@ -304,6 +304,98 @@ class SSF_GA_Client {
     }
 
     /**
+     * List all GA4 properties the user has access to, flattened for a picker.
+     *
+     * For each property we also try to fetch the first web data stream's
+     * Measurement ID so the UI can install the tracking snippet on save.
+     * Accounts the user can read but not write still appear — selecting them
+     * enables reporting-only use (no auto-property creation).
+     *
+     * @return array|WP_Error List of [
+     *   'property'       => 'properties/123',
+     *   'property_name'  => 'Example Site',
+     *   'account'        => 'accounts/456',
+     *   'account_name'   => 'My Agency',
+     *   'measurement_id' => 'G-XXXXXXXXXX' (optional, may be empty),
+     *   'stream'         => 'properties/123/dataStreams/456' (optional),
+     *   'default_uri'    => 'https://example.com' (optional),
+     * ]
+     */
+    public function list_all_properties() {
+        $summaries = $this->list_account_summaries();
+        if (is_wp_error($summaries)) {
+            return $summaries;
+        }
+
+        $out = [];
+        foreach ($summaries as $acct) {
+            $account      = $acct['account'] ?? '';
+            $account_name = $acct['displayName'] ?? '';
+            $properties   = $acct['propertySummaries'] ?? [];
+            foreach ($properties as $prop) {
+                $row = [
+                    'property'       => $prop['property'] ?? '',
+                    'property_name'  => $prop['displayName'] ?? '',
+                    'account'        => $account,
+                    'account_name'   => $account_name,
+                    'measurement_id' => '',
+                    'stream'         => '',
+                    'default_uri'    => '',
+                ];
+                if (!empty($row['property'])) {
+                    // Best-effort: fetch first web stream for measurement ID.
+                    // If the caller only has Viewer access this may 403 — that's
+                    // fine, we just leave the IDs empty.
+                    $streams = $this->request('GET', $this->admin_api . '/' . $row['property'] . '/dataStreams');
+                    if (!is_wp_error($streams) && !empty($streams['dataStreams'])) {
+                        foreach ($streams['dataStreams'] as $s) {
+                            if (!empty($s['webStreamData']['measurementId'])) {
+                                $row['measurement_id'] = $s['webStreamData']['measurementId'];
+                                $row['stream']         = $s['name'] ?? '';
+                                $row['default_uri']    = $s['webStreamData']['defaultUri'] ?? '';
+                                break;
+                            }
+                        }
+                    }
+                }
+                $out[] = $row;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Save an existing property selection (no creation). Stores account,
+     * property, stream, and measurement ID so reporting + gtag injection work
+     * for a property owned by someone else (as long as this account can read it).
+     *
+     * @param string $property_name   "properties/123"
+     * @param string $account_name    "accounts/456"
+     * @param string $measurement_id  "G-XXXXXXXXXX" (optional)
+     * @param string $stream_name     "properties/123/dataStreams/789" (optional)
+     */
+    public function select_existing_property($property_name, $account_name = '', $measurement_id = '', $stream_name = '') {
+        if (!preg_match('#^properties/\d+$#', $property_name)) {
+            return new WP_Error('ga_invalid_property', __('Invalid property identifier.', 'smart-seo-fixer'));
+        }
+        update_option(self::PROPERTY_OPTION, $property_name, false);
+        if ($account_name) {
+            update_option(self::ACCOUNT_OPTION, $account_name, false);
+        }
+        if ($stream_name) {
+            update_option(self::STREAM_OPTION, $stream_name, false);
+        }
+        if ($measurement_id) {
+            if (!preg_match('/^G-[A-Z0-9]{4,}$/i', $measurement_id)) {
+                return new WP_Error('ga_invalid_mid', __('Invalid Measurement ID format.', 'smart-seo-fixer'));
+            }
+            update_option(self::MEASUREMENT_ID_OPT, strtoupper($measurement_id), false);
+            update_option(self::AUTO_TAG_OPTION, true, false);
+        }
+        return true;
+    }
+
+    /**
      * Create a new GA4 property under the given account.
      * @param string $account_id   "accounts/123" resource name
      * @param string $display_name Property display name

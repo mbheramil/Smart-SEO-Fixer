@@ -523,6 +523,10 @@ unset($available_post_types['attachment']);
                             <span class="dashicons dashicons-plus-alt2" style="vertical-align:text-bottom;"></span>
                             <?php esc_html_e('Auto-Create GA4 Property for This Site', 'smart-seo-fixer'); ?>
                         </button>
+                        <button type="button" class="button" id="ssf-ga-use-existing">
+                            <span class="dashicons dashicons-admin-links" style="vertical-align:text-bottom;"></span>
+                            <?php esc_html_e('Use Existing Property', 'smart-seo-fixer'); ?>
+                        </button>
                         <button type="button" class="button" id="ssf-ga-test-report">
                             <span class="dashicons dashicons-chart-line" style="vertical-align:text-bottom;"></span>
                             <?php esc_html_e('Test Data Fetch (Last 7 Days)', 'smart-seo-fixer'); ?>
@@ -533,8 +537,31 @@ unset($available_post_types['attachment']);
                     </p>
                     <p class="description">
                         <?php esc_html_e('One-click setup creates a new GA4 property under your first Analytics account, adds a web data stream for this site, and installs the tracking code.', 'smart-seo-fixer'); ?>
+                        <br>
+                        <?php esc_html_e('Use "Use Existing Property" if the GA4 property for this site is in a different Google account you have access to (Viewer or higher).', 'smart-seo-fixer'); ?>
                     </p>
                     <div id="ssf-ga-auto-setup-log" style="display:none; margin-top:12px;"></div>
+                    <div id="ssf-ga-existing-picker" style="display:none; margin-top:12px; padding:14px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px;">
+                        <h4 style="margin:0 0 10px;"><?php esc_html_e('Choose an existing GA4 property', 'smart-seo-fixer'); ?></h4>
+                        <p class="description" style="margin:0 0 10px;">
+                            <?php esc_html_e('Shows every GA4 property the connected Google account can read — including properties owned by your clients, agencies, or other accounts that have granted you access.', 'smart-seo-fixer'); ?>
+                        </p>
+                        <p>
+                            <select id="ssf_ga_property_select" style="min-width:420px; max-width:100%;">
+                                <option value=""><?php esc_html_e('Loading properties…', 'smart-seo-fixer'); ?></option>
+                            </select>
+                        </p>
+                        <p>
+                            <label>
+                                <input type="checkbox" id="ssf_ga_install_tag_for_existing" checked>
+                                <?php esc_html_e('Also install the tracking code (gtag.js) on this site using the selected property\'s Measurement ID', 'smart-seo-fixer'); ?>
+                            </label>
+                        </p>
+                        <p>
+                            <button type="button" class="button button-primary" id="ssf-ga-save-selection"><?php esc_html_e('Save Selection', 'smart-seo-fixer'); ?></button>
+                            <button type="button" class="button" id="ssf-ga-cancel-selection"><?php esc_html_e('Cancel', 'smart-seo-fixer'); ?></button>
+                        </p>
+                    </div>
                     <div id="ssf-ga-test-log" style="display:none; margin-top:12px;"></div>
 
                     <hr style="margin:16px 0;">
@@ -1313,6 +1340,94 @@ jQuery(document).ready(function($) {
             nonce:  ssfAdmin.nonce
         }).always(function() {
             window.location.reload();
+        });
+    });
+
+    // Existing-property picker
+    $('#ssf-ga-use-existing').on('click', function() {
+        var $picker = $('#ssf-ga-existing-picker');
+        var $select = $('#ssf_ga_property_select');
+        $picker.slideDown();
+        $select.html('<option value="">Loading properties…</option>').prop('disabled', true);
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_ga_list_properties',
+            nonce:  ssfAdmin.nonce
+        }).done(function(resp) {
+            if (resp && resp.success) {
+                var props = resp.data.properties || [];
+                var current = resp.data.current || '';
+                if (!props.length) {
+                    $select.html('<option value="">No properties found — this Google account has no GA4 access</option>').prop('disabled', true);
+                    return;
+                }
+                var groups = {};
+                props.forEach(function(p) {
+                    var key = p.account_name || p.account || 'Unknown account';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(p);
+                });
+                var html = '<option value="">— Select a property —</option>';
+                Object.keys(groups).forEach(function(acct) {
+                    html += '<optgroup label="' + $('<div>').text(acct).html() + '">';
+                    groups[acct].forEach(function(p) {
+                        var label = (p.property_name || p.property) + (p.measurement_id ? '  [' + p.measurement_id + ']' : '  (no web stream)');
+                        var data  = 'data-measurement-id="' + $('<div>').text(p.measurement_id || '').html() + '"' +
+                                    ' data-account="' + $('<div>').text(p.account || '').html() + '"' +
+                                    ' data-stream="' + $('<div>').text(p.stream || '').html() + '"';
+                        html += '<option value="' + $('<div>').text(p.property).html() + '" ' + data +
+                                (p.property === current ? ' selected' : '') + '>' +
+                                $('<div>').text(label).html() + '</option>';
+                    });
+                    html += '</optgroup>';
+                });
+                $select.html(html).prop('disabled', false);
+            } else {
+                var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Failed to load properties.';
+                $select.html('<option value="">' + $('<div>').text(msg).html() + '</option>').prop('disabled', true);
+            }
+        }).fail(function() {
+            $select.html('<option value="">Request failed.</option>').prop('disabled', true);
+        });
+    });
+
+    $('#ssf-ga-cancel-selection').on('click', function() {
+        $('#ssf-ga-existing-picker').slideUp();
+    });
+
+    $('#ssf-ga-save-selection').on('click', function() {
+        var $opt = $('#ssf_ga_property_select option:selected');
+        var property = $opt.val();
+        if (!property) {
+            alert('Please select a property first.');
+            return;
+        }
+        var account = $opt.attr('data-account') || '';
+        var mid     = $opt.attr('data-measurement-id') || '';
+        var stream  = $opt.attr('data-stream') || '';
+        var installTag = $('#ssf_ga_install_tag_for_existing').is(':checked');
+
+        var payload = {
+            action:  'ssf_ga_select_property',
+            nonce:   ssfAdmin.nonce,
+            property: property,
+            account:  account,
+            stream:   stream,
+            measurement_id: installTag ? mid : ''
+        };
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Saving…');
+        $.post(ssfAdmin.ajax_url, payload).done(function(resp) {
+            if (resp && resp.success) {
+                alert(resp.data.message || 'Saved.');
+                window.location.reload();
+            } else {
+                $btn.prop('disabled', false).text('Save Selection');
+                alert((resp && resp.data && resp.data.message) ? resp.data.message : 'Save failed.');
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).text('Save Selection');
+            alert('Request failed.');
         });
     });
 

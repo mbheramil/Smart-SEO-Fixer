@@ -63,6 +63,8 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_ga_auto_setup', [$this, 'ga_auto_setup']);
         add_action('wp_ajax_ssf_ga_save_measurement_id', [$this, 'ga_save_measurement_id']);
         add_action('wp_ajax_ssf_ga_test_report', [$this, 'ga_test_report']);
+        add_action('wp_ajax_ssf_ga_list_properties', [$this, 'ga_list_properties']);
+        add_action('wp_ajax_ssf_ga_select_property', [$this, 'ga_select_property']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         add_action('wp_ajax_ssf_get_posts_by_issue', [$this, 'get_posts_by_issue']);
         
@@ -2810,6 +2812,63 @@ class SSF_Ajax {
             wp_send_json_error(['message' => $summary->get_error_message()]);
         }
         wp_send_json_success($summary);
+    }
+
+    /**
+     * List every GA4 property the connected Google account can access,
+     * across all GA accounts it's a member of (not just accounts they own).
+     */
+    public function ga_list_properties() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_GA_Client')) {
+            wp_send_json_error(['message' => __('GA module not available.', 'smart-seo-fixer')]);
+        }
+        $ga = new SSF_GA_Client();
+        if (!$ga->is_connected()) {
+            wp_send_json_error(['message' => __('Please connect Google Analytics first.', 'smart-seo-fixer')]);
+        }
+        @set_time_limit(60);
+        $props = $ga->list_all_properties();
+        if (is_wp_error($props)) {
+            wp_send_json_error(['message' => $props->get_error_message()]);
+        }
+        wp_send_json_success([
+            'properties' => $props,
+            'current'    => $ga->get_property_id(),
+        ]);
+    }
+
+    /**
+     * Save a picked existing property (with optional measurement ID for
+     * auto-injecting gtag.js). Used when the site's GA4 property belongs to
+     * a different owner and we're joining it rather than creating a new one.
+     */
+    public function ga_select_property() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_GA_Client')) {
+            wp_send_json_error(['message' => __('GA module not available.', 'smart-seo-fixer')]);
+        }
+        $property = isset($_POST['property'])       ? sanitize_text_field(wp_unslash($_POST['property']))       : '';
+        $account  = isset($_POST['account'])        ? sanitize_text_field(wp_unslash($_POST['account']))        : '';
+        $mid      = isset($_POST['measurement_id']) ? sanitize_text_field(wp_unslash($_POST['measurement_id'])) : '';
+        $stream   = isset($_POST['stream'])         ? sanitize_text_field(wp_unslash($_POST['stream']))         : '';
+
+        $ga = new SSF_GA_Client();
+        $result = $ga->select_existing_property($property, $account, $mid, $stream);
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+        wp_send_json_success([
+            'message'        => __('Property selected. Reports will now use this property.', 'smart-seo-fixer'),
+            'property'       => $property,
+            'measurement_id' => $mid,
+        ]);
     }
 
     /**
