@@ -325,8 +325,13 @@ class SSF_Ajax {
                 'log' => $log,
             ]);
         } else {
-            // Direct mode with post_ids
-            $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+            // Direct mode with post_ids (accept CSV to avoid PHP max_input_vars truncation on large selections)
+            if (!empty($_POST['post_ids_csv'])) {
+                $csv = (string) wp_unslash($_POST['post_ids_csv']);
+                $post_ids = array_map('intval', array_filter(array_map('trim', explode(',', $csv))));
+            } else {
+                $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+            }
             
             if (empty($post_ids)) {
                 wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);
@@ -946,7 +951,13 @@ class SSF_Ajax {
         $this->verify_nonce();
         if (class_exists('SSF_History')) SSF_History::set_source('bulk');
         
-        $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+        // Accept CSV form to avoid PHP max_input_vars truncation on large selections.
+        if (!empty($_POST['post_ids_csv'])) {
+            $csv = (string) wp_unslash($_POST['post_ids_csv']);
+            $post_ids = array_map('intval', array_filter(array_map('trim', explode(',', $csv))));
+        } else {
+            $post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+        }
         $issue_types = isset($_POST['issue_types']) ? array_map('sanitize_text_field', $_POST['issue_types']) : [];
         
         if (empty($post_ids)) {
@@ -1836,9 +1847,18 @@ class SSF_Ajax {
             wp_send_json_error(['message' => SSF_AI::not_configured_message()]);
         }
         
-        // Accept explicit post IDs from the frontend (preview selection)
-        $post_ids = isset($_POST['post_ids']) ? array_map('intval', (array) $_POST['post_ids']) : [];
-        $post_ids = array_filter($post_ids, function($id) { return $id > 0; });
+        // Accept explicit post IDs from the frontend (preview selection).
+        // Prefer the CSV field (`post_ids_csv`) because PHP's max_input_vars
+        // (default 1000) silently truncates large array POSTs — a selection
+        // of 1453 posts would lose ~454 IDs on the way in. Fallback to the
+        // legacy array field for backward compat.
+        if (!empty($_POST['post_ids_csv'])) {
+            $csv = (string) wp_unslash($_POST['post_ids_csv']);
+            $post_ids = array_map('intval', array_filter(array_map('trim', explode(',', $csv))));
+        } else {
+            $post_ids = isset($_POST['post_ids']) ? array_map('intval', (array) $_POST['post_ids']) : [];
+        }
+        $post_ids = array_values(array_unique(array_filter($post_ids, function($id) { return $id > 0; })));
         
         if (empty($post_ids)) {
             wp_send_json_error(['message' => __('No posts selected.', 'smart-seo-fixer')]);

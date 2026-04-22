@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.42
+Stable tag: 2.0.43
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.43 =
+* Fixed: Bulk AI Fix silently capped at ~999 posts per run no matter how many the user selected. Root cause: the frontend sent `post_ids[]` as an array, which on large selections exceeds PHP's default `max_input_vars = 1000` and gets silently truncated by PHP before WordPress ever sees it. With 1453 selected, only the first 999 (ordered by post_date DESC) reached the server — and those were the same 999 that prior runs had already filled in, so every run returned "0 generated · 999 skipped — already has SEO data". Frontend now sends the selection as a single CSV field (`post_ids_csv`), so the entire list reaches the server in one input var regardless of size. Applied the same defense to `bulk_fix` and `bulk_analyze` endpoints.
+
 = 2.0.42 =
 * Fixed: Applied the v2.0.41 enriched-context helper (post_content + post_excerpt + public post_meta + image alt/caption) to EVERY remaining AI generation entry point, not just Bulk AI Fix. Previously these paths still read raw `$post->post_content` and silently skipped page-builder / location-template CPTs the same way Bulk AI Fix did: post-save cron auto-SEO (`smart-seo-fixer.php` + `class-admin.php`), per-post meta-box Generate buttons for title / description / keywords / analyze, Fix Issue (title & description), bulk_fix sequential + parallel, bulk_ai_fix in-request + sequential fallback, ai_fix_single, Search Console duplicate-regen, fix_missing_seo_data, not-indexed AI fix (keyword + title + description), generate_unique_title, generate_unique_desc, content suggestions generator, and the job queue `process_not_indexed_fix` sequential path. All of these now pass the same enriched string used by the parallel Bulk AI Fix pipeline, so page-builder and location CPTs produce real SEO output across every UI surface.
 

@@ -353,7 +353,11 @@ jQuery(document).ready(function($) {
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_bulk_ai_fix',
             nonce: ssfAdmin.nonce,
-            post_ids: postIds,
+            // Send IDs as a single CSV string (one POST field) instead of an
+            // array. WordPress / PHP's default max_input_vars = 1000 silently
+            // truncates array POSTs larger than that, which was capping bulk
+            // jobs at ~999 items no matter how many the user selected.
+            post_ids_csv: postIds.join(','),
             options: options
         }, function(response) {
             if (!response.success) {
