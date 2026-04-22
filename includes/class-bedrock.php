@@ -322,6 +322,175 @@ class SSF_Bedrock {
         return $last_result;
     }
 
+    /**
+     * Fire multiple Bedrock requests in parallel using curl_multi.
+     *
+     * Each "job" is an associative array with the same shape as the args to
+     * request(): ['messages' => [...], 'max_tokens' => N, 'temperature' => F].
+     * Returns an array keyed by the same keys as $jobs, containing either the
+     * extracted text string or a WP_Error.
+     *
+     * Used by the job queue to process many posts concurrently.
+     *
+     * @param array $jobs  [ key => ['messages'=>..., 'max_tokens'=>..., 'temperature'=>...], ... ]
+     * @return array       [ key => string|WP_Error ]
+     */
+    public function request_multi( $jobs ) {
+        $access_key = $this->get_access_key();
+        $secret_key = $this->get_secret_key();
+
+        if ( empty( $access_key ) || empty( $secret_key ) ) {
+            $err = new WP_Error( 'no_credentials', __( 'AWS Bedrock credentials not configured.', 'smart-seo-fixer' ) );
+            return array_map( function() use ( $err ) { return $err; }, $jobs );
+        }
+
+        if ( ! function_exists( 'curl_multi_init' ) ) {
+            // cURL multi unavailable — fall back to sequential.
+            $out = [];
+            foreach ( $jobs as $k => $job ) {
+                $out[ $k ] = $this->request( $job['messages'], $job['max_tokens'] ?? 500, $job['temperature'] ?? 0.7 );
+            }
+            return $out;
+        }
+
+        $endpoint = $this->get_endpoint();
+        $parsed   = wp_parse_url( $endpoint );
+        $host     = $parsed['host'];
+
+        $multi   = curl_multi_init();
+        $handles = [];
+
+        foreach ( $jobs as $key => $job ) {
+            // Pull system out of messages (Claude separates it from the chat array)
+            $system = '';
+            $chat   = [];
+            foreach ( $job['messages'] as $m ) {
+                if ( $m['role'] === 'system' ) { $system = $m['content']; } else { $chat[] = $m; }
+            }
+            $body       = wp_json_encode( $this->build_body( $chat, $system, $job['max_tokens'] ?? 500, $job['temperature'] ?? 0.7 ) );
+            $headers    = $this->sigv4_sign( $access_key, $secret_key, $endpoint, $body );
+
+            $curl_headers = [];
+            foreach ( $headers as $k => $v ) { $curl_headers[] = $k . ': ' . $v; }
+            $curl_headers[] = 'Host: ' . $host;
+
+            $ch = curl_init( $endpoint );
+            curl_setopt_array( $ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_HTTPHEADER     => $curl_headers,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ] );
+            curl_multi_add_handle( $multi, $ch );
+            $handles[ $key ] = $ch;
+        }
+
+        // Execute all requests concurrently.
+        $running = null;
+        do {
+            $status = curl_multi_exec( $multi, $running );
+            if ( $running ) {
+                // Block until at least one handle has activity; avoids busy-wait.
+                curl_multi_select( $multi, 1.0 );
+            }
+        } while ( $running > 0 && $status === CURLM_OK );
+
+        $results = [];
+        foreach ( $handles as $key => $ch ) {
+            $raw       = curl_multi_getcontent( $ch );
+            $http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+            $errno     = curl_errno( $ch );
+            $errstr    = curl_error( $ch );
+
+            curl_multi_remove_handle( $multi, $ch );
+            curl_close( $ch );
+
+            if ( $errno ) {
+                $results[ $key ] = new WP_Error( 'curl_error', 'cURL error ' . $errno . ': ' . $errstr );
+                continue;
+            }
+            if ( $http_code >= 400 ) {
+                $data    = json_decode( $raw, true );
+                $message = $data['message'] ?? ( $data['error']['message'] ?? "HTTP {$http_code}" );
+                $results[ $key ] = new WP_Error( 'api_error', $message );
+                continue;
+            }
+
+            $data    = json_decode( $raw, true );
+            $content = $this->extract_content( is_array( $data ) ? $data : [] );
+            $results[ $key ] = $content;
+        }
+
+        curl_multi_close( $multi );
+        return $results;
+    }
+
+    /**
+     * Build the messages array for a combined "SEO bundle" prompt that returns
+     * keyword + title + description in one JSON response. Used for bulk fix
+     * so we do ONE Bedrock call per post instead of three.
+     *
+     * @param string $content       Post body.
+     * @param string $current_title Current post / SEO title.
+     * @return array                messages array (ready for request / request_multi)
+     */
+    public function build_seo_bundle_messages( $content, $current_title = '' ) {
+        $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
+
+        $prompt  = "You are an SEO expert. Produce a complete SEO bundle for this post in ONE response.\n\n";
+        if ( ! empty( $current_title ) ) $prompt .= "Post Title: {$current_title}\n\n";
+        $prompt .= "Content:\n{$clean}\n\n";
+        $prompt .= "Return a JSON object with exactly these keys:\n";
+        $prompt .= "  \"keyword\": a focus keyword (2-4 words). CRITICAL: it MUST appear as a verbatim, case-insensitive substring somewhere in the title or content above. Do NOT invent phrases.\n";
+        $prompt .= "  \"title\": an SEO title, max 60 characters, including the keyword naturally. Compelling but accurate. No surrounding quotes.\n";
+        $prompt .= "  \"description\": a meta description, 150-160 characters, including the keyword naturally, with a subtle call-to-action. No surrounding quotes.\n\n";
+        $prompt .= 'Respond with ONLY a valid JSON object like: {"keyword":"...","title":"...","description":"..."}';
+
+        return [
+            [ 'role' => 'system', 'content' => 'You are an SEO expert. Respond only with valid JSON matching the requested schema.' ],
+            [ 'role' => 'user',   'content' => $prompt ],
+        ];
+    }
+
+    /**
+     * Parse a JSON-bundle response into [keyword, title, description].
+     * Accepts either a raw string, WP_Error, or already-decoded array.
+     *
+     * @return array|WP_Error ['keyword'=>..., 'title'=>..., 'description'=>...]
+     */
+    public function parse_seo_bundle( $response ) {
+        if ( is_wp_error( $response ) ) return $response;
+        if ( is_array( $response ) ) $data = $response;
+        else {
+            $clean = preg_replace( '/```json\s*/', '', (string) $response );
+            $clean = preg_replace( '/```\s*/', '', $clean );
+            $clean = trim( $clean );
+            $data  = json_decode( $clean, true );
+            if ( json_last_error() !== JSON_ERROR_NONE ) {
+                return new WP_Error( 'json_error', 'Failed to parse SEO bundle JSON: ' . json_last_error_msg() );
+            }
+        }
+
+        return [
+            'keyword'     => isset( $data['keyword'] )     ? trim( (string) $data['keyword'] )     : '',
+            'title'       => isset( $data['title'] )       ? trim( (string) $data['title'], " \t\n\r\0\x0B\"'" ) : '',
+            'description' => isset( $data['description'] ) ? trim( (string) $data['description'], " \t\n\r\0\x0B\"'" ) : '',
+        ];
+    }
+
+    /**
+     * Convenience: one-call SEO bundle generation.
+     */
+    public function generate_seo_bundle( $content, $current_title = '' ) {
+        $messages = $this->build_seo_bundle_messages( $content, $current_title );
+        $result   = $this->request( $messages, 400, 0.5 );
+        return $this->parse_seo_bundle( $result );
+    }
+
     // =========================================================================
     // AWS Signature Version 4 (SigV4) — pure PHP, no SDK required
     // =========================================================================

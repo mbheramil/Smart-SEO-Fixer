@@ -143,7 +143,11 @@ class SSF_Job_Queue {
         
         // Ensure cron is scheduled
         self::schedule_cron();
-        
+
+        // Kick the first batch immediately via loopback so the user sees
+        // progress in seconds, not after WP-Cron's next minute tick.
+        self::spawn_next_tick();
+
         return $job_id;
     }
     
@@ -210,32 +214,53 @@ class SSF_Job_Queue {
         
         // Determine which items still need processing
         $processed_count = intval($job->processed_items);
-        $remaining_items = array_slice($job->items, $processed_count, self::BATCH_SIZE);
-        
+
+        // Dynamic batch size: bulk_ai_fix on Bedrock runs in parallel and can
+        // safely handle a bigger slice per cron tick.
+        $batch_size = self::BATCH_SIZE;
+        $use_parallel_bedrock = (
+            $job->job_type === 'bulk_ai_fix'
+            && class_exists('SSF_AI')
+            && SSF_AI::active_provider() === 'bedrock'
+            && function_exists('curl_multi_init')
+        );
+        if ($use_parallel_bedrock) {
+            $batch_size = 20;
+        }
+
+        $remaining_items = array_slice($job->items, $processed_count, $batch_size);
+
         if (empty($remaining_items)) {
             self::mark_completed($job->id);
             return;
         }
-        
+
         $batch_results = [];
         $batch_failed = 0;
-        
-        foreach ($remaining_items as $item_id) {
-            $result = self::process_single_item($job->job_type, $item_id, $job->payload);
-            
-            if (is_wp_error($result)) {
-                $batch_results[] = [
-                    'item_id' => $item_id,
-                    'status'  => 'failed',
-                    'message' => $result->get_error_message(),
-                ];
-                $batch_failed++;
-            } else {
-                $batch_results[] = [
-                    'item_id' => $item_id,
-                    'status'  => 'success',
-                    'message' => $result,
-                ];
+
+        if ($use_parallel_bedrock) {
+            $batch_results = self::process_ai_fix_batch_parallel($remaining_items, $job->payload);
+            foreach ($batch_results as $r) {
+                if ($r['status'] === 'failed') { $batch_failed++; }
+            }
+        } else {
+            foreach ($remaining_items as $item_id) {
+                $result = self::process_single_item($job->job_type, $item_id, $job->payload);
+
+                if (is_wp_error($result)) {
+                    $batch_results[] = [
+                        'item_id' => $item_id,
+                        'status'  => 'failed',
+                        'message' => $result->get_error_message(),
+                    ];
+                    $batch_failed++;
+                } else {
+                    $batch_results[] = [
+                        'item_id' => $item_id,
+                        'status'  => 'success',
+                        'message' => $result,
+                    ];
+                }
             }
         }
         
@@ -251,7 +276,8 @@ class SSF_Job_Queue {
         ];
         
         // Check if we're done
-        if ($new_processed >= intval($job->total_items)) {
+        $job_completed = ($new_processed >= intval($job->total_items));
+        if ($job_completed) {
             $update_data['status'] = self::STATUS_COMPLETED;
             $update_data['completed_at'] = current_time('mysql');
             
@@ -264,8 +290,231 @@ class SSF_Job_Queue {
         }
         
         $wpdb->update($table, $update_data, ['id' => $job->id]);
+
+        // If the job isn't done, fire a non-blocking loopback request so the
+        // next batch runs in seconds rather than waiting for WP-Cron's next
+        // minute tick. This turns a 1017-post job from ~1 hour (wall clock,
+        // cron-gated) into a handful of minutes while still yielding between
+        // batches so we don't monopolise a single PHP worker.
+        if (!$job_completed && $use_parallel_bedrock) {
+            self::spawn_next_tick();
+        }
+    }
+
+    /**
+     * Fire a non-blocking HTTP loopback request to admin-ajax.php to trigger
+     * the next queue tick immediately. Safe no-op if wp_remote_post fails.
+     */
+    private static function spawn_next_tick() {
+        $url = admin_url('admin-ajax.php?action=ssf_queue_tick&token=' . self::get_tick_token());
+        wp_remote_post($url, [
+            'timeout'   => 0.1,      // fire-and-forget
+            'blocking'  => false,
+            'sslverify' => apply_filters('https_local_ssl_verify', false),
+            'headers'   => ['Cache-Control' => 'no-cache'],
+            'cookies'   => [],
+        ]);
+    }
+
+    /**
+     * Rotating token for the loopback tick endpoint (not a full nonce because
+     * cron-style callers don't have a session). Tied to auth key + hour.
+     */
+    public static function get_tick_token() {
+        return substr(hash_hmac('sha256', 'ssf_queue_tick|' . gmdate('YmdH'), wp_salt('auth')), 0, 32);
+    }
+
+    /**
+     * AJAX handler — triggered by the loopback to advance the queue.
+     */
+    public static function ajax_queue_tick() {
+        $token = isset($_GET['token']) ? sanitize_text_field(wp_unslash($_GET['token'])) : '';
+        if (!hash_equals(self::get_tick_token(), $token)) {
+            wp_die('Invalid token', '', ['response' => 403]);
+        }
+        // Close the HTTP connection back to the caller immediately so this
+        // tick and any chained ticks run without keeping the browser waiting.
+        ignore_user_abort(true);
+        if (function_exists('fastcgi_finish_request')) {
+            echo 'ok';
+            fastcgi_finish_request();
+        } else {
+            header('Content-Length: 2');
+            header('Connection: close');
+            echo 'ok';
+            if (ob_get_level()) { ob_end_flush(); }
+            flush();
+        }
+        self::process_queue();
+        exit;
     }
     
+    /**
+     * Parallel batch processor for `bulk_ai_fix` jobs when the active AI
+     * provider is Bedrock. Combines the 3 per-post calls (keyword/title/desc)
+     * into a single JSON "SEO bundle" prompt and fires all posts in the batch
+     * concurrently via curl_multi.
+     *
+     * Expected speedup vs. sequential 3-call flow: ~10-15x.
+     *
+     * @param int[]  $post_ids
+     * @param array  $payload Job payload (generate_title/desc/keywords, apply_to)
+     * @return array          Batch results in the same shape as the sequential path.
+     */
+    private static function process_ai_fix_batch_parallel($post_ids, $payload) {
+        $bedrock = SSF_AI::get();
+        if (!$bedrock instanceof SSF_Bedrock || !$bedrock->is_configured()) {
+            // Fall back to sequential processing if something misaligned.
+            $results = [];
+            foreach ($post_ids as $pid) {
+                $r = self::process_ai_fix($pid, $payload);
+                if (is_wp_error($r)) {
+                    $results[] = ['item_id' => $pid, 'status' => 'failed', 'message' => $r->get_error_message()];
+                } else {
+                    $results[] = ['item_id' => $pid, 'status' => 'success', 'message' => $r];
+                }
+            }
+            return $results;
+        }
+
+        $generate_title    = !empty($payload['generate_title']);
+        $generate_desc     = !empty($payload['generate_desc']);
+        $generate_keywords = !empty($payload['generate_keywords']);
+        $apply_to          = $payload['apply_to'] ?? 'missing';
+        $overwrite         = ($apply_to === 'all');
+
+        // Build the parallel job list. Each post that needs AI work gets a
+        // single SEO-bundle request; posts that can be skipped are recorded
+        // immediately.
+        $jobs_to_run = [];
+        $immediate_results = [];
+
+        foreach ($post_ids as $post_id) {
+            $post = get_post($post_id);
+            if (!$post) {
+                $immediate_results[$post_id] = ['item_id' => $post_id, 'status' => 'failed', 'message' => 'Post not found'];
+                continue;
+            }
+
+            $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
+            if (str_word_count($clean_content) < 10) {
+                $immediate_results[$post_id] = ['item_id' => $post_id, 'status' => 'success', 'message' => 'Skipped (content too short)'];
+                continue;
+            }
+
+            $current_kw    = trim(get_post_meta($post_id, '_ssf_focus_keyword', true));
+            $current_title = trim(get_post_meta($post_id, '_ssf_seo_title', true));
+            $current_desc  = trim(get_post_meta($post_id, '_ssf_meta_description', true));
+
+            $needs_kw    = $generate_keywords && ($overwrite || empty($current_kw));
+            $needs_title = $generate_title    && ($overwrite || empty($current_title));
+            $needs_desc  = $generate_desc     && ($overwrite || empty($current_desc));
+
+            if (!$needs_kw && !$needs_title && !$needs_desc) {
+                $immediate_results[$post_id] = ['item_id' => $post_id, 'status' => 'success', 'message' => 'Skipped (already has SEO data)'];
+                continue;
+            }
+
+            $messages = $bedrock->build_seo_bundle_messages($post->post_content, $post->post_title);
+            $jobs_to_run[$post_id] = [
+                'messages'    => $messages,
+                'max_tokens'  => 400,
+                'temperature' => 0.5,
+                'post'        => $post,
+                'needs_kw'    => $needs_kw,
+                'needs_title' => $needs_title,
+                'needs_desc'  => $needs_desc,
+                'overwrite'   => $overwrite,
+            ];
+        }
+
+        // Fire all bundle requests concurrently.
+        $ai_results = [];
+        if (!empty($jobs_to_run)) {
+            $ai_payload = [];
+            foreach ($jobs_to_run as $pid => $job) {
+                $ai_payload[$pid] = [
+                    'messages'    => $job['messages'],
+                    'max_tokens'  => $job['max_tokens'],
+                    'temperature' => $job['temperature'],
+                ];
+            }
+            $ai_results = $bedrock->request_multi($ai_payload);
+        }
+
+        // Apply results back to post meta.
+        $applied_results = [];
+        foreach ($jobs_to_run as $post_id => $job) {
+            $raw = $ai_results[$post_id] ?? new WP_Error('missing', 'No response');
+            $bundle = $bedrock->parse_seo_bundle($raw);
+
+            if (is_wp_error($bundle)) {
+                $applied_results[$post_id] = [
+                    'item_id' => $post_id,
+                    'status'  => 'failed',
+                    'message' => $bundle->get_error_message(),
+                ];
+                continue;
+            }
+
+            $post          = $job['post'];
+            $generated     = [];
+            $haystack      = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $post->post_content)));
+
+            // Keyword
+            if ($job['needs_kw']) {
+                $kw = trim((string) $bundle['keyword']);
+                // Ground the keyword — if AI's suggestion isn't in the content,
+                // fall back to SSF_AI's grounded extractor so we never save an
+                // orphan keyword (which is what was tanking scores).
+                if ($kw === '' || strpos($haystack, strtolower($kw)) === false) {
+                    $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                }
+                if (!empty($kw)) {
+                    update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($kw));
+                    $generated[] = 'keyword';
+                }
+            }
+
+            // Title
+            if ($job['needs_title']) {
+                $title = trim((string) $bundle['title']);
+                if ($title !== '') {
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+                    $generated[] = 'title';
+                }
+            }
+
+            // Description
+            if ($job['needs_desc']) {
+                $desc = trim((string) $bundle['description']);
+                if ($desc !== '') {
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+                    $generated[] = 'description';
+                }
+            }
+
+            // Re-analyze so scores refresh immediately.
+            if (class_exists('SSF_Analyzer')) {
+                (new SSF_Analyzer())->analyze_post($post_id);
+            }
+
+            $applied_results[$post_id] = [
+                'item_id' => $post_id,
+                'status'  => 'success',
+                'message' => !empty($generated) ? ('Generated: ' . implode(', ', $generated)) : 'Skipped (already has SEO data)',
+            ];
+        }
+
+        // Preserve original post_id order in the returned results.
+        $final = [];
+        foreach ($post_ids as $pid) {
+            if (isset($immediate_results[$pid])) { $final[] = $immediate_results[$pid]; }
+            elseif (isset($applied_results[$pid])) { $final[] = $applied_results[$pid]; }
+        }
+        return $final;
+    }
+
     /**
      * Process a single item based on job type
      * 

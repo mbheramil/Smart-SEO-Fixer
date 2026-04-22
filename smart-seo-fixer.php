@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
- * Version: 2.0.32
+ * Version: 2.0.33
  * Author: 
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.32');
+define('SSF_VERSION', '2.0.33');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -144,6 +144,10 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Job_Queue')) {
             add_filter('cron_schedules', ['SSF_Job_Queue', 'add_cron_interval']);
             add_action(SSF_Job_Queue::CRON_HOOK, ['SSF_Job_Queue', 'process_queue']);
+            // Loopback tick endpoint — lets the queue process the next batch
+            // in seconds rather than waiting for the next WP-Cron minute.
+            add_action('wp_ajax_ssf_queue_tick',        ['SSF_Job_Queue', 'ajax_queue_tick']);
+            add_action('wp_ajax_nopriv_ssf_queue_tick', ['SSF_Job_Queue', 'ajax_queue_tick']);
         }
         
         // Broken link checker cron

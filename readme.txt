@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.32
+Stable tag: 2.0.33
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.33 =
+* New: Parallel Bedrock AI processing — bulk AI fix now fires 20 posts concurrently via curl_multi instead of sequentially
+* New: Combined "SEO bundle" prompt — one Bedrock call returns keyword + title + description as JSON (was 3 separate calls per post)
+* New: Loopback self-ticking — bulk jobs no longer wait for WP-Cron's 1-minute tick between batches; each batch immediately triggers the next via a non-blocking HTTP request to admin-ajax.php
+* Result: Bulk AI Fix for 1000+ page sites now completes in minutes instead of hours when using AWS Bedrock
+* The parallel path includes a grounded-keyword fallback — if the AI returns a keyword that isn't in the post, the n-gram extractor takes over so we never save orphan keywords
+* Non-Bedrock providers (OpenAI, Claude direct, Gemini) continue to use the sequential path, no behavior change
+
 = 2.0.32 =
 * Fixed: AI-generated focus keywords were often invented phrases that didn't appear in the post, causing the analyzer to deduct points for "keyword not found in title/content" even when meta coverage was 100%
 * New: `SSF_AI::pick_grounded_keyword()` — AI suggestions are now validated against the actual post text; if no suggested keyword appears verbatim, a frequency-based n-gram is extracted from the title + content as a fallback
