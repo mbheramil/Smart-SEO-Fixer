@@ -309,9 +309,19 @@ class SSF_Client_Report {
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
 
+        // Exclude posts intentionally hidden from search — they don't need SEO.
+        $exclude_noindex = " AND NOT EXISTS (
+            SELECT 1 FROM {$wpdb->postmeta} nx
+            WHERE nx.post_id = p.ID
+              AND nx.meta_key = '_ssf_noindex'
+              AND nx.meta_value = '1'
+        )";
+
         $total = $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ($placeholders)",
+                "SELECT COUNT(*) FROM {$wpdb->posts} p
+                 WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
+                 $exclude_noindex",
                 ...$post_types
             )
         );
@@ -330,7 +340,8 @@ class SSF_Client_Report {
              FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
-             AND pm.meta_key = %s AND pm.meta_value != ''",
+             AND pm.meta_key = %s AND pm.meta_value != ''
+             $exclude_noindex",
             ...array_merge($post_types, [$title_key])
         )));
 
@@ -339,7 +350,8 @@ class SSF_Client_Report {
              FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
-             AND pm.meta_key = %s AND pm.meta_value != ''",
+             AND pm.meta_key = %s AND pm.meta_value != ''
+             $exclude_noindex",
             ...array_merge($post_types, [$desc_key])
         )));
 
@@ -348,7 +360,8 @@ class SSF_Client_Report {
              FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
              WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
-             AND pm.meta_key = %s AND pm.meta_value != ''",
+             AND pm.meta_key = %s AND pm.meta_value != ''
+             $exclude_noindex",
             ...array_merge($post_types, [$kw_key])
         )));
 

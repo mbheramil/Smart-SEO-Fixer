@@ -118,7 +118,154 @@ class SSF_Validator {
         }
         return rtrim($truncated, " \t\n\r\0\x0B.,;:|\"'-");
     }
-    
+
+    /**
+     * Count real content words in a post.
+     * Strips shortcodes, captions, tags, and collapses whitespace first so
+     * that image-only or block-heavy posts get an honest count.
+     *
+     * @param WP_Post|int|string $post_or_content
+     * @return int
+     */
+    public static function get_content_word_count($post_or_content) {
+        if ($post_or_content instanceof WP_Post) {
+            $content = $post_or_content->post_content;
+        } elseif (is_numeric($post_or_content)) {
+            $p = get_post((int) $post_or_content);
+            $content = $p ? $p->post_content : '';
+        } else {
+            $content = (string) $post_or_content;
+        }
+        if ($content === '') {
+            return 0;
+        }
+        $content = strip_shortcodes($content);
+        $content = preg_replace('#\[caption[^\]]*\].*?\[/caption\]#is', '', $content);
+        $content = wp_strip_all_tags($content);
+        $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5);
+        $content = preg_replace('/\s+/u', ' ', trim($content));
+        if ($content === '') {
+            return 0;
+        }
+        return str_word_count($content);
+    }
+
+    /**
+     * Is this post "thin content" — i.e. below the word threshold with no
+     * redeeming image alt/caption text to describe it?
+     *
+     * @param WP_Post|int $post
+     * @param int         $threshold
+     * @return bool
+     */
+    public static function is_thin_content($post, $threshold = 50) {
+        if (is_numeric($post)) {
+            $post = get_post((int) $post);
+        }
+        if (!$post instanceof WP_Post) {
+            return false;
+        }
+        $words = self::get_content_word_count($post);
+        if ($words >= $threshold) {
+            return false;
+        }
+        // Count the image alt/caption text as content too — if the post is
+        // mostly images WITH good alt text, it isn't thin in Google's eyes.
+        $image_ctx = self::extract_image_seo_context($post);
+        $image_words = str_word_count($image_ctx);
+        return ($words + $image_words) < $threshold;
+    }
+
+    /**
+     * Pull alt text, captions, and title attributes from every image/gallery
+     * referenced in the post. Useful for feeding AI on image-only posts so the
+     * generated title/description is actually relevant.
+     *
+     * @param WP_Post|int $post
+     * @return string Space-separated alt/caption text.
+     */
+    public static function extract_image_seo_context($post) {
+        if (is_numeric($post)) {
+            $post = get_post((int) $post);
+        }
+        if (!$post instanceof WP_Post) {
+            return '';
+        }
+        $parts = [];
+        $content = $post->post_content;
+
+        // 1. <img alt="..."> and title="..." inside content.
+        if (preg_match_all('/<img\b[^>]*>/i', $content, $imgs)) {
+            foreach ($imgs[0] as $img) {
+                if (preg_match('/\salt\s*=\s*"([^"]*)"/i', $img, $m) && !empty($m[1])) {
+                    $parts[] = $m[1];
+                }
+                if (preg_match("/\salt\s*=\s*'([^']*)'/i", $img, $m) && !empty($m[1])) {
+                    $parts[] = $m[1];
+                }
+                if (preg_match('/\stitle\s*=\s*"([^"]*)"/i', $img, $m) && !empty($m[1])) {
+                    $parts[] = $m[1];
+                }
+            }
+        }
+
+        // 2. [caption]...[/caption] text.
+        if (preg_match_all('#\[caption[^\]]*\](.*?)\[/caption\]#is', $content, $caps)) {
+            foreach ($caps[1] as $cap) {
+                $cap = wp_strip_all_tags($cap);
+                if ($cap !== '') {
+                    $parts[] = $cap;
+                }
+            }
+        }
+
+        // 3. Attached media — alt/caption/title/description on each attachment.
+        $attachments = get_children([
+            'post_parent' => $post->ID,
+            'post_type'   => 'attachment',
+            'post_mime_type' => 'image',
+            'numberposts' => 20,
+        ]);
+        if (!empty($attachments)) {
+            foreach ($attachments as $att) {
+                $alt = get_post_meta($att->ID, '_wp_attachment_image_alt', true);
+                if (!empty($alt)) {
+                    $parts[] = $alt;
+                }
+                if (!empty($att->post_excerpt)) {
+                    $parts[] = $att->post_excerpt;
+                }
+                if (!empty($att->post_title)) {
+                    // De-filename the title: "IMG_1234" -> skip, but keep real titles.
+                    if (!preg_match('/^(IMG[_\-]?\d+|DSC[_\-]?\d+|image\d*|photo\d*)$/i', $att->post_title)) {
+                        $parts[] = $att->post_title;
+                    }
+                }
+                if (!empty($att->post_content)) {
+                    $parts[] = $att->post_content;
+                }
+            }
+        }
+
+        // 4. Featured image alt/caption.
+        $thumb_id = get_post_thumbnail_id($post->ID);
+        if ($thumb_id) {
+            $alt = get_post_meta($thumb_id, '_wp_attachment_image_alt', true);
+            if (!empty($alt)) {
+                $parts[] = $alt;
+            }
+            $thumb = get_post($thumb_id);
+            if ($thumb) {
+                if (!empty($thumb->post_excerpt)) {
+                    $parts[] = $thumb->post_excerpt;
+                }
+            }
+        }
+
+        $parts = array_unique(array_filter(array_map('trim', $parts)));
+        return implode(' ', $parts);
+    }
+
     /**
      * Validate and sanitize a URL
      */

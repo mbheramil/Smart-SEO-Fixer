@@ -284,6 +284,41 @@ if (!defined('ABSPATH')) {
         
         <!-- Robots -->
         <div class="ssf-field ssf-checkboxes">
+            <?php
+            $auto_noindex_flag = get_post_meta($post->ID, '_ssf_auto_noindex', true);
+            $thin_evaluated    = get_post_meta($post->ID, '_ssf_thin_evaluated', true);
+            $content_words     = (int) get_post_meta($post->ID, '_ssf_content_word_count', true);
+            $threshold_setting = (int) Smart_SEO_Fixer::get_option('thin_content_threshold', 50);
+            if ($auto_noindex_flag && $noindex):
+            ?>
+            <div style="margin: 0 0 12px; padding: 10px 14px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                <strong style="color: #856404;">
+                    <span class="dashicons dashicons-warning" style="font-size: 16px; width: 16px; height: 16px; vertical-align: text-bottom;"></span>
+                    <?php esc_html_e('Auto-noindexed: thin content', 'smart-seo-fixer'); ?>
+                </strong>
+                <p class="description" style="margin: 4px 0 0; color: #856404;">
+                    <?php printf(
+                        esc_html__('This post has only %1$d words of real content (threshold: %2$d). Smart SEO Fixer set it to noindex automatically so Google won\'t flag your site for thin content. Uncheck the box below to override this, or add more content — the plugin will lift the noindex automatically once it\'s above the threshold.', 'smart-seo-fixer'),
+                        $content_words,
+                        $threshold_setting
+                    ); ?>
+                </p>
+            </div>
+            <?php elseif ($thin_evaluated && $content_words > 0 && $content_words < $threshold_setting && !$noindex): ?>
+            <div style="margin: 0 0 12px; padding: 10px 14px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;">
+                <strong style="color: #721c24;">
+                    <span class="dashicons dashicons-warning" style="font-size: 16px; width: 16px; height: 16px; vertical-align: text-bottom;"></span>
+                    <?php esc_html_e('Thin content warning', 'smart-seo-fixer'); ?>
+                </strong>
+                <p class="description" style="margin: 4px 0 0; color: #721c24;">
+                    <?php printf(
+                        esc_html__('Only %1$d words of real content (recommended minimum: %2$d). Google may treat this as thin content and hurt your site\'s overall ranking. Consider either expanding the content or checking "No Index" below.', 'smart-seo-fixer'),
+                        $content_words,
+                        $threshold_setting
+                    ); ?>
+                </p>
+            </div>
+            <?php endif; ?>
             <label>
                 <input type="checkbox" name="_ssf_noindex" value="1" <?php checked($noindex, 1); ?>>
                 <?php esc_html_e('No Index', 'smart-seo-fixer'); ?>

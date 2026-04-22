@@ -20,7 +20,39 @@ class SSF_Analyzer {
         if (!$post) {
             return new WP_Error('invalid_post', __('Post not found.', 'smart-seo-fixer'));
         }
-        
+
+        // Posts that are intentionally (or automatically) excluded from search
+        // shouldn't count as having SEO issues — they're not supposed to rank.
+        $noindex      = get_post_meta($post_id, '_ssf_noindex', true);
+        $auto_noindex = get_post_meta($post_id, '_ssf_auto_noindex', true);
+        if (!empty($noindex)) {
+            $word_count = class_exists('SSF_Validator')
+                ? SSF_Validator::get_content_word_count($post)
+                : str_word_count(wp_strip_all_tags($post->post_content));
+            $reason = $auto_noindex
+                ? __('Automatically excluded from search — content is below the thin-content threshold (image-only or very short post).', 'smart-seo-fixer')
+                : __('Manually excluded from search via the noindex setting.', 'smart-seo-fixer');
+            $result = [
+                'post_id'     => $post_id,
+                'score'       => null,
+                'grade'       => 'N/A',
+                'noindex'     => true,
+                'auto_noindex'=> (bool) $auto_noindex,
+                'issues'      => [],
+                'warnings'    => [],
+                'passed'      => [[
+                    'code'    => 'noindex_excluded',
+                    'message' => $reason,
+                ]],
+                'stats'       => [
+                    'word_count' => $word_count,
+                ],
+                'analyzed_at' => current_time('mysql'),
+            ];
+            $this->save_analysis($post_id, $result);
+            return $result;
+        }
+
         $content = $post->post_content;
         $title = $post->post_title;
         $seo_title = get_post_meta($post_id, '_ssf_seo_title', true) ?: $title;

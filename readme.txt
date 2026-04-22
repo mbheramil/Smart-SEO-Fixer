@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.36
+Stable tag: 2.0.37
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,18 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.37 =
+* New: Thin-content auto-noindex. Posts below the word threshold (default 50 words) are automatically marked noindex so Google won't count them against your site's SEO. Applies to image-only posts and super-short "thank you" style reviews. If a post grows above the threshold later, the plugin lifts the noindex automatically. Fully configurable in Settings → General → Thin Content Auto-Noindex.
+* New: Image-only SEO enrichment. When a post is mostly images (e.g. a client-review gallery), the plugin now feeds every image's alt text, caption, title, and description to the AI — so it can still generate a relevant SEO title, meta description, and focus keyword instead of skipping the post.
+* New: Thin-content warning in the SSF meta box. You now see a clear message in the post editor if your content is below the threshold, with one-click guidance to either expand the content or leave it noindexed.
+* Improved: Reports & Search Console reconciliation now exclude noindex posts from the "missing title / missing description / missing keyword" counts — you won't be nagged about posts that are intentionally hidden from search.
+* Improved: The Analyzer short-circuits noindex posts with a neutral "excluded from search" result so they don't drag down your site's average SEO score.
+* New helpers (for extensions/integrations):
+  * `SSF_Validator::get_content_word_count($post)` — real word count after stripping shortcodes/tags/captions.
+  * `SSF_Validator::is_thin_content($post, $threshold = 50)`
+  * `SSF_Validator::extract_image_seo_context($post)` — pulls all image alt/caption/title text from a post for AI input.
+* Meta keys added per post: `_ssf_auto_noindex` (1 if plugin set the noindex), `_ssf_content_word_count`, `_ssf_thin_evaluated` (timestamp).
+
 = 2.0.36 =
 * New: Auto-generate SEO title + meta description on first publish is now enabled by default. When you publish a new post/page, a background job runs ~5 seconds later and fills in any missing title, description, and focus keyword using the Bedrock SEO bundle (one parallel call).
 * New: Hard character limits enforced everywhere. SEO title is truncated to 60 characters and meta description to 160 characters on every save path (auto publish, bulk AI fix, single-post generate, bulk fix, manual save, not-indexed fix) and on frontend output as a safety net for legacy data. Truncation happens on a word boundary so titles never cut mid-word.

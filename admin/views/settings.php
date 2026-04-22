@@ -82,6 +82,9 @@ if (class_exists('SSF_GA_Client')) {
 $auto_meta = Smart_SEO_Fixer::get_option('auto_meta', true);
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $auto_internal_links = Smart_SEO_Fixer::get_option('auto_internal_links', true);
+$auto_noindex_thin = Smart_SEO_Fixer::get_option('auto_noindex_thin', true);
+$enrich_image_posts = Smart_SEO_Fixer::get_option('enrich_image_posts', true);
+$thin_content_threshold = (int) Smart_SEO_Fixer::get_option('thin_content_threshold', 50);
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
 $enable_sitemap = Smart_SEO_Fixer::get_option('enable_sitemap', true);
 $disable_other_seo_output = Smart_SEO_Fixer::get_option('disable_other_seo_output', false);
@@ -862,6 +865,47 @@ unset($available_post_types['attachment']);
                             </label>
                             <p class="description">
                                 <?php esc_html_e('Adds up to 3 outgoing links from the new post to related existing posts, and up to 3 incoming links from related posts back to the new post. Runs asynchronously ~30s after publish so it does not slow down saving.', 'smart-seo-fixer'); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Thin Content Auto-Noindex', 'smart-seo-fixer'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox"
+                                       name="auto_noindex_thin"
+                                       value="1"
+                                       <?php checked($auto_noindex_thin, true); ?>>
+                                <?php esc_html_e('Automatically mark thin-content posts as noindex', 'smart-seo-fixer'); ?>
+                            </label>
+                            <p class="description">
+                                <?php esc_html_e('Posts below the word threshold (with no redeeming image alt/caption text) are automatically excluded from search engines so they won\'t hurt your site\'s SEO as thin content. If a post grows above the threshold later, the plugin automatically lifts the noindex.', 'smart-seo-fixer'); ?>
+                            </p>
+                            <p style="margin-top: 10px;">
+                                <label>
+                                    <?php esc_html_e('Thin content threshold:', 'smart-seo-fixer'); ?>
+                                    <input type="number"
+                                           name="thin_content_threshold"
+                                           value="<?php echo esc_attr($thin_content_threshold); ?>"
+                                           min="20" max="300" step="5"
+                                           style="width: 80px;">
+                                    <?php esc_html_e('words', 'smart-seo-fixer'); ?>
+                                </label>
+                            </p>
+                            <p class="description">
+                                <?php esc_html_e('Posts with fewer real words than this (counting image alt/caption text too) will be auto-noindexed. Default: 50. Google typically treats anything under 50–100 words as thin content.', 'smart-seo-fixer'); ?>
+                            </p>
+                            <p style="margin-top: 10px;">
+                                <label>
+                                    <input type="checkbox"
+                                           name="enrich_image_posts"
+                                           value="1"
+                                           <?php checked($enrich_image_posts, true); ?>>
+                                    <?php esc_html_e('Use image alt text & captions to generate SEO for image-only posts', 'smart-seo-fixer'); ?>
+                                </label>
+                            </p>
+                            <p class="description">
+                                <?php esc_html_e('When a post is mostly images (e.g. a client review gallery), the plugin feeds all image alt text, captions, and titles to the AI so it can still generate a relevant SEO title, description, and focus keyword.', 'smart-seo-fixer'); ?>
                             </p>
                         </td>
                     </tr>

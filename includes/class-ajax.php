@@ -779,6 +779,9 @@ class SSF_Ajax {
             'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
             'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
             'auto_internal_links'     => !empty($_POST['auto_internal_links']) ? 1 : 0,
+            'auto_noindex_thin'       => !empty($_POST['auto_noindex_thin']) ? 1 : 0,
+            'enrich_image_posts'      => !empty($_POST['enrich_image_posts']) ? 1 : 0,
+            'thin_content_threshold'  => max(20, min(300, intval($_POST['thin_content_threshold'] ?? 50))),
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
             'enable_sitemap'          => !empty($_POST['enable_sitemap']) ? 1 : 0,
             'disable_other_seo_output'=> !empty($_POST['disable_other_seo_output']) ? 1 : 0,
@@ -4044,7 +4047,17 @@ class SSF_Ajax {
             if (!$found) {
                 $post = get_post($post_id);
                 $issues = [];
-                
+                $is_noindex = false;
+
+                // If the post is marked noindex, Google ignoring it is EXPECTED
+                // behaviour, not an issue. Skip it entirely so it doesn't
+                // clutter the "needs fixing" list in reports.
+                $noindex = get_post_meta($post_id, '_ssf_noindex', true);
+                if ($noindex) {
+                    $is_noindex = true;
+                    continue; // don't add to $not_indexed — user intentionally excluded.
+                }
+
                 // Check for common SEO issues
                 $title = get_post_meta($post_id, '_ssf_seo_title', true);
                 $desc  = get_post_meta($post_id, '_ssf_meta_description', true);
@@ -4054,10 +4067,6 @@ class SSF_Ajax {
                 }
                 if (empty($desc)) {
                     $issues[] = 'missing_description';
-                }
-                $noindex = get_post_meta($post_id, '_ssf_noindex', true);
-                if ($noindex) {
-                    $issues[] = 'noindex';
                 }
                 // Check internal links
                 $content = $post->post_content ?? '';

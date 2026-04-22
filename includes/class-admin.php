@@ -644,8 +644,13 @@ class SSF_Admin {
         }
         
         // Checkboxes
-        update_post_meta($post_id, '_ssf_noindex', !empty($_POST['_ssf_noindex']) ? 1 : 0);
+        $user_noindex = !empty($_POST['_ssf_noindex']) ? 1 : 0;
+        update_post_meta($post_id, '_ssf_noindex', $user_noindex);
         update_post_meta($post_id, '_ssf_nofollow', !empty($_POST['_ssf_nofollow']) ? 1 : 0);
+        // When the user explicitly saves the noindex checkbox (on or off) via
+        // the meta box, clear the auto-noindex marker so our cron won't flip
+        // their choice back later.
+        delete_post_meta($post_id, '_ssf_auto_noindex');
         
         // Allow extensions to save their own fields
         do_action('ssf_metabox_save', $post_id);
@@ -740,15 +745,18 @@ class SSF_Admin {
             return;
         }
 
-        if (str_word_count(strip_tags($post->post_content)) < 20) {
-            return;
-        }
+        // Previously we skipped posts with <20 words. We now process them so
+        // thin-content auto-noindex + image-only enrichment can run. The
+        // cron_auto_generate_meta worker decides what to do based on the
+        // validator's thin-content check.
 
-        // If everything is already filled, nothing to do (avoid a wasted cron).
-        $seo_title     = get_post_meta($post->ID, '_ssf_seo_title', true);
-        $meta_desc     = get_post_meta($post->ID, '_ssf_meta_description', true);
-        $focus_keyword = get_post_meta($post->ID, '_ssf_focus_keyword', true);
-        if (!empty($seo_title) && !empty($meta_desc) && !empty($focus_keyword)) {
+        // If everything is already filled AND we've already evaluated thin
+        // content, nothing to do (avoid a wasted cron).
+        $seo_title      = get_post_meta($post->ID, '_ssf_seo_title', true);
+        $meta_desc      = get_post_meta($post->ID, '_ssf_meta_description', true);
+        $focus_keyword  = get_post_meta($post->ID, '_ssf_focus_keyword', true);
+        $thin_evaluated = get_post_meta($post->ID, '_ssf_thin_evaluated', true);
+        if (!empty($seo_title) && !empty($meta_desc) && !empty($focus_keyword) && !empty($thin_evaluated)) {
             return;
         }
 
@@ -763,6 +771,11 @@ class SSF_Admin {
      * Async worker — does the actual AI title/description/keyword generation.
      * Uses the Bedrock SEO bundle for a single parallel-capable call when the
      * active provider is Bedrock; falls back to sequential calls otherwise.
+     *
+     * Also handles thin-content detection: posts below the configured word
+     * threshold (default 50) with no redeeming image alt/caption text are
+     * automatically flagged `_ssf_noindex = 1` so Google won't index them as
+     * thin-content pages.
      */
     public function cron_auto_generate_meta($post_id) {
         $post_id = (int) $post_id;
@@ -780,6 +793,42 @@ class SSF_Admin {
             SSF_History::set_source('auto_publish');
         }
 
+        // --- Thin-content auto-noindex ---------------------------------------
+        // If the post is below the word threshold AND image context can't save
+        // it, mark it noindex so reports/Search Console don't flag it as an
+        // issue. User can still manually override via the meta box.
+        $auto_noindex = (bool) Smart_SEO_Fixer::get_option('auto_noindex_thin', true);
+        $threshold    = (int) Smart_SEO_Fixer::get_option('thin_content_threshold', 50);
+        $threshold    = max(20, min(300, $threshold));
+        $word_count   = class_exists('SSF_Validator')
+            ? SSF_Validator::get_content_word_count($post)
+            : str_word_count(wp_strip_all_tags($post->post_content));
+        $is_thin      = class_exists('SSF_Validator')
+            ? SSF_Validator::is_thin_content($post, $threshold)
+            : ($word_count < $threshold);
+
+        if ($auto_noindex) {
+            $current_noindex = get_post_meta($post_id, '_ssf_noindex', true);
+            $was_auto        = get_post_meta($post_id, '_ssf_auto_noindex', true);
+            if ($is_thin) {
+                // Only set noindex if it isn't already set, or if we set it
+                // automatically before (so we don't overwrite a user choice).
+                if (empty($current_noindex) || $was_auto) {
+                    update_post_meta($post_id, '_ssf_noindex', 1);
+                    update_post_meta($post_id, '_ssf_auto_noindex', 1);
+                }
+            } else {
+                // Post grew out of thin state — if WE set noindex, lift it.
+                if ($was_auto && $current_noindex) {
+                    update_post_meta($post_id, '_ssf_noindex', 0);
+                    delete_post_meta($post_id, '_ssf_auto_noindex');
+                }
+            }
+        }
+        update_post_meta($post_id, '_ssf_thin_evaluated', time());
+        update_post_meta($post_id, '_ssf_content_word_count', $word_count);
+
+        // --- Meta generation -------------------------------------------------
         $seo_title     = get_post_meta($post_id, '_ssf_seo_title', true);
         $meta_desc     = get_post_meta($post_id, '_ssf_meta_description', true);
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
@@ -796,15 +845,28 @@ class SSF_Admin {
             return;
         }
 
+        // Build the content we send to the AI. For image-heavy / thin posts,
+        // append extracted image alt/caption/title so the AI has something
+        // real to work with. Disabled if the user turned enrich off.
+        $enrich_images = (bool) Smart_SEO_Fixer::get_option('enrich_image_posts', true);
+        $ai_content    = $post->post_content;
+        if ($enrich_images && class_exists('SSF_Validator')) {
+            $image_ctx = SSF_Validator::extract_image_seo_context($post);
+            if ($image_ctx !== '' && ($is_thin || $word_count < 150)) {
+                $ai_content = trim($post->post_content)
+                    . "\n\n[Image descriptions: " . $image_ctx . "]";
+            }
+        }
+
         // Try the one-call SEO bundle first (Bedrock only, cheapest + fastest).
         if ($ai instanceof SSF_Bedrock && method_exists($ai, 'generate_seo_bundle')) {
-            $bundle = $ai->generate_seo_bundle($post->post_content, $post->post_title);
+            $bundle = $ai->generate_seo_bundle($ai_content, $post->post_title);
             if (!is_wp_error($bundle)) {
-                $haystack = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $post->post_content)));
+                $haystack = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $ai_content)));
                 if (empty($focus_keyword) && !empty($bundle['keyword'])) {
                     $kw = trim((string) $bundle['keyword']);
                     if ($kw === '' || strpos($haystack, strtolower($kw)) === false) {
-                        $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                        $kw = SSF_AI::pick_grounded_keyword($ai_content, $post->post_title);
                     }
                     if (!empty($kw)) {
                         update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($kw));
@@ -830,21 +892,21 @@ class SSF_Admin {
 
         // Fill anything still missing with single per-field calls.
         if (empty($seo_title)) {
-            $title = $ai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+            $title = $ai->generate_title($ai_content, $post->post_title, $focus_keyword);
             if (!is_wp_error($title) && !empty(trim($title))) {
                 $title = SSF_Validator::enforce_seo_title(trim($title), 60);
                 update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
             }
         }
         if (empty($meta_desc)) {
-            $desc = $ai->generate_meta_description($post->post_content, '', $focus_keyword);
+            $desc = $ai->generate_meta_description($ai_content, '', $focus_keyword);
             if (!is_wp_error($desc) && !empty(trim($desc))) {
                 $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
                 update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
             }
         }
         if (empty($focus_keyword)) {
-            $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+            $kw = SSF_AI::pick_grounded_keyword($ai_content, $post->post_title);
             if (!empty($kw)) {
                 update_post_meta($post_id, '_ssf_focus_keyword', $kw);
             }
