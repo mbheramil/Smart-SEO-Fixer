@@ -4489,19 +4489,38 @@ class SSF_Ajax {
         if (!$job) {
             wp_send_json_error(['message' => __('Job not found.', 'smart-seo-fixer')]);
         }
-        $total     = is_array($job->items) ? count($job->items) : intval($job->total_items ?? 0);
-        $processed = intval($job->processed_count ?? 0);
-        $percent   = $total > 0 ? round(($processed / $total) * 100) : 0;
+        // Column names are processed_items/failed_items/error_message — the
+        // older *_count names this endpoint used first never existed on the
+        // row, so progress polling always reported 0/N. Aligning field names
+        // with the schema (see class-job-queue.php dbDelta).
+        $total     = intval($job->total_items ?? (is_array($job->items) ? count($job->items) : 0));
+        $processed = intval($job->processed_items ?? 0);
+        $failed    = intval($job->failed_items ?? 0);
+        $percent   = $total > 0 ? min(100, round(($processed / $total) * 100)) : 0;
+
+        // Opportunistically nudge the pipeline forward while the user is
+        // watching. If the job is still pending/processing, kick a loopback
+        // tick from the polling request itself — on hosts where the initial
+        // non-blocking loopback is dropped (some shared hosting, caching
+        // layers, or when WP is behind a reverse proxy), this keeps the
+        // batches moving off the back of normal admin traffic instead of
+        // stalling until WP-Cron fires.
+        if (in_array($job->status, ['pending', 'processing'], true)
+            && method_exists('SSF_Job_Queue', 'spawn_next_tick_public')) {
+            SSF_Job_Queue::spawn_next_tick_public();
+        }
+
         wp_send_json_success([
             'id'          => intval($job->id),
             'job_type'    => $job->job_type,
             'status'      => $job->status,
             'total'       => $total,
             'processed'   => $processed,
-            'failed'      => intval($job->failed_count ?? 0),
+            'failed'      => $failed,
             'percent'     => $percent,
             'created_at'  => $job->created_at,
-            'updated_at'  => $job->updated_at ?? null,
+            'started_at'  => $job->started_at ?? null,
+            'completed_at'=> $job->completed_at ?? null,
             'error'       => $job->error_message ?? '',
         ]);
     }
@@ -4516,7 +4535,7 @@ class SSF_Ajax {
         $table = $wpdb->prefix . 'ssf_jobs';
         
         if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
-            wp_send_json_success(['items' => [], 'total' => 0, 'page' => 1, 'total_pages' => 0]);
+            wp_send_json_success(['items' => [], 'jobs' => [], 'total' => 0, 'page' => 1, 'total_pages' => 0]);
         }
         
         $page     = intval($_POST['page'] ?? 1);
@@ -4537,10 +4556,23 @@ class SSF_Ajax {
         
         $sql = "SELECT * FROM $table WHERE $where ORDER BY created_at DESC LIMIT %d OFFSET %d";
         $query_params = array_merge($params, [$per_page, $offset]);
-        $items = $wpdb->get_results($wpdb->prepare($sql, ...$query_params));
-        
+        $items = $wpdb->get_results($wpdb->prepare($sql, ...$query_params)) ?: [];
+
+        // Compute progress % for the JS renderer, which expects a `progress`
+        // field on each job. Without this, the Recent Jobs table renders but
+        // all bars read 0% regardless of actual processed_items.
+        foreach ($items as $row) {
+            $total_items     = max(1, intval($row->total_items));
+            $processed_items = intval($row->processed_items);
+            $row->progress   = min(100, round(($processed_items / $total_items) * 100));
+        }
+
         wp_send_json_success([
-            'items'       => $items ?: [],
+            // Legacy key kept for any callers still using it.
+            'items'       => $items,
+            // The job-queue.php view reads `jobs`; without this key the table
+            // always appeared empty even when jobs existed in the DB.
+            'jobs'        => $items,
             'total'       => intval($total),
             'page'        => $page,
             'total_pages' => ceil($total / $per_page),

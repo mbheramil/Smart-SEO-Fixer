@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.38
+Stable tag: 2.0.39
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.39 =
+* Fixed: Job Queue page "Recent Jobs" was always empty even when jobs existed in the database. The `ssf_get_jobs` response returned `items` but the view expected `jobs`, so the table never rendered. Now returns both keys and also computes the `progress` percentage per row.
+* Fixed: Bulk AI Fix progress bar stuck at 0/N. The `ssf_get_job` polling endpoint was reading non-existent columns (`processed_count`/`failed_count` instead of `processed_items`/`failed_items`), so it always reported zero progress even while batches were actually being processed.
+* Fixed: Non-Bedrock bulk jobs (OpenAI, Claude, Gemini) stalled at 0/N on low-traffic sites because the loopback self-tick only re-fired for Bedrock-parallel jobs. Every job type now chains its own next batch, turning long bulk runs from "1 post per minute via WP-Cron" into "continuous processing".
+* Fixed: Added a belt-and-braces self-kick inside the progress polling endpoint — if the job is pending/processing, each UI poll nudges the queue forward. On hosts where `wp_remote_post` non-blocking loopbacks get swallowed by caching/reverse-proxy layers, the browser itself now keeps the pipeline moving.
+
 = 2.0.38 =
 * Fixed: Bulk AI Fix now routes batches of 5+ posts through the Job Queue so they are visible on the Background Jobs page (previously the client-side loop never triggered queuing because it fragmented into batches of 5).
 * Fixed: Bulk AI Fix is dramatically faster. Instead of the browser firing 299 sequential HTTP requests of 5 posts each (each request doing 10 sequential AI calls), the entire selection is now sent once and processed server-side in parallel batches of 20 with curl_multi. For 1,494 posts this drops processing from hours to minutes on Bedrock.

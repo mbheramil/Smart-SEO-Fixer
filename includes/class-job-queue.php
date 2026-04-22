@@ -308,8 +308,11 @@ class SSF_Job_Queue {
         // next batch runs in seconds rather than waiting for WP-Cron's next
         // minute tick. This turns a 1017-post job from ~1 hour (wall clock,
         // cron-gated) into a handful of minutes while still yielding between
-        // batches so we don't monopolise a single PHP worker.
-        if (!$job_completed && $use_parallel_bedrock) {
+        // batches so we don't monopolise a single PHP worker. Applies to every
+        // job type — previously only Bedrock-parallel jobs re-spawned, so
+        // OpenAI/Claude/Gemini bulk runs would stall at 0/N waiting for cron
+        // on low-traffic sites.
+        if (!$job_completed) {
             self::spawn_next_tick();
         }
     }
@@ -327,6 +330,17 @@ class SSF_Job_Queue {
             'headers'   => ['Cache-Control' => 'no-cache'],
             'cookies'   => [],
         ]);
+    }
+
+    /**
+     * Public wrapper so the AJAX polling endpoint can nudge the queue
+     * forward while the user is watching the progress bar. Important on
+     * hosts where the server-side non-blocking loopback is swallowed
+     * (caching layers, reverse proxies) and the job would otherwise sit
+     * idle waiting for WP-Cron.
+     */
+    public static function spawn_next_tick_public() {
+        self::spawn_next_tick();
     }
 
     /**
