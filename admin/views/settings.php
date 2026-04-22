@@ -838,7 +838,7 @@ unset($available_post_types['attachment']);
                                 <?php esc_html_e('Automatically generate alt text for new image uploads', 'smart-seo-fixer'); ?>
                             </label>
                             <p class="description">
-                                <?php esc_html_e('When enabled, alt text is auto-generated from the image filename whenever you upload a new image. Existing images with alt text are not changed.', 'smart-seo-fixer'); ?>
+                                <?php esc_html_e('When enabled, alt text is auto-generated on upload by sending the image to a vision-capable AI (Claude 3+ on Bedrock, GPT-4o, etc.) which actually looks at the image and describes what it sees. Existing images with alt text are not changed.', 'smart-seo-fixer'); ?>
                             </p>
                             <div style="margin-top: 12px; padding: 14px; background: #f6f7f7; border: 1px solid #ddd; border-radius: 6px;">
                                 <strong><?php esc_html_e('Bulk Generate Alt Text', 'smart-seo-fixer'); ?></strong>

@@ -160,13 +160,31 @@ class SSF_Claude {
     }
 
     public function generate_alt_text($image_url, $page_context = '', $focus_keyword = '') {
-        $prompt = "Generate descriptive, SEO-friendly alt text for an image.\n\n";
-        $prompt .= "Requirements:\n- Maximum 125 characters\n- Be descriptive and accurate\n- Include the keyword naturally if relevant\n- Don't start with 'Image of' or 'Picture of'\n- Make it useful for screen readers\n\n";
-        $prompt .= "Image URL: {$image_url}\n";
-        if (!empty($page_context)) $prompt .= "Page Context: " . wp_trim_words($page_context, 100) . "\n";
-        if (!empty($focus_keyword)) $prompt .= "Focus Keyword: {$focus_keyword}\n";
-        $prompt .= "\nRespond with ONLY the alt text, nothing else.";
+        $instruction  = "Look at this image and write descriptive, SEO-friendly alt text for it.\n\n";
+        $instruction .= "Requirements:\n- Maximum 125 characters\n- Describe what is actually visible in the image\n- Include the focus keyword naturally only if it genuinely describes the image\n- Do NOT start with 'Image of' or 'Picture of'\n- Useful for screen readers\n";
+        if (!empty($page_context)) $instruction .= "Page Context: " . wp_trim_words($page_context, 100) . "\n";
+        if (!empty($focus_keyword)) $instruction .= "Focus Keyword: {$focus_keyword}\n";
+        $instruction .= "\nRespond with ONLY the alt text, nothing else.";
 
+        if (class_exists('SSF_AI')) {
+            $img = SSF_AI::fetch_image_as_base64($image_url);
+            if (!is_wp_error($img)) {
+                $result = $this->request([
+                    ['role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text based on what you see in the image.'],
+                    [
+                        'role'    => 'user',
+                        'content' => [
+                            ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $img['media_type'], 'data' => $img['data']]],
+                            ['type' => 'text', 'text' => $instruction],
+                        ],
+                    ],
+                ], 150, 0.5);
+                return is_wp_error($result) ? $result : trim(trim($result), '"\'');
+            }
+        }
+
+        // Fallback: URL-only prompt
+        $prompt = $instruction . "\n\nImage URL: {$image_url}\n";
         $result = $this->request([
             ['role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text.'],
             ['role' => 'user',   'content' => $prompt],

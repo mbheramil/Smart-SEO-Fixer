@@ -193,44 +193,66 @@ class SSF_OpenAI {
     }
     
     /**
-     * Generate image alt text
+     * Generate image alt text using GPT-4 vision.
+     *
+     * Sends the actual image (as a base64 data URL) so the model can SEE
+     * what's in it rather than guessing from the file slug.
      */
     public function generate_alt_text($image_url, $page_context = '', $focus_keyword = '') {
-        $prompt = "Generate descriptive, SEO-friendly alt text for an image.\n\n";
-        $prompt .= "Requirements:\n";
-        $prompt .= "- Maximum 125 characters\n";
-        $prompt .= "- Be descriptive and accurate\n";
-        $prompt .= "- Include the keyword naturally if relevant\n";
-        $prompt .= "- Don't start with 'Image of' or 'Picture of'\n";
-        $prompt .= "- Make it useful for screen readers\n\n";
-        
-        $prompt .= "Image URL: {$image_url}\n";
-        
+        $instruction  = "Look at this image and write descriptive, SEO-friendly alt text for it.\n\n";
+        $instruction .= "Requirements:\n- Maximum 125 characters\n- Describe what is actually visible in the image\n- Include the focus keyword naturally only if it genuinely describes the image\n- Do NOT start with 'Image of' or 'Picture of'\n- Useful for screen readers\n";
         if (!empty($page_context)) {
-            $prompt .= "Page Context: " . wp_trim_words($page_context, 100) . "\n";
+            $instruction .= "Page Context: " . wp_trim_words($page_context, 100) . "\n";
         }
-        
         if (!empty($focus_keyword)) {
-            $prompt .= "Focus Keyword: {$focus_keyword}\n";
+            $instruction .= "Focus Keyword: {$focus_keyword}\n";
         }
-        
-        $prompt .= "\nRespond with ONLY the alt text, nothing else.";
-        
-        $messages = [
-            ['role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text.'],
-            ['role' => 'user', 'content' => $prompt],
-        ];
-        
-        $result = $this->request($messages, 100, 0.7);
-        
+        $instruction .= "\nRespond with ONLY the alt text, nothing else.";
+
+        // Try vision: upload the image bytes inline so the model can see it.
+        $image_block = null;
+        if (class_exists('SSF_AI')) {
+            $img = SSF_AI::fetch_image_as_base64($image_url);
+            if (!is_wp_error($img)) {
+                $image_block = [
+                    'type'      => 'image_url',
+                    'image_url' => [
+                        'url' => 'data:' . $img['media_type'] . ';base64,' . $img['data'],
+                    ],
+                ];
+            }
+        }
+
+        if ($image_block) {
+            $messages = [
+                ['role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text based on what you see in the image.'],
+                [
+                    'role'    => 'user',
+                    'content' => [
+                        ['type' => 'text', 'text' => $instruction],
+                        $image_block,
+                    ],
+                ],
+            ];
+            $result = $this->request($messages, 150, 0.5);
+        } else {
+            // Fallback: URL-only (no vision).
+            $prompt = $instruction . "\n\nImage URL: {$image_url}\n";
+            $messages = [
+                ['role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text.'],
+                ['role' => 'user', 'content' => $prompt],
+            ];
+            $result = $this->request($messages, 100, 0.7);
+        }
+
         if (is_wp_error($result)) {
             return $result;
         }
-        
+
         // Strip surrounding quotes that AI sometimes adds
         $result = trim($result);
         $result = trim($result, '"\'');
-        
+
         return $result;
     }
     

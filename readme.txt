@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.43
+Stable tag: 2.0.44
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.44 =
+* Fixed: Image alt-text generation was producing hallucinated / generic output because every provider (Bedrock, Claude, OpenAI) was sending only the image URL as plain text — the AI could not actually see the image, it was just guessing from the filename slug. Now uses true vision: the image bytes are fetched, base64-encoded, and sent as a multimodal message block. Claude on Bedrock (vision-capable), Anthropic Claude, and OpenAI GPT-4o/4-turbo all receive the actual pixels and describe what they see. Images larger than 4 MB are auto-resized to Claude's recommended max 1568px edge. Non-vision models (Llama / Mistral / Titan on Bedrock) fall back to the URL-only prompt.
+* Added: `SSF_AI::fetch_image_as_base64()` helper that reads images from local uploads (fast path) or falls back to wp_remote_get, sniffs media type, and rejects unsupported formats (accepts jpeg/png/gif/webp only).
+
 = 2.0.43 =
 * Fixed: Bulk AI Fix silently capped at ~999 posts per run no matter how many the user selected. Root cause: the frontend sent `post_ids[]` as an array, which on large selections exceeds PHP's default `max_input_vars = 1000` and gets silently truncated by PHP before WordPress ever sees it. With 1453 selected, only the first 999 (ordered by post_date DESC) reached the server — and those were the same 999 that prior runs had already filled in, so every run returned "0 generated · 999 skipped — already has SEO data". Frontend now sends the selection as a single CSV field (`post_ids_csv`), so the entire list reaches the server in one input var regardless of size. Applied the same defense to `bulk_fix` and `bulk_analyze` endpoints.
 

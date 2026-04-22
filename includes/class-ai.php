@@ -202,4 +202,122 @@ class SSF_AI {
         arsort($ngrams);
         return (string) key($ngrams);
     }
+
+    /**
+     * Fetch an image by URL (or attachment ID) and return base64-encoded
+     * bytes + media type, suitable for Claude / Bedrock / OpenAI vision
+     * multimodal messages.
+     *
+     * Prefers reading the file from the local filesystem (much faster and
+     * avoids outbound HTTP on single-site installs). Falls back to
+     * wp_remote_get() for external URLs.
+     *
+     * Returns ['data' => base64_string, 'media_type' => 'image/jpeg']
+     * or a WP_Error on failure.
+     *
+     * @param string|int $url_or_id
+     * @return array|WP_Error
+     */
+    public static function fetch_image_as_base64($url_or_id) {
+        $bytes     = null;
+        $media     = null;
+
+        // Attachment ID path
+        if (is_numeric($url_or_id)) {
+            $att_id = (int) $url_or_id;
+            $path   = get_attached_file($att_id);
+            if ($path && file_exists($path)) {
+                $bytes = @file_get_contents($path);
+                $media = get_post_mime_type($att_id) ?: null;
+            }
+            if (empty($bytes)) {
+                $url_or_id = wp_get_attachment_url($att_id);
+            }
+        }
+
+        // URL path
+        if (empty($bytes) && is_string($url_or_id) && $url_or_id !== '') {
+            // Try mapping the URL to a local file first.
+            $upload_dir = wp_upload_dir();
+            if (!empty($upload_dir['baseurl']) && strpos($url_or_id, $upload_dir['baseurl']) === 0) {
+                $relative = ltrim(substr($url_or_id, strlen($upload_dir['baseurl'])), '/');
+                $local    = trailingslashit($upload_dir['basedir']) . $relative;
+                if (file_exists($local)) {
+                    $bytes = @file_get_contents($local);
+                    if (function_exists('wp_check_filetype')) {
+                        $ft    = wp_check_filetype($local);
+                        $media = $ft['type'] ?? null;
+                    }
+                }
+            }
+
+            // Fallback: outbound HTTP fetch
+            if (empty($bytes)) {
+                $response = wp_remote_get($url_or_id, ['timeout' => 30]);
+                if (is_wp_error($response)) {
+                    return $response;
+                }
+                $code = wp_remote_retrieve_response_code($response);
+                if ($code >= 400) {
+                    return new WP_Error('image_fetch_failed', "HTTP {$code} fetching image");
+                }
+                $bytes = wp_remote_retrieve_body($response);
+                $media = wp_remote_retrieve_header($response, 'content-type');
+            }
+        }
+
+        if (empty($bytes)) {
+            return new WP_Error('image_empty', __('Unable to read image bytes.', 'smart-seo-fixer'));
+        }
+
+        // Normalize media type.
+        if (empty($media) || strpos($media, 'image/') !== 0) {
+            // Sniff from magic bytes.
+            $header = substr($bytes, 0, 12);
+            if (strncmp($header, "\xFF\xD8\xFF", 3) === 0) {
+                $media = 'image/jpeg';
+            } elseif (strncmp($header, "\x89PNG\r\n\x1a\n", 8) === 0) {
+                $media = 'image/png';
+            } elseif (strncmp($header, 'GIF8', 4) === 0) {
+                $media = 'image/gif';
+            } elseif (strncmp(substr($header, 0, 4), 'RIFF', 4) === 0 && strncmp(substr($header, 8, 4), 'WEBP', 4) === 0) {
+                $media = 'image/webp';
+            } else {
+                $media = 'image/jpeg';
+            }
+        }
+        $media = strtolower(trim(explode(';', $media)[0]));
+
+        // Claude vision accepts only jpeg/png/gif/webp. Reject anything else.
+        $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!in_array($media, $allowed, true)) {
+            return new WP_Error('image_unsupported_type', sprintf(__('Unsupported image type: %s', 'smart-seo-fixer'), $media));
+        }
+
+        // Claude/Bedrock vision hard limit is ~5 MB per image. Downscale if
+        // needed using WP's image editor so we don't blow the request budget.
+        $max_bytes = 4 * 1024 * 1024; // 4 MB safety margin
+        if (strlen($bytes) > $max_bytes) {
+            $tmp = wp_tempnam('ssf_img');
+            if ($tmp && @file_put_contents($tmp, $bytes)) {
+                $editor = function_exists('wp_get_image_editor') ? wp_get_image_editor($tmp) : null;
+                if ($editor && !is_wp_error($editor)) {
+                    $editor->resize(1568, 1568, false); // Claude's recommended max edge
+                    $editor->set_quality(82);
+                    $saved = $editor->save($tmp, 'image/jpeg');
+                    if (!is_wp_error($saved) && !empty($saved['path']) && file_exists($saved['path'])) {
+                        $bytes = @file_get_contents($saved['path']);
+                        $media = 'image/jpeg';
+                        @unlink($saved['path']);
+                    }
+                }
+                if (file_exists($tmp)) { @unlink($tmp); }
+            }
+        }
+
+        return [
+            'data'       => base64_encode($bytes),
+            'media_type' => $media,
+        ];
+    }
 }

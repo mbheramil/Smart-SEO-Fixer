@@ -707,18 +707,58 @@ class SSF_Bedrock {
     }
 
     /**
-     * Generate image alt text
+     * Generate image alt text.
+     *
+     * For Claude models (which support vision on Bedrock), the actual image
+     * bytes are sent as a base64 multimodal block so the model can SEE the
+     * image and describe it accurately. For non-vision families (Llama,
+     * Mistral, Titan) we fall back to the original URL-only prompt, which is
+     * effectively a filename heuristic.
      */
     public function generate_alt_text( $image_url, $page_context = '', $focus_keyword = '' ) {
-        $prompt  = "Generate descriptive, SEO-friendly alt text for an image.\n\nRequirements:\n";
-        $prompt .= "- Maximum 125 characters\n- Be descriptive and accurate\n";
-        $prompt .= "- Include the keyword naturally if relevant\n";
-        $prompt .= "- Don't start with 'Image of' or 'Picture of'\n";
-        $prompt .= "- Make it useful for screen readers\n\nImage URL: {$image_url}\n";
-        if ( ! empty( $page_context ) )  $prompt .= 'Page Context: ' . wp_trim_words( $page_context, 100 ) . "\n";
-        if ( ! empty( $focus_keyword ) ) $prompt .= "Focus Keyword: {$focus_keyword}\n";
-        $prompt .= "\nRespond with ONLY the alt text, nothing else.";
+        $family = $this->get_model_family();
 
+        $instruction  = "Look at this image and write descriptive, SEO-friendly alt text for it.\n\nRequirements:\n";
+        $instruction .= "- Maximum 125 characters\n- Describe what is actually visible in the image\n";
+        $instruction .= "- Include the focus keyword naturally only if it genuinely describes the image\n";
+        $instruction .= "- Do NOT start with 'Image of' or 'Picture of'\n";
+        $instruction .= "- Useful for screen readers\n";
+        if ( ! empty( $page_context ) )  $instruction .= 'Page Context: ' . wp_trim_words( $page_context, 100 ) . "\n";
+        if ( ! empty( $focus_keyword ) ) $instruction .= "Focus Keyword: {$focus_keyword}\n";
+        $instruction .= "\nRespond with ONLY the alt text, nothing else.";
+
+        if ( $family === 'claude' && class_exists( 'SSF_AI' ) ) {
+            $img = SSF_AI::fetch_image_as_base64( $image_url );
+            if ( is_wp_error( $img ) ) {
+                if ( class_exists( 'SSF_Logger' ) ) {
+                    SSF_Logger::warning( 'Alt-text: image fetch failed, falling back to URL-only prompt: ' . $img->get_error_message(), 'ai' );
+                }
+            } else {
+                $messages = [
+                    [ 'role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text based on what you see in the image.' ],
+                    [
+                        'role'    => 'user',
+                        'content' => [
+                            [
+                                'type'   => 'image',
+                                'source' => [
+                                    'type'       => 'base64',
+                                    'media_type' => $img['media_type'],
+                                    'data'       => $img['data'],
+                                ],
+                            ],
+                            [ 'type' => 'text', 'text' => $instruction ],
+                        ],
+                    ],
+                ];
+                $result = $this->request( $messages, 150, 0.5 );
+                if ( is_wp_error( $result ) ) return $result;
+                return trim( $result, " \t\n\r\0\x0B\"'" );
+            }
+        }
+
+        // Non-vision fallback (Llama, Mistral, Titan, or failed fetch).
+        $prompt  = $instruction . "\n\nImage URL: {$image_url}\n";
         $messages = [
             [ 'role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text.' ],
             [ 'role' => 'user',   'content' => $prompt ],
