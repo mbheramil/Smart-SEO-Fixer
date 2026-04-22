@@ -215,17 +215,30 @@ class SSF_Job_Queue {
         // Determine which items still need processing
         $processed_count = intval($job->processed_items);
 
-        // Dynamic batch size: bulk_ai_fix on Bedrock runs in parallel and can
-        // safely handle a bigger slice per cron tick.
+        // Dynamic batch size: AI-fix jobs on Bedrock run in parallel and can
+        // safely handle a bigger slice per cron tick. Covers both the manual
+        // Bulk AI Fix page and the Search Console "Fix All Not-Indexed" flow,
+        // since they share the same keyword/title/description AI shape.
         $batch_size = self::BATCH_SIZE;
+        $parallel_job_types = ['bulk_ai_fix', 'not_indexed_ai_fix'];
         $use_parallel_bedrock = (
-            $job->job_type === 'bulk_ai_fix'
+            in_array($job->job_type, $parallel_job_types, true)
             && class_exists('SSF_AI')
             && SSF_AI::active_provider() === 'bedrock'
             && function_exists('curl_multi_init')
         );
         if ($use_parallel_bedrock) {
             $batch_size = 20;
+        }
+
+        // Normalize not_indexed payload so the shared parallel batch handler
+        // knows what to generate. not_indexed_ai_fix always tries to fill any
+        // missing keyword/title/description on posts flagged by GSC.
+        if ($use_parallel_bedrock && $job->job_type === 'not_indexed_ai_fix') {
+            if (!isset($job->payload['generate_title']))    { $job->payload['generate_title'] = true; }
+            if (!isset($job->payload['generate_desc']))     { $job->payload['generate_desc'] = true; }
+            if (!isset($job->payload['generate_keywords'])) { $job->payload['generate_keywords'] = true; }
+            if (!isset($job->payload['apply_to']))          { $job->payload['apply_to'] = 'missing'; }
         }
 
         $remaining_items = array_slice($job->items, $processed_count, $batch_size);

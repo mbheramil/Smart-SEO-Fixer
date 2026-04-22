@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.33
+Stable tag: 2.0.34
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.34 =
+* Extended parallel Bedrock processing to three more AI flows:
+  - Search Console "Fix All Not-Indexed" background job (20 posts concurrent per batch).
+  - Synchronous Bulk Fix AJAX (title + description calls for all selected posts fire concurrently — was 2 sequential calls per post, now one parallel burst).
+  - Image alt-text repair (all missing-alt images on a post generated concurrently instead of one by one).
+* New public message-builder helpers on SSF_Bedrock: build_title_messages, build_desc_messages, build_alt_messages — enable reusing the same prompts with request_multi across the codebase.
+* Non-Bedrock providers (OpenAI, Claude direct, Gemini) continue using the sequential path, so this change is backward-compatible.
+
 = 2.0.33 =
 * New: Parallel Bedrock AI processing — bulk AI fix now fires 20 posts concurrently via curl_multi instead of sequentially
 * New: Combined "SEO bundle" prompt — one Bedrock call returns keyword + title + description as JSON (was 3 separate calls per post)

@@ -598,6 +598,66 @@ class SSF_Bedrock {
     // =========================================================================
 
     /**
+     * Build message array for title generation (no API call).
+     * Use with request_multi() for concurrent processing.
+     */
+    public function build_title_messages( $content, $current_title = '', $focus_keyword = '' ) {
+        $prompt = "You are an SEO expert. Generate an optimized SEO title for the following content.\n\n";
+        $prompt .= "Requirements:\n";
+        $prompt .= "- Maximum 60 characters (critical for Google display)\n";
+        $prompt .= "- Include the focus keyword naturally if provided\n";
+        $prompt .= "- Make it compelling and click-worthy\n";
+        $prompt .= "- Avoid clickbait, be accurate to the content\n\n";
+        if ( ! empty( $focus_keyword ) ) $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
+        if ( ! empty( $current_title ) ) $prompt .= "Current Title: {$current_title}\n\n";
+        $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
+        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the optimized title, nothing else.";
+        return [
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles.' ],
+            [ 'role' => 'user',   'content' => $prompt ],
+        ];
+    }
+
+    /**
+     * Build message array for meta description generation (no API call).
+     */
+    public function build_desc_messages( $content, $current_description = '', $focus_keyword = '' ) {
+        $prompt = "You are an SEO expert. Generate an optimized meta description for the following content.\n\n";
+        $prompt .= "Requirements:\n";
+        $prompt .= "- Between 150-160 characters (critical for Google display)\n";
+        $prompt .= "- Include the focus keyword naturally if provided\n";
+        $prompt .= "- Include a subtle call-to-action\n";
+        $prompt .= "- Accurately summarize the content\n";
+        $prompt .= "- Make it compelling to increase click-through rate\n\n";
+        if ( ! empty( $focus_keyword ) )       $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
+        if ( ! empty( $current_description ) ) $prompt .= "Current Description: {$current_description}\n\n";
+        $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
+        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the meta description, nothing else.";
+        return [
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions.' ],
+            [ 'role' => 'user',   'content' => $prompt ],
+        ];
+    }
+
+    /**
+     * Build message array for image alt-text generation (no API call).
+     */
+    public function build_alt_messages( $image_url, $page_context = '', $focus_keyword = '' ) {
+        $prompt  = "Generate descriptive, SEO-friendly alt text for an image.\n\nRequirements:\n";
+        $prompt .= "- Maximum 125 characters\n- Be descriptive and accurate\n";
+        $prompt .= "- Include the keyword naturally if relevant\n";
+        $prompt .= "- Don't start with 'Image of' or 'Picture of'\n";
+        $prompt .= "- Make it useful for screen readers\n\nImage URL: {$image_url}\n";
+        if ( ! empty( $page_context ) )  $prompt .= 'Page Context: ' . wp_trim_words( $page_context, 100 ) . "\n";
+        if ( ! empty( $focus_keyword ) ) $prompt .= "Focus Keyword: {$focus_keyword}\n";
+        $prompt .= "\nRespond with ONLY the alt text, nothing else.";
+        return [
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates accessible, descriptive image alt text.' ],
+            [ 'role' => 'user',   'content' => $prompt ],
+        ];
+    }
+
+    /**
      * Generate SEO title
      */
     public function generate_title( $content, $current_title = '', $focus_keyword = '' ) {

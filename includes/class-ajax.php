@@ -950,7 +950,89 @@ class SSF_Ajax {
             'failed' => 0,
             'posts' => [],
         ];
-        
+
+        // Parallel fast path: fire all title+desc Bedrock calls concurrently.
+        $use_parallel = (
+            $openai instanceof SSF_Bedrock
+            && function_exists('curl_multi_init')
+            && class_exists('SSF_AI')
+            && SSF_AI::active_provider() === 'bedrock'
+        );
+
+        if ($use_parallel) {
+            // Phase 1 — build per-post work and the concurrent request payload.
+            $work    = [];
+            $jobs    = [];
+            foreach ($post_ids as $post_id) {
+                if (!current_user_can('edit_post', $post_id)) { $results['failed']++; continue; }
+                $post = get_post($post_id);
+                if (!$post) { $results['failed']++; continue; }
+
+                $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+                $needs_title = false;
+                $needs_desc  = false;
+
+                if (in_array('title', $issue_types)) {
+                    $current_title = get_post_meta($post_id, '_ssf_seo_title', true);
+                    if (empty($current_title) || strlen($current_title) < 30) { $needs_title = true; }
+                }
+                if (in_array('meta', $issue_types)) {
+                    $current_desc = get_post_meta($post_id, '_ssf_meta_description', true);
+                    if (empty($current_desc) || strlen($current_desc) < 120) { $needs_desc = true; }
+                }
+
+                $work[$post_id] = [
+                    'post' => $post, 'kw' => $focus_keyword,
+                    'needs_title' => $needs_title, 'needs_desc' => $needs_desc,
+                ];
+                if ($needs_title) {
+                    $jobs["t_{$post_id}"] = [
+                        'messages'    => $openai->build_title_messages($post->post_content, $post->post_title, $focus_keyword),
+                        'max_tokens'  => 100,
+                        'temperature' => 0.7,
+                    ];
+                }
+                if ($needs_desc) {
+                    $jobs["d_{$post_id}"] = [
+                        'messages'    => $openai->build_desc_messages($post->post_content, '', $focus_keyword),
+                        'max_tokens'  => 200,
+                        'temperature' => 0.7,
+                    ];
+                }
+            }
+
+            $responses = !empty($jobs) ? $openai->request_multi($jobs) : [];
+
+            // Phase 2 — apply results.
+            foreach ($work as $post_id => $w) {
+                $fixed = [];
+                if ($w['needs_title']) {
+                    $r = $responses["t_{$post_id}"] ?? null;
+                    if (!is_wp_error($r) && !empty(trim((string) $r))) {
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim((string) $r, " \t\n\r\0\x0B\"'")));
+                        $fixed[] = 'title';
+                    }
+                }
+                if ($w['needs_desc']) {
+                    $r = $responses["d_{$post_id}"] ?? null;
+                    if (!is_wp_error($r) && !empty(trim((string) $r))) {
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim((string) $r, " \t\n\r\0\x0B\"'")));
+                        $fixed[] = 'meta';
+                    }
+                }
+
+                $score = 0;
+                if ($analyzer) {
+                    $analysis = $analyzer->analyze_post($post_id);
+                    $score = $analysis['score'] ?? 0;
+                }
+                $results['success']++;
+                $results['posts'][$post_id] = ['fixed' => $fixed, 'new_score' => $score];
+            }
+
+            wp_send_json_success($results);
+        }
+
         foreach ($post_ids as $post_id) {
             if (!current_user_can('edit_post', $post_id)) {
                 $results['failed']++;
@@ -1357,7 +1439,65 @@ class SSF_Ajax {
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
         $fixed = [];
         $new_content = $post->post_content;
-        
+
+        // Collect images that need alt text first (cheap work).
+        $to_fix = [];
+        foreach ($images[0] as $img_tag) {
+            if (preg_match('/alt\s*=\s*["\']([^"\']*)["\']/', $img_tag, $alt_match)) {
+                if (!empty(trim($alt_match[1]))) { continue; }
+            }
+            if (preg_match('/src\s*=\s*["\']([^"\']+)["\']/', $img_tag, $src_match)) {
+                $to_fix[] = ['tag' => $img_tag, 'src' => $src_match[1]];
+            }
+        }
+
+        // Parallel Bedrock fast path: one curl_multi call for all images.
+        $use_parallel = (
+            $openai instanceof SSF_Bedrock
+            && function_exists('curl_multi_init')
+            && class_exists('SSF_AI')
+            && SSF_AI::active_provider() === 'bedrock'
+            && $openai->is_configured()
+            && !empty($to_fix)
+        );
+
+        if ($use_parallel) {
+            $page_context = wp_trim_words($post->post_content, 50);
+            $jobs = [];
+            foreach ($to_fix as $i => $img) {
+                $jobs["img_{$i}"] = [
+                    'messages'    => $openai->build_alt_messages($img['src'], $page_context, $focus_keyword),
+                    'max_tokens'  => 100,
+                    'temperature' => 0.7,
+                ];
+            }
+            $responses = $openai->request_multi($jobs);
+            foreach ($to_fix as $i => $img) {
+                $r = $responses["img_{$i}"] ?? null;
+                if (is_wp_error($r) || $r === null) { continue; }
+                $alt_text = trim((string) $r, " \t\n\r\0\x0B\"'");
+                if ($alt_text === '') { continue; }
+                $filename = basename(parse_url($img['src'], PHP_URL_PATH));
+                if (strpos($img['tag'], 'alt=') !== false) {
+                    $new_img_tag = preg_replace('/alt\s*=\s*["\'][^"\']*["\']/', 'alt="' . esc_attr($alt_text) . '"', $img['tag']);
+                } else {
+                    $new_img_tag = str_replace('<img', '<img alt="' . esc_attr($alt_text) . '"', $img['tag']);
+                }
+                $new_content = str_replace($img['tag'], $new_img_tag, $new_content);
+                $fixed[] = ['filename' => $filename, 'alt' => $alt_text];
+            }
+
+            // Update post content
+            if (!empty($fixed)) {
+                wp_update_post(['ID' => $post_id, 'post_content' => $new_content]);
+            }
+
+            wp_send_json_success([
+                'message' => sprintf(__('Fixed %d images with missing alt text.', 'smart-seo-fixer'), count($fixed)),
+                'fixed'   => $fixed,
+            ]);
+        }
+
         foreach ($images[0] as $img_tag) {
             // Check if has alt or alt is empty
             if (preg_match('/alt\s*=\s*["\']([^"\']*)["\']/', $img_tag, $alt_match)) {
