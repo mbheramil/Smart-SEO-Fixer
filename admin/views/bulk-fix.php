@@ -423,6 +423,25 @@ jQuery(document).ready(function($) {
                 if (j.status === 'completed') {
                     $('#bulk-progress-title').html('<span class="dashicons dashicons-yes-alt" style="color:#059669;"></span> <?php echo esc_js(__('Complete!', 'smart-seo-fixer')); ?>');
                     $('#bulk-progress-log').append('<div style="color:#059669;">✅ <?php echo esc_js(__('Background job completed.', 'smart-seo-fixer')); ?> (' + j.processed + '/' + j.total + ')</div>');
+                    if (j.summary) {
+                        var s = j.summary;
+                        var parts = [];
+                        parts.push('<strong>' + s.generated + '</strong> <?php echo esc_js(__('generated', 'smart-seo-fixer')); ?>');
+                        if (s.skipped > 0) parts.push('<strong>' + s.skipped + '</strong> <?php echo esc_js(__('skipped', 'smart-seo-fixer')); ?>');
+                        if (s.failed > 0)  parts.push('<strong style="color:#dc2626;">' + s.failed + '</strong> <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>');
+                        $('#bulk-progress-log').append('<div style="color:#1e293b; margin-top:4px;">📊 ' + parts.join(' · ') + '</div>');
+                        if (s.reasons) {
+                            var reasonKeys = Object.keys(s.reasons);
+                            reasonKeys.forEach(function(k) {
+                                $('#bulk-progress-log').append('<div style="color:#64748b; font-size:12px; margin-left:24px;">&bull; ' + s.reasons[k] + ' &mdash; ' + esc(k) + '</div>');
+                            });
+                        }
+                        if (s.skipped > 0 && s.generated === 0) {
+                            $('#bulk-progress-log').append(
+                                '<div style="color:#b45309; margin-top:8px;">⚠️ <?php echo esc_js(__('All posts were skipped. This usually means post_content is empty (common with page-builder or location templates).', 'smart-seo-fixer')); ?></div>'
+                            );
+                        }
+                    }
                     $('#bulk-done-btn').show();
                     return;
                 }

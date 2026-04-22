@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.40
+Stable tag: 2.0.41
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.41 =
+* Fixed: Bulk AI Fix reported "999/999 completed" but post_meta wasn't actually written for page-builder / location-template post types. Root cause: post_content on those CPTs is empty (real content lives in post_excerpt, ACF/page-builder meta, or attached image alt text), so the word-count gate skipped every post silently as "content too short" and counted the skip as success. Both the parallel and sequential bulk paths now call a new `enrich_post_context()` helper that combines body + excerpt + public meta + image alt/caption before the word-count gate and before prompting the AI.
+* New: Completion screen now shows a real outcome breakdown — "N generated · M skipped · K failed" with per-reason skip counts. If every post was skipped, a warning is surfaced so the user knows the job was a no-op instead of quietly assuming success.
+* Changed: `ssf_get_job` response now includes a `summary` object with generated / skipped / failed / reasons.
+
 = 2.0.40 =
 * Fixed: Job Queue page always said "OpenAI Rate Limit" even when the site was wired to AWS Bedrock, Claude, or Gemini. The card now reflects the active AI provider's label and reads that provider's actual rate-limiter bucket. No behavior change — the bulk pipeline was already using the correctly configured provider; only the label was wrong.
 * Fixed: Job Queue page description said "10+ posts, 5 items per minute" which no longer matched the current parallel pipeline. Updated to "5+ posts, batches of 20 in parallel on Bedrock".

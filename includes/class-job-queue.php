@@ -375,7 +375,89 @@ class SSF_Job_Queue {
         self::process_queue();
         exit;
     }
-    
+
+    /**
+     * Gather as much usable text as possible for SEO generation when
+     * $post->post_content alone is too thin. Page-builder based post types
+     * (Elementor, Divi, Oxygen) and location/service templates frequently
+     * leave post_content empty while the real copy lives in post_excerpt,
+     * ACF-style custom fields, or attached image alt/caption text. Without
+     * this helper, the bulk AI fix job silently marked those posts as
+     * "Skipped (content too short)" and reported 100% success while writing
+     * nothing — which is the "jobs say 999/999 but posts still show ⚠ Title /
+     * Desc / Keyword" symptom on location_service post types.
+     *
+     * @param WP_Post $post
+     * @return string Enriched plain-text content suitable for AI prompts.
+     */
+    public static function enrich_post_context($post) {
+        if (!$post instanceof WP_Post) {
+            return '';
+        }
+
+        $parts = [];
+
+        // Primary: stripped shortcodes + HTML of the post body.
+        $body = wp_strip_all_tags(strip_shortcodes((string) $post->post_content));
+        if ($body !== '') { $parts[] = $body; }
+
+        // Excerpt.
+        if (!empty($post->post_excerpt)) {
+            $parts[] = wp_strip_all_tags((string) $post->post_excerpt);
+        }
+
+        // Page-builder / ACF-style public custom fields. We deliberately skip
+        // keys beginning with "_" (WP-private meta such as our own SEO keys,
+        // Elementor's _elementor_data blob which is not human text, etc.) and
+        // cap total meta text so one enormous field doesn't dominate.
+        $meta = get_post_meta($post->ID);
+        $meta_text_budget = 2000;
+        if (is_array($meta)) {
+            foreach ($meta as $key => $values) {
+                if ($key === '' || $key[0] === '_') { continue; }
+                foreach ((array) $values as $v) {
+                    if (!is_scalar($v)) { continue; }
+                    $v = wp_strip_all_tags((string) $v);
+                    $v = trim($v);
+                    if ($v === '' || strlen($v) < 3) { continue; }
+                    $parts[] = $v;
+                    $meta_text_budget -= strlen($v);
+                    if ($meta_text_budget <= 0) { break 2; }
+                }
+            }
+        }
+
+        // Image alt/caption from featured image + attached media (helps
+        // image-heavy location pages where body is a short template).
+        $image_ids = [];
+        $thumb_id = get_post_thumbnail_id($post->ID);
+        if ($thumb_id) { $image_ids[] = $thumb_id; }
+        $attachments = get_posts([
+            'post_type'      => 'attachment',
+            'post_parent'    => $post->ID,
+            'post_mime_type' => 'image',
+            'posts_per_page' => 10,
+            'fields'         => 'ids',
+        ]);
+        if (is_array($attachments)) {
+            $image_ids = array_unique(array_merge($image_ids, $attachments));
+        }
+        foreach ($image_ids as $img_id) {
+            $alt = get_post_meta($img_id, '_wp_attachment_image_alt', true);
+            if (!empty($alt)) { $parts[] = $alt; }
+            $att = get_post($img_id);
+            if ($att) {
+                if (!empty($att->post_excerpt)) { $parts[] = $att->post_excerpt; } // caption
+                if (!empty($att->post_content)) { $parts[] = wp_strip_all_tags($att->post_content); } // description
+            }
+        }
+
+        $combined = trim(implode("\n", array_filter(array_map('trim', $parts))));
+        // Collapse whitespace so str_word_count works reliably.
+        $combined = preg_replace('/\s+/', ' ', $combined);
+        return (string) $combined;
+    }
+
     /**
      * Parallel batch processor for `bulk_ai_fix` jobs when the active AI
      * provider is Bedrock. Combines the 3 per-post calls (keyword/title/desc)
@@ -423,8 +505,11 @@ class SSF_Job_Queue {
                 continue;
             }
 
-            $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
-            if (str_word_count($clean_content) < 10) {
+            // Use the enriched context so page-builder / location-template
+            // post types (empty post_content but rich meta+images) still get
+            // processed instead of being silently skipped.
+            $enriched_content = self::enrich_post_context($post);
+            if (str_word_count($enriched_content) < 10) {
                 $immediate_results[$post_id] = ['item_id' => $post_id, 'status' => 'success', 'message' => 'Skipped (content too short)'];
                 continue;
             }
@@ -442,16 +527,17 @@ class SSF_Job_Queue {
                 continue;
             }
 
-            $messages = $bedrock->build_seo_bundle_messages($post->post_content, $post->post_title);
+            $messages = $bedrock->build_seo_bundle_messages($enriched_content, $post->post_title);
             $jobs_to_run[$post_id] = [
-                'messages'    => $messages,
-                'max_tokens'  => 400,
-                'temperature' => 0.5,
-                'post'        => $post,
-                'needs_kw'    => $needs_kw,
-                'needs_title' => $needs_title,
-                'needs_desc'  => $needs_desc,
-                'overwrite'   => $overwrite,
+                'messages'         => $messages,
+                'max_tokens'       => 400,
+                'temperature'      => 0.5,
+                'post'             => $post,
+                'enriched_content' => $enriched_content,
+                'needs_kw'         => $needs_kw,
+                'needs_title'      => $needs_title,
+                'needs_desc'       => $needs_desc,
+                'overwrite'        => $overwrite,
             ];
         }
 
@@ -486,7 +572,8 @@ class SSF_Job_Queue {
 
             $post          = $job['post'];
             $generated     = [];
-            $haystack      = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $post->post_content)));
+            $enriched      = $job['enriched_content'] ?? '';
+            $haystack      = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $enriched)));
 
             // Keyword
             if ($job['needs_kw']) {
@@ -495,7 +582,7 @@ class SSF_Job_Queue {
                 // fall back to SSF_AI's grounded extractor so we never save an
                 // orphan keyword (which is what was tanking scores).
                 if ($kw === '' || strpos($haystack, strtolower($kw)) === false) {
-                    $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                    $kw = SSF_AI::pick_grounded_keyword($enriched, $post->post_title);
                 }
                 if (!empty($kw)) {
                     update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($kw));
@@ -587,12 +674,14 @@ class SSF_Job_Queue {
         if (!$openai->is_configured()) {
               return new WP_Error('no_api_key', SSF_AI::not_configured_message());
         }
-        
-        $clean_content = wp_strip_all_tags(strip_shortcodes($post->post_content));
-        if (str_word_count($clean_content) < 10) {
+
+        // Enriched context covers page-builder / location templates where
+        // post_content is empty but real content lives in meta / images.
+        $enriched_content = self::enrich_post_context($post);
+        if (str_word_count($enriched_content) < 10) {
             return 'Skipped (content too short)';
         }
-        
+
         $generate_title    = !empty($payload['generate_title']);
         $generate_desc     = !empty($payload['generate_desc']);
         $generate_keywords = !empty($payload['generate_keywords']);
@@ -606,7 +695,7 @@ class SSF_Job_Queue {
         if ($generate_keywords) {
             $current_kw = trim(get_post_meta($post_id, '_ssf_focus_keyword', true));
             if ($overwrite || empty($current_kw)) {
-                $keywords = $openai->suggest_keywords($post->post_content, $post->post_title);
+                $keywords = $openai->suggest_keywords($enriched_content, $post->post_title);
                 if (!is_wp_error($keywords) && !empty($keywords['primary'])) {
                     update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($keywords['primary']));
                     $focus_keyword = $keywords['primary'];
@@ -621,7 +710,7 @@ class SSF_Job_Queue {
         if ($generate_title) {
             $current_title = trim(get_post_meta($post_id, '_ssf_seo_title', true));
             if ($overwrite || empty($current_title)) {
-                $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+                $title = $openai->generate_title($enriched_content, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
                     $title = SSF_Validator::enforce_seo_title(trim($title), 60);
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
@@ -636,7 +725,7 @@ class SSF_Job_Queue {
         if ($generate_desc) {
             $current_desc = trim(get_post_meta($post_id, '_ssf_meta_description', true));
             if ($overwrite || empty($current_desc)) {
-                $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
+                $desc = $openai->generate_meta_description($enriched_content, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
                     $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));

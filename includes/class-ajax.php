@@ -4510,6 +4510,30 @@ class SSF_Ajax {
             SSF_Job_Queue::spawn_next_tick_public();
         }
 
+        // Summarize results so the UI can show real outcomes instead of just a
+        // raw "999/999 processed". Previously bulk jobs on page-builder posts
+        // reported 100% success while silently skipping everything as
+        // "content too short" — this surfaces that so the user sees a
+        // "generated X / skipped Y" breakdown.
+        $summary = ['generated' => 0, 'skipped' => 0, 'failed' => 0, 'reasons' => []];
+        if (!empty($job->results) && is_array($job->results)) {
+            foreach ($job->results as $r) {
+                $status  = $r['status']  ?? '';
+                $message = (string) ($r['message'] ?? '');
+                if ($status === 'failed') {
+                    $summary['failed']++;
+                } elseif (stripos($message, 'skipped') === 0 || stripos($message, 'skipped') !== false) {
+                    $summary['skipped']++;
+                    $reason = trim(preg_replace('/^Skipped\s*\(?/i', '', rtrim($message, ')')));
+                    if ($reason !== '') {
+                        $summary['reasons'][$reason] = ($summary['reasons'][$reason] ?? 0) + 1;
+                    }
+                } else {
+                    $summary['generated']++;
+                }
+            }
+        }
+
         wp_send_json_success([
             'id'          => intval($job->id),
             'job_type'    => $job->job_type,
@@ -4518,6 +4542,7 @@ class SSF_Ajax {
             'processed'   => $processed,
             'failed'      => $failed,
             'percent'     => $percent,
+            'summary'     => $summary,
             'created_at'  => $job->created_at,
             'started_at'  => $job->started_at ?? null,
             'completed_at'=> $job->completed_at ?? null,
