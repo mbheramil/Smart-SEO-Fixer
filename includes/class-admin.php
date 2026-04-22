@@ -22,6 +22,8 @@ class SSF_Admin {
         
         // Auto-generate SEO meta on publish (when auto_meta is enabled)
         add_action('transition_post_status', [$this, 'auto_generate_meta'], 10, 3);
+        // Async worker for the above — avoids slowing down the publish request.
+        add_action('ssf_auto_generate_meta_run', [$this, 'cron_auto_generate_meta']);
         
         // Show conflict warning if other SEO plugins detected and output not disabled
         add_action('admin_notices', [$this, 'conflict_notice']);
@@ -714,12 +716,150 @@ class SSF_Admin {
     }
     
     /**
-     * Auto-generate SEO meta when a post is published or updated
-     * Triggered by the auto_meta setting in plugin options
-     * 
-     * Layer 1: Fires on every publish/update — if title/desc is still empty, AI generates it
+     * Auto-generate SEO meta when a post is published or updated.
+     *
+     * Schedules an async job so the save/publish request stays fast. The
+     * actual AI work happens in cron_auto_generate_meta() ~5 seconds later.
      */
     public function auto_generate_meta($new_status, $old_status, $post) {
+        if ($new_status !== 'publish') {
+            return;
+        }
+
+        // Default ON: auto-fill title/description if missing.
+        if (!Smart_SEO_Fixer::get_option('auto_meta', true)) {
+            return;
+        }
+
+        if (!$post || !is_a($post, 'WP_Post')) {
+            return;
+        }
+
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        if (!in_array($post->post_type, $post_types, true)) {
+            return;
+        }
+
+        if (str_word_count(strip_tags($post->post_content)) < 20) {
+            return;
+        }
+
+        // If everything is already filled, nothing to do (avoid a wasted cron).
+        $seo_title     = get_post_meta($post->ID, '_ssf_seo_title', true);
+        $meta_desc     = get_post_meta($post->ID, '_ssf_meta_description', true);
+        $focus_keyword = get_post_meta($post->ID, '_ssf_focus_keyword', true);
+        if (!empty($seo_title) && !empty($meta_desc) && !empty($focus_keyword)) {
+            return;
+        }
+
+        $hook = 'ssf_auto_generate_meta_run';
+        $args = [(int) $post->ID];
+        if (!wp_next_scheduled($hook, $args)) {
+            wp_schedule_single_event(time() + 5, $hook, $args);
+        }
+    }
+
+    /**
+     * Async worker — does the actual AI title/description/keyword generation.
+     * Uses the Bedrock SEO bundle for a single parallel-capable call when the
+     * active provider is Bedrock; falls back to sequential calls otherwise.
+     */
+    public function cron_auto_generate_meta($post_id) {
+        $post_id = (int) $post_id;
+        $post    = get_post($post_id);
+        if (!$post || $post->post_status !== 'publish') {
+            return;
+        }
+
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        if (!in_array($post->post_type, $post_types, true)) {
+            return;
+        }
+
+        if (class_exists('SSF_History')) {
+            SSF_History::set_source('auto_publish');
+        }
+
+        $seo_title     = get_post_meta($post_id, '_ssf_seo_title', true);
+        $meta_desc     = get_post_meta($post_id, '_ssf_meta_description', true);
+        $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
+
+        if (!empty($seo_title) && !empty($meta_desc) && !empty($focus_keyword)) {
+            if (class_exists('SSF_Analyzer')) {
+                (new SSF_Analyzer())->analyze_post($post_id);
+            }
+            return;
+        }
+
+        $ai = SSF_AI::get();
+        if (!$ai->is_configured()) {
+            return;
+        }
+
+        // Try the one-call SEO bundle first (Bedrock only, cheapest + fastest).
+        if ($ai instanceof SSF_Bedrock && method_exists($ai, 'generate_seo_bundle')) {
+            $bundle = $ai->generate_seo_bundle($post->post_content, $post->post_title);
+            if (!is_wp_error($bundle)) {
+                $haystack = strtolower(wp_strip_all_tags(strip_shortcodes($post->post_title . "\n" . $post->post_content)));
+                if (empty($focus_keyword) && !empty($bundle['keyword'])) {
+                    $kw = trim((string) $bundle['keyword']);
+                    if ($kw === '' || strpos($haystack, strtolower($kw)) === false) {
+                        $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+                    }
+                    if (!empty($kw)) {
+                        update_post_meta($post_id, '_ssf_focus_keyword', sanitize_text_field($kw));
+                        $focus_keyword = $kw;
+                    }
+                }
+                if (empty($seo_title) && !empty($bundle['title'])) {
+                    $title = SSF_Validator::enforce_seo_title(trim((string) $bundle['title']), 60);
+                    if ($title !== '') {
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+                        $seo_title = $title;
+                    }
+                }
+                if (empty($meta_desc) && !empty($bundle['description'])) {
+                    $desc = SSF_Validator::enforce_meta_description(trim((string) $bundle['description']), 160);
+                    if ($desc !== '') {
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+                        $meta_desc = $desc;
+                    }
+                }
+            }
+        }
+
+        // Fill anything still missing with single per-field calls.
+        if (empty($seo_title)) {
+            $title = $ai->generate_title($post->post_content, $post->post_title, $focus_keyword);
+            if (!is_wp_error($title) && !empty(trim($title))) {
+                $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+            }
+        }
+        if (empty($meta_desc)) {
+            $desc = $ai->generate_meta_description($post->post_content, '', $focus_keyword);
+            if (!is_wp_error($desc) && !empty(trim($desc))) {
+                $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+            }
+        }
+        if (empty($focus_keyword)) {
+            $kw = SSF_AI::pick_grounded_keyword($post->post_content, $post->post_title);
+            if (!empty($kw)) {
+                update_post_meta($post_id, '_ssf_focus_keyword', $kw);
+            }
+        }
+
+        if (class_exists('SSF_Analyzer')) {
+            (new SSF_Analyzer())->analyze_post($post_id);
+        }
+    }
+
+    /**
+     * (Legacy synchronous helper — kept for backwards compat with any callers
+     * but no longer wired to transition_post_status.)
+     */
+    public function _legacy_auto_generate_meta($new_status, $old_status, $post) {
         // Only process published posts
         if ($new_status !== 'publish') {
             return;
@@ -771,7 +911,8 @@ class SSF_Admin {
         if (empty($seo_title)) {
             $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
             if (!is_wp_error($title) && !empty(trim($title))) {
-                update_post_meta($post->ID, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                update_post_meta($post->ID, '_ssf_seo_title', sanitize_text_field($title));
             }
         }
         
@@ -779,7 +920,8 @@ class SSF_Admin {
         if (empty($meta_desc)) {
             $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
             if (!is_wp_error($desc) && !empty(trim($desc))) {
-                update_post_meta($post->ID, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                update_post_meta($post->ID, '_ssf_meta_description', sanitize_textarea_field($desc));
             }
         }
         

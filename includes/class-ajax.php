@@ -378,7 +378,8 @@ class SSF_Ajax {
             wp_send_json_error(['message' => $result->get_error_message()]);
         }
         
-        $title = sanitize_text_field(trim($result));
+        $title = SSF_Validator::enforce_seo_title(trim($result), 60);
+        $title = sanitize_text_field($title);
         
         if (empty($title)) {
             wp_send_json_error(['message' => __('AI returned an empty title. Please try again.', 'smart-seo-fixer')]);
@@ -432,7 +433,8 @@ class SSF_Ajax {
             wp_send_json_error(['message' => $result->get_error_message()]);
         }
         
-        $description = sanitize_textarea_field(trim($result));
+        $description = SSF_Validator::enforce_meta_description(trim($result), 160);
+        $description = sanitize_textarea_field($description);
         
         if (empty($description)) {
             wp_send_json_error(['message' => __('AI returned an empty description. Please try again.', 'smart-seo-fixer')]);
@@ -571,8 +573,8 @@ class SSF_Ajax {
         }
         
         $data = [
-            'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::seo_title(wp_unslash($_POST['seo_title'] ?? '')) : sanitize_text_field(wp_unslash($_POST['seo_title'] ?? '')),
-            'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::meta_description(wp_unslash($_POST['meta_description'] ?? '')) : sanitize_textarea_field(wp_unslash($_POST['meta_description'] ?? '')),
+            'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::enforce_seo_title(SSF_Validator::seo_title(wp_unslash($_POST['seo_title'] ?? '')), 60) : sanitize_text_field(wp_unslash($_POST['seo_title'] ?? '')),
+            'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::enforce_meta_description(SSF_Validator::meta_description(wp_unslash($_POST['meta_description'] ?? '')), 160) : sanitize_textarea_field(wp_unslash($_POST['meta_description'] ?? '')),
             'focus_keyword'    => class_exists('SSF_Validator') ? SSF_Validator::focus_keyword(wp_unslash($_POST['focus_keyword'] ?? '')) : sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? '')),
             'canonical_url'    => $this->normalize_canonical_for_storage(
                                        class_exists('SSF_Validator') ? SSF_Validator::url(wp_unslash($_POST['canonical_url'] ?? '')) : esc_url_raw(wp_unslash($_POST['canonical_url'] ?? '')),
@@ -886,8 +888,9 @@ class SSF_Ajax {
                     wp_send_json_error(['message' => $title->get_error_message()]);
                 }
                 if (!empty(trim($title))) {
-                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
-                    $result['seo_title'] = trim($title);
+                    $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
+                    $result['seo_title'] = $title;
                 } else {
                     wp_send_json_error(['message' => __('AI returned empty title. Try again.', 'smart-seo-fixer')]);
                 }
@@ -903,8 +906,9 @@ class SSF_Ajax {
                     wp_send_json_error(['message' => $desc->get_error_message()]);
                 }
                 if (!empty(trim($desc))) {
-                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
-                    $result['meta_description'] = trim($desc);
+                    $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
+                    $result['meta_description'] = $desc;
                 } else {
                     wp_send_json_error(['message' => __('AI returned empty description. Try again.', 'smart-seo-fixer')]);
                 }
@@ -1010,14 +1014,16 @@ class SSF_Ajax {
                 if ($w['needs_title']) {
                     $r = $responses["t_{$post_id}"] ?? null;
                     if (!is_wp_error($r) && !empty(trim((string) $r))) {
-                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim((string) $r, " \t\n\r\0\x0B\"'")));
+                        $title = SSF_Validator::enforce_seo_title(trim((string) $r, " \t\n\r\0\x0B\"'"), 60);
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
                         $fixed[] = 'title';
                     }
                 }
                 if ($w['needs_desc']) {
                     $r = $responses["d_{$post_id}"] ?? null;
                     if (!is_wp_error($r) && !empty(trim((string) $r))) {
-                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim((string) $r, " \t\n\r\0\x0B\"'")));
+                        $desc = SSF_Validator::enforce_meta_description(trim((string) $r, " \t\n\r\0\x0B\"'"), 160);
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
                         $fixed[] = 'meta';
                     }
                 }
@@ -1055,7 +1061,8 @@ class SSF_Ajax {
                 if (empty($current_title) || strlen($current_title) < 30) {
                     $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
                     if (!is_wp_error($title) && !empty(trim($title))) {
-                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                        $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                        update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
                         $fixed[] = 'title';
                     }
                 }
@@ -1067,7 +1074,8 @@ class SSF_Ajax {
                 if (empty($current_desc) || strlen($current_desc) < 120) {
                     $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                     if (!is_wp_error($desc) && !empty(trim($desc))) {
-                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                        $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                        update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
                         $fixed[] = 'meta';
                     }
                 }

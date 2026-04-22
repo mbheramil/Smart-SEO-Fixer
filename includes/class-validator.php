@@ -73,6 +73,51 @@ class SSF_Validator {
         
         return $keyword;
     }
+
+    /**
+     * Hard-enforce SEO title length (Google display limit = 60 chars).
+     * Truncates on a word boundary and trims trailing punctuation.
+     *
+     * @param string $title
+     * @param int    $max
+     * @return string
+     */
+    public static function enforce_seo_title($title, $max = 60) {
+        $title = trim(wp_strip_all_tags((string) $title));
+        $title = preg_replace('/\s+/', ' ', $title);
+        if (mb_strlen($title) <= $max) {
+            return $title;
+        }
+        $truncated = mb_substr($title, 0, $max);
+        // Prefer word boundary if it's not too short (keep at least 70% of max).
+        $last_space = mb_strrpos($truncated, ' ');
+        if ($last_space !== false && $last_space >= (int) round($max * 0.7)) {
+            $truncated = mb_substr($truncated, 0, $last_space);
+        }
+        return rtrim($truncated, " \t\n\r\0\x0B.,;:|\"'-");
+    }
+
+    /**
+     * Hard-enforce meta description length (Google display limit = 160 chars).
+     * Truncates on a word boundary and trims trailing punctuation.
+     *
+     * @param string $desc
+     * @param int    $max
+     * @return string
+     */
+    public static function enforce_meta_description($desc, $max = 160) {
+        $desc = trim(wp_strip_all_tags((string) $desc));
+        $desc = preg_replace('/\s+/', ' ', $desc);
+        if (mb_strlen($desc) <= $max) {
+            return $desc;
+        }
+        $truncated = mb_substr($desc, 0, $max);
+        $last_space = mb_strrpos($truncated, ' ');
+        if ($last_space !== false && $last_space >= (int) round($max * 0.7)) {
+            $truncated = mb_substr($truncated, 0, $last_space);
+        }
+        return rtrim($truncated, " \t\n\r\0\x0B.,;:|\"'-");
+    }
     
     /**
      * Validate and sanitize a URL

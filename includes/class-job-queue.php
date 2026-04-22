@@ -493,6 +493,7 @@ class SSF_Job_Queue {
             if ($job['needs_title']) {
                 $title = trim((string) $bundle['title']);
                 if ($title !== '') {
+                    $title = SSF_Validator::enforce_seo_title($title, 60);
                     update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
                     $generated[] = 'title';
                 }
@@ -502,6 +503,7 @@ class SSF_Job_Queue {
             if ($job['needs_desc']) {
                 $desc = trim((string) $bundle['description']);
                 if ($desc !== '') {
+                    $desc = SSF_Validator::enforce_meta_description($desc, 160);
                     update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
                     $generated[] = 'description';
                 }
@@ -607,7 +609,8 @@ class SSF_Job_Queue {
             if ($overwrite || empty($current_title)) {
                 $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
-                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                    $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
                     $generated[] = 'title';
                 } elseif (is_wp_error($title)) {
                     return $title;
@@ -621,7 +624,8 @@ class SSF_Job_Queue {
             if ($overwrite || empty($current_desc)) {
                 $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
-                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                    $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
                     $generated[] = 'description';
                 } elseif (is_wp_error($desc)) {
                     return $desc;
@@ -724,7 +728,8 @@ class SSF_Job_Queue {
             if (str_word_count($clean_content) >= 10) {
                 $title = $openai->generate_title($post->post_content, $post->post_title, $focus_keyword);
                 if (!is_wp_error($title) && !empty(trim($title))) {
-                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field(trim($title)));
+                    $title = SSF_Validator::enforce_seo_title(trim($title), 60);
+                    update_post_meta($post_id, '_ssf_seo_title', sanitize_text_field($title));
                     $generated[] = 'title';
                 }
             }
@@ -735,7 +740,8 @@ class SSF_Job_Queue {
             if (str_word_count($clean_content) >= 10) {
                 $desc = $openai->generate_meta_description($post->post_content, '', $focus_keyword);
                 if (!is_wp_error($desc) && !empty(trim($desc))) {
-                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field(trim($desc)));
+                    $desc = SSF_Validator::enforce_meta_description(trim($desc), 160);
+                    update_post_meta($post_id, '_ssf_meta_description', sanitize_textarea_field($desc));
                     $generated[] = 'description';
                 }
             }

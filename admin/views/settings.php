@@ -79,7 +79,7 @@ if (class_exists('SSF_GA_Client')) {
     $ga_auto_tag       = (bool) get_option(SSF_GA_Client::AUTO_TAG_OPTION, true);
 }
 
-$auto_meta = Smart_SEO_Fixer::get_option('auto_meta');
+$auto_meta = Smart_SEO_Fixer::get_option('auto_meta', true);
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $auto_internal_links = Smart_SEO_Fixer::get_option('auto_internal_links', true);
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);

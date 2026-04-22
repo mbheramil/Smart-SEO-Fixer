@@ -309,7 +309,7 @@ class SSF_Meta_Manager {
             }
             
             if (!empty($seo_title)) {
-                return $seo_title;
+                return class_exists('SSF_Validator') ? SSF_Validator::enforce_seo_title($seo_title, 60) : $seo_title;
             }
             
             // If no SSF title is set, always return something meaningful
@@ -317,7 +317,8 @@ class SSF_Meta_Manager {
                 $separator = Smart_SEO_Fixer::get_option('title_separator', '|');
                 $post_title = get_the_title($post_id);
                 $site_name = get_bloginfo('name');
-                return $post_title . ' ' . $separator . ' ' . $site_name;
+                $fallback = $post_title . ' ' . $separator . ' ' . $site_name;
+                return class_exists('SSF_Validator') ? SSF_Validator::enforce_seo_title($fallback, 60) : $fallback;
             }
         }
         
@@ -370,6 +371,9 @@ class SSF_Meta_Manager {
         $description = $this->get_meta_description();
         
         if (!empty($description)) {
+            if (class_exists('SSF_Validator')) {
+                $description = SSF_Validator::enforce_meta_description($description, 160);
+            }
             echo '<meta name="description" content="' . esc_attr($description) . '" />' . "\n";
         }
         

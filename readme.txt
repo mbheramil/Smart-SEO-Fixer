@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.35
+Stable tag: 2.0.36
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.36 =
+* New: Auto-generate SEO title + meta description on first publish is now enabled by default. When you publish a new post/page, a background job runs ~5 seconds later and fills in any missing title, description, and focus keyword using the Bedrock SEO bundle (one parallel call).
+* New: Hard character limits enforced everywhere. SEO title is truncated to 60 characters and meta description to 160 characters on every save path (auto publish, bulk AI fix, single-post generate, bulk fix, manual save, not-indexed fix) and on frontend output as a safety net for legacy data. Truncation happens on a word boundary so titles never cut mid-word.
+* New helpers: SSF_Validator::enforce_seo_title(\$title, \$max=60) and SSF_Validator::enforce_meta_description(\$desc, \$max=160) for any third-party integrations to reuse.
+* Performance: The publish-time auto-generation is now asynchronous (wp_schedule_single_event ~5s) so it never slows down saving or publishing.
+
 = 2.0.35 =
 * Fix: "Insert Internal Links" button in the post editor now works on unsaved content. The meta-box JS sends the live editor content to the server so the AI can find anchor phrases that aren't saved to the database yet. Previously it failed on new or freshly-edited posts because the server was reading stale DB content.
 * Fix: Internal-link candidate search now uses the same broader word-overlap scoring as the Indexability "Orphan Fix" (trying 6 candidates instead of WP's narrow ?s= search against 10), so it finds related posts even when focus keyword is empty.
