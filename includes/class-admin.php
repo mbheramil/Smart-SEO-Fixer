@@ -379,6 +379,17 @@ class SSF_Admin {
             SSF_VERSION
         );
         
+        // Real PDF generator — only on Client Report page (~900KB)
+        if ($hook === 'smart-seo_page_smart-seo-fixer-client-report') {
+            wp_enqueue_script(
+                'ssf-html2pdf',
+                SSF_PLUGIN_URL . 'admin/js/vendor/html2pdf.bundle.min.js',
+                [],
+                '0.10.2',
+                true
+            );
+        }
+
         wp_enqueue_script(
             'ssf-admin',
             SSF_PLUGIN_URL . 'admin/js/admin.js',

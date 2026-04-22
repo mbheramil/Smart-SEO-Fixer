@@ -1336,6 +1336,33 @@
 }
 
 /* ==========================================================================
+   Client Report — PDF Export (html2pdf.js)
+   ========================================================================== */
+@keyframes ssf-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ssf-spin { animation: ssf-spin 1s linear infinite; }
+
+body.ssf-pdf-exporting .ssf-report-config,
+body.ssf-pdf-exporting .ssf-report-action-bar,
+body.ssf-pdf-exporting #wpadminbar,
+body.ssf-pdf-exporting #adminmenumain,
+body.ssf-pdf-exporting #wpfooter,
+body.ssf-pdf-exporting .ssf-page-title,
+body.ssf-pdf-exporting .notice,
+body.ssf-pdf-exporting .update-nag { display: none !important; }
+
+body.ssf-pdf-exporting .ssf-report {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+}
+
+/* Discourage awkward page breaks mid-card */
+.ssf-report-section,
+.ssf-report-stat-box,
+.ssf-report-info-card,
+.ssf-report-score-ring-wrap { page-break-inside: avoid; break-inside: avoid; }
+
+/* ==========================================================================
    Client Report — Print Styles
    ========================================================================== */
 @media print {

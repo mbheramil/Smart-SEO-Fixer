@@ -832,9 +832,46 @@
         },
 
         downloadPDF: function() {
-            // Use browser print-to-PDF as native approach
-            // The print CSS hides all admin chrome, giving a clean PDF
-            window.print();
+            var $report = $('#ssf-report');
+            if (!$report.length) { return; }
+
+            // Prefer html2pdf.js for a real PDF (no browser URL/date headers).
+            // Falls back to window.print() if the library failed to load.
+            if (typeof window.html2pdf !== 'function') {
+                window.print();
+                return;
+            }
+
+            var siteName = ($('#ssf-report-site-name').text() || 'seo-report').trim();
+            var safeName = siteName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'seo-report';
+            var today = new Date().toISOString().slice(0, 10);
+            var filename = 'seo-report-' + safeName + '-' + today + '.pdf';
+
+            var $btn = $('#ssf-download-pdf');
+            var originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update ssf-spin"></span> Generating PDF…');
+
+            // Temporarily mark the body so print/pdf CSS can apply cleanly
+            var $body = $('body');
+            $body.addClass('ssf-pdf-exporting');
+
+            var opts = {
+                margin:       [10, 10, 12, 10],
+                filename:     filename,
+                image:        { type: 'jpeg', quality: 0.95 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            window.html2pdf().set(opts).from($report[0]).save().then(function() {
+                $body.removeClass('ssf-pdf-exporting');
+                $btn.prop('disabled', false).html(originalHtml);
+            }).catch(function() {
+                $body.removeClass('ssf-pdf-exporting');
+                $btn.prop('disabled', false).html(originalHtml);
+                window.print();
+            });
         },
 
         statBox: function(number, label, subtitle, extraClass) {
