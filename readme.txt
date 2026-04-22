@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.27
+Stable tag: 2.0.28
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,14 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.28 =
+* New: Google Analytics 4 integration — connect GA4 with OAuth, auto-create a new property + web data stream with one click, and install the gtag.js tracking code automatically
+* New: "Auto-Create GA4 Property for This Site" button in Settings
+* New: Manual Measurement ID field for users who already have a GA4 property
+* New: Website Traffic section in Client Report — shows sessions, users, pageviews, bounce rate, engagement rate, avg session duration, top landing pages, and traffic sources from GA4
+* New: Test Data Fetch button in Settings to verify GA4 connectivity
+* Note: Requires enabling the Google Analytics Admin API and Data API in your Google Cloud project
+
 = 2.0.27 =
 * New: One-click Search Console auto-setup — creates property, verifies ownership via meta tag, and submits sitemap automatically
 * New: "Auto-Create Property for This Site" button in Settings after connecting Google

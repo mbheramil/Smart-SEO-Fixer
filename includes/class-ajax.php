@@ -59,6 +59,10 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_gsc_submit_sitemap', [$this, 'gsc_submit_sitemap']);
         add_action('wp_ajax_ssf_gsc_not_indexed', [$this, 'gsc_not_indexed']);
         add_action('wp_ajax_ssf_gsc_auto_setup', [$this, 'gsc_auto_setup']);
+        add_action('wp_ajax_ssf_ga_disconnect', [$this, 'ga_disconnect']);
+        add_action('wp_ajax_ssf_ga_auto_setup', [$this, 'ga_auto_setup']);
+        add_action('wp_ajax_ssf_ga_save_measurement_id', [$this, 'ga_save_measurement_id']);
+        add_action('wp_ajax_ssf_ga_test_report', [$this, 'ga_test_report']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         add_action('wp_ajax_ssf_get_posts_by_issue', [$this, 'get_posts_by_issue']);
         
@@ -2713,7 +2717,101 @@ class SSF_Ajax {
             ]);
         }
     }
-    
+
+    /**
+     * Disconnect Google Analytics.
+     */
+    public function ga_disconnect() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_GA_Client')) {
+            wp_send_json_error(['message' => __('GA module not available.', 'smart-seo-fixer')]);
+        }
+        $ga = new SSF_GA_Client();
+        $ga->disconnect(true);
+        wp_send_json_success(['message' => __('Google Analytics disconnected.', 'smart-seo-fixer')]);
+    }
+
+    /**
+     * One-click: create GA4 property + web stream for this site, save
+     * the measurement ID and install the tracking code.
+     */
+    public function ga_auto_setup() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_GA_Client')) {
+            wp_send_json_error(['message' => __('GA module not available.', 'smart-seo-fixer')]);
+        }
+
+        try {
+            $ga = new SSF_GA_Client();
+            if (!$ga->is_connected()) {
+                wp_send_json_error(['message' => __('Please connect Google Analytics first.', 'smart-seo-fixer')]);
+            }
+            @set_time_limit(60);
+
+            $preferred = isset($_POST['account_id']) ? sanitize_text_field(wp_unslash($_POST['account_id'])) : null;
+            $result    = $ga->auto_setup_property($preferred ?: null);
+
+            if (!empty($result['success'])) {
+                wp_send_json_success($result);
+            }
+            wp_send_json_error($result);
+        } catch (\Throwable $e) {
+            wp_send_json_error([
+                'message' => $e->getMessage(),
+                'steps'   => [],
+            ]);
+        }
+    }
+
+    /**
+     * Manually save an existing GA4 Measurement ID (for users who already
+     * have a property and just want the tracking code installed).
+     */
+    public function ga_save_measurement_id() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        $mid = isset($_POST['measurement_id']) ? sanitize_text_field(wp_unslash($_POST['measurement_id'])) : '';
+        $mid = strtoupper(trim($mid));
+        if ($mid !== '' && !preg_match('/^G-[A-Z0-9]{4,}$/', $mid)) {
+            wp_send_json_error(['message' => __('Invalid Measurement ID. Expected format: G-XXXXXXXXXX', 'smart-seo-fixer')]);
+        }
+        update_option(SSF_GA_Client::MEASUREMENT_ID_OPT, $mid, false);
+        update_option(SSF_GA_Client::AUTO_TAG_OPTION, !empty($mid), false);
+        wp_send_json_success([
+            'measurement_id' => $mid,
+            'message'        => $mid === ''
+                ? __('Measurement ID cleared. Tracking code removed.', 'smart-seo-fixer')
+                : __('Measurement ID saved. Tracking code is now live on your site.', 'smart-seo-fixer'),
+        ]);
+    }
+
+    /**
+     * Quick connectivity test — pulls 7-day sessions/users from the Data API.
+     */
+    public function ga_test_report() {
+        $this->verify_nonce();
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+        if (!class_exists('SSF_GA_Client')) {
+            wp_send_json_error(['message' => __('GA module not available.', 'smart-seo-fixer')]);
+        }
+        $ga = new SSF_GA_Client();
+        $summary = $ga->get_report_summary(7);
+        if (is_wp_error($summary)) {
+            wp_send_json_error(['message' => $summary->get_error_message()]);
+        }
+        wp_send_json_success($summary);
+    }
+
     /**
      * Get search performance data
      */

@@ -64,6 +64,21 @@ if (class_exists('SSF_GSC_Client')) {
         }
     }
 }
+
+// Google Analytics 4 state
+$ga_connected      = false;
+$ga_measurement_id = '';
+$ga_property_id    = '';
+$ga_auto_tag       = true;
+$ga_client         = null;
+if (class_exists('SSF_GA_Client')) {
+    $ga_client         = new SSF_GA_Client();
+    $ga_connected      = $ga_client->is_connected();
+    $ga_measurement_id = $ga_client->get_measurement_id();
+    $ga_property_id    = $ga_client->get_property_id();
+    $ga_auto_tag       = (bool) get_option(SSF_GA_Client::AUTO_TAG_OPTION, true);
+}
+
 $auto_meta = Smart_SEO_Fixer::get_option('auto_meta');
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
@@ -473,7 +488,97 @@ unset($available_post_types['attachment']);
                 <?php endif; ?>
             </div>
         </div>
-        
+
+        <!-- Google Analytics (GA4) -->
+        <div class="ssf-card">
+            <div class="ssf-card-header">
+                <h2>
+                    <span class="dashicons dashicons-chart-area"></span>
+                    <?php esc_html_e('Google Analytics (GA4)', 'smart-seo-fixer'); ?>
+                </h2>
+            </div>
+            <div class="ssf-card-body">
+                <p class="description" style="margin-top:0;">
+                    <?php esc_html_e('Connect GA4 to auto-create a property, install the tracking code, and show real visitor metrics in your Client Report.', 'smart-seo-fixer'); ?>
+                </p>
+
+                <?php if (empty($gsc_client_id) || empty($gsc_client_secret)): ?>
+                    <div class="notice notice-warning inline" style="margin:12px 0;">
+                        <p><?php esc_html_e('First configure your Google OAuth Client ID and Secret in the Google Search Console section above — Analytics uses the same credentials.', 'smart-seo-fixer'); ?></p>
+                    </div>
+                <?php elseif ($ga_connected): ?>
+                    <div style="padding: 12px 16px; background: #d1fae5; border-left: 4px solid #10b981; border-radius: 4px; margin-bottom: 16px;">
+                        <span class="dashicons dashicons-yes-alt" style="color: #10b981; vertical-align: middle;"></span>
+                        <strong style="color: #047857;"><?php esc_html_e('Connected to Google Analytics', 'smart-seo-fixer'); ?></strong>
+                        <?php if (!empty($ga_measurement_id)): ?>
+                            <span style="margin-left:8px; color:#047857;">
+                                <?php esc_html_e('Measurement ID:', 'smart-seo-fixer'); ?>
+                                <code><?php echo esc_html($ga_measurement_id); ?></code>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+
+                    <p style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="button button-primary" id="ssf-ga-auto-setup">
+                            <span class="dashicons dashicons-plus-alt2" style="vertical-align:text-bottom;"></span>
+                            <?php esc_html_e('Auto-Create GA4 Property for This Site', 'smart-seo-fixer'); ?>
+                        </button>
+                        <button type="button" class="button" id="ssf-ga-test-report">
+                            <span class="dashicons dashicons-chart-line" style="vertical-align:text-bottom;"></span>
+                            <?php esc_html_e('Test Data Fetch (Last 7 Days)', 'smart-seo-fixer'); ?>
+                        </button>
+                        <button type="button" class="button" id="ssf-ga-disconnect">
+                            <?php esc_html_e('Disconnect', 'smart-seo-fixer'); ?>
+                        </button>
+                    </p>
+                    <p class="description">
+                        <?php esc_html_e('One-click setup creates a new GA4 property under your first Analytics account, adds a web data stream for this site, and installs the tracking code.', 'smart-seo-fixer'); ?>
+                    </p>
+                    <div id="ssf-ga-auto-setup-log" style="display:none; margin-top:12px;"></div>
+                    <div id="ssf-ga-test-log" style="display:none; margin-top:12px;"></div>
+
+                    <hr style="margin:16px 0;">
+                    <h4 style="margin:0 0 8px;"><?php esc_html_e('Already have a GA4 property?', 'smart-seo-fixer'); ?></h4>
+                    <p>
+                        <label for="ssf_ga_manual_mid"><?php esc_html_e('Paste your Measurement ID:', 'smart-seo-fixer'); ?></label><br>
+                        <input type="text" id="ssf_ga_manual_mid" class="regular-text" placeholder="G-XXXXXXXXXX" value="<?php echo esc_attr($ga_measurement_id); ?>">
+                        <button type="button" class="button" id="ssf-ga-save-mid"><?php esc_html_e('Save', 'smart-seo-fixer'); ?></button>
+                    </p>
+                    <p>
+                        <label>
+                            <input type="checkbox" id="ssf_ga_auto_tag_toggle" <?php checked($ga_auto_tag); ?>>
+                            <?php esc_html_e('Automatically inject gtag.js tracking code on every public page', 'smart-seo-fixer'); ?>
+                        </label>
+                    </p>
+                <?php else: ?>
+                    <p>
+                        <a href="<?php echo esc_url($ga_client ? $ga_client->get_auth_url() : '#'); ?>" class="button button-primary button-large">
+                            <span class="dashicons dashicons-google" style="vertical-align: text-bottom;"></span>
+                            <?php esc_html_e('Connect Google Analytics', 'smart-seo-fixer'); ?>
+                        </a>
+                    </p>
+                    <div style="margin-top: 12px; padding: 12px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                        <p style="margin: 0 0 8px; font-weight: 600; color: #1e40af;">
+                            <span class="dashicons dashicons-info" style="font-size: 16px;"></span>
+                            <?php esc_html_e('One-time setup in Google Cloud:', 'smart-seo-fixer'); ?>
+                        </p>
+                        <ol style="margin: 0; padding-left: 20px; color: #1e3a5f; font-size: 13px;">
+                            <li><?php printf(
+                                __('In the same Google Cloud project used for Search Console, enable the %s and the %s', 'smart-seo-fixer'),
+                                '<a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank">Google Analytics Admin API</a>',
+                                '<a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank">Google Analytics Data API</a>'
+                            ); ?></li>
+                            <li><?php esc_html_e('Click "Connect Google Analytics" above and grant the requested permissions', 'smart-seo-fixer'); ?></li>
+                            <li><?php printf(
+                                __('If you don\'t have any GA4 accounts yet, visit %s once to accept Google\'s Terms of Service first', 'smart-seo-fixer'),
+                                '<a href="https://analytics.google.com/" target="_blank">analytics.google.com</a>'
+                            ); ?></li>
+                        </ol>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <!-- General Settings -->
         <div class="ssf-card">
             <div class="ssf-card-header">
@@ -1110,6 +1215,149 @@ jQuery(document).ready(function($) {
             var detail = errorThrown || textStatus || 'Unknown error';
             $status.html('<span class="dashicons dashicons-no" style="color: #dc3232;"></span> Request failed: ' + detail + '. Check your server error log or browser console.');
         });
+    });
+
+    // --- Google Analytics handlers ---
+    function ssfGaRenderLog($container, result, isError) {
+        var stepLabels = {
+            precheck_domain: 'Checking domain is publicly reachable',
+            list_accounts:   'Loading your GA4 accounts',
+            pick_account:    'Selecting account',
+            create_property: 'Creating GA4 property',
+            create_stream:   'Creating web data stream',
+            save_config:     'Saving configuration'
+        };
+        var color = isError ? '#dc3232' : '#46b450';
+        var bg    = isError ? '#fef2f2' : '#ecfdf5';
+        var html  = '<div style="padding:12px 14px; background:' + bg + '; border-left:4px solid ' + color + '; border-radius:4px;">';
+        if (result && result.message) {
+            html += '<p style="margin:0 0 8px; font-weight:600;">' + $('<div>').text(result.message).html() + '</p>';
+        }
+        if (result && result.steps && result.steps.length) {
+            html += '<ol style="margin:8px 0 0 20px;">';
+            result.steps.forEach(function(step) {
+                var icon  = step.success ? '<span class="dashicons dashicons-yes" style="color:#10b981;"></span>' : '<span class="dashicons dashicons-no" style="color:#dc2626;"></span>';
+                var label = stepLabels[step.name] || step.name;
+                var det   = step.detail ? ' <small style="color:#555;">(' + $('<div>').text(step.detail).html() + ')</small>' : '';
+                html += '<li>' + icon + ' ' + label + det + '</li>';
+            });
+            html += '</ol>';
+        }
+        html += '</div>';
+        $container.html(html).show();
+    }
+
+    $('#ssf-ga-auto-setup').on('click', function() {
+        if (!confirm('Create a new GA4 property for this site? A new property will be added under your first Analytics account and the tracking code will be installed automatically.')) {
+            return;
+        }
+        var $btn = $(this);
+        var $log = $('#ssf-ga-auto-setup-log');
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align:text-bottom; animation: ssf-spin 1s linear infinite;"></span> Setting up...');
+        $log.hide();
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_ga_auto_setup',
+            nonce:  ssfAdmin.nonce
+        }).done(function(resp) {
+            if (resp && resp.success) {
+                ssfGaRenderLog($log, resp.data, false);
+                setTimeout(function() { window.location.reload(); }, 2500);
+            } else {
+                ssfGaRenderLog($log, resp.data || {message: 'Setup failed.'}, true);
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-plus-alt2" style="vertical-align:text-bottom;"></span> Auto-Create GA4 Property for This Site');
+            }
+        }).fail(function() {
+            ssfGaRenderLog($log, {message: 'Request failed. Please retry.'}, true);
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-plus-alt2" style="vertical-align:text-bottom;"></span> Auto-Create GA4 Property for This Site');
+        });
+    });
+
+    $('#ssf-ga-test-report').on('click', function() {
+        var $btn = $(this);
+        var $log = $('#ssf-ga-test-log');
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align:text-bottom; animation: ssf-spin 1s linear infinite;"></span> Fetching...');
+        $log.hide();
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_ga_test_report',
+            nonce:  ssfAdmin.nonce
+        }).done(function(resp) {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-chart-line" style="vertical-align:text-bottom;"></span> Test Data Fetch (Last 7 Days)');
+            if (resp && resp.success) {
+                var d = resp.data;
+                $log.html(
+                    '<div style="padding:12px 14px; background:#ecfdf5; border-left:4px solid #10b981; border-radius:4px;">' +
+                    '<strong>Last 7 days:</strong> ' +
+                    (d.sessions || 0) + ' sessions, ' +
+                    (d.users || 0) + ' users, ' +
+                    (d.pageviews || 0) + ' pageviews, ' +
+                    (d.bounce_rate || 0) + '% bounce rate' +
+                    '</div>'
+                ).show();
+            } else {
+                var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Test failed.';
+                $log.html('<div style="padding:12px 14px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:4px;">' + $('<div>').text(msg).html() + '</div>').show();
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html('<span class="dashicons dashicons-chart-line" style="vertical-align:text-bottom;"></span> Test Data Fetch (Last 7 Days)');
+            $log.html('<div style="padding:12px 14px; background:#fef2f2; border-left:4px solid #dc2626; border-radius:4px;">Request failed.</div>').show();
+        });
+    });
+
+    $('#ssf-ga-disconnect').on('click', function() {
+        if (!confirm('Disconnect Google Analytics? Your measurement ID and property link will be cleared.')) {
+            return;
+        }
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_ga_disconnect',
+            nonce:  ssfAdmin.nonce
+        }).always(function() {
+            window.location.reload();
+        });
+    });
+
+    $('#ssf-ga-save-mid').on('click', function() {
+        var mid = $.trim($('#ssf_ga_manual_mid').val());
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_ga_save_measurement_id',
+            nonce:  ssfAdmin.nonce,
+            measurement_id: mid
+        }).done(function(resp) {
+            if (resp && resp.success) {
+                alert(resp.data.message || 'Saved.');
+                window.location.reload();
+            } else {
+                alert((resp && resp.data && resp.data.message) ? resp.data.message : 'Save failed.');
+            }
+        }).fail(function() { alert('Request failed.'); });
+    });
+
+    $('#ssf_ga_auto_tag_toggle').on('change', function() {
+        // Piggyback on the save_measurement_id handler by keeping current MID
+        // but toggling the auto-tag option via a tiny REST-free pattern: reuse
+        // the settings save form — simpler is a dedicated option save via the
+        // same measurement_id handler, but we want to preserve MID.
+        // Use a dedicated setter via update_option through ssf_save_settings is
+        // overkill; instead re-post the current MID (endpoint updates AUTO_TAG_OPTION too).
+        var mid = $.trim($('#ssf_ga_manual_mid').val());
+        if (!this.checked) {
+            // Clear MID to disable injection without wiping property link.
+            if (!confirm('Disable tracking code injection? The measurement ID will be cleared so gtag.js is no longer output. You can paste it back anytime.')) {
+                $(this).prop('checked', true);
+                return;
+            }
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_ga_save_measurement_id',
+                nonce:  ssfAdmin.nonce,
+                measurement_id: ''
+            }).always(function() { window.location.reload(); });
+        } else if (mid) {
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_ga_save_measurement_id',
+                nonce:  ssfAdmin.nonce,
+                measurement_id: mid
+            }).always(function() { window.location.reload(); });
+        }
     });
 });
 </script>

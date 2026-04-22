@@ -426,7 +426,7 @@
             var sec = d.sections || {};
 
             // Toggle section visibility — only show sections with data
-            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'score_factors', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status', 'data_freshness', 'worst_pages', 'issues'];
+            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'score_factors', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status', 'data_freshness', 'analytics', 'worst_pages', 'issues'];
             allSections.forEach(function(s) {
                 var $el = $('#ssf-section-' + s);
                 if (sec[s] !== undefined) { $el.show(); } else { $el.hide(); }
@@ -735,6 +735,46 @@
                     dfh += '<p class="ssf-report-note ssf-note-positive">Scores in this report reflect a recent analysis of your content.</p>';
                 }
                 $('#ssf-data-freshness-content').html(dfh);
+            }
+
+            // ── Google Analytics (GA4) ──
+            if (sec.analytics) {
+                var ga = sec.analytics;
+                var gah = '';
+                if (!ga.connected) {
+                    gah = '<div class="ssf-report-alert">Google Analytics is not connected. Connect it in Settings to include real visitor metrics.</div>';
+                } else if (ga.error) {
+                    gah = '<div class="ssf-report-alert ssf-alert-error">Analytics data could not be loaded: ' + SSF_ClientReport.esc(ga.error) + '</div>';
+                } else {
+                    var mins = ga.avg_session_seconds ? (Math.round(ga.avg_session_seconds / 6) / 10) : 0;
+                    gah  = '<div class="ssf-report-info-grid">';
+                    gah += this.infoCard((ga.sessions || 0).toLocaleString(), 'Sessions');
+                    gah += this.infoCard((ga.users || 0).toLocaleString(), 'Users');
+                    gah += this.infoCard((ga.pageviews || 0).toLocaleString(), 'Pageviews');
+                    gah += this.infoCard((ga.bounce_rate || 0) + '%', 'Bounce Rate');
+                    gah += this.infoCard((ga.engagement_rate || 0) + '%', 'Engagement Rate');
+                    gah += this.infoCard(mins + ' min', 'Avg. Session Duration');
+                    gah += '</div>';
+                    gah += '<p class="ssf-report-note">Data covers the last ' + (ga.days || 30) + ' days from Google Analytics 4.</p>';
+
+                    if (ga.top_pages && ga.top_pages.length) {
+                        gah += '<h4 style="margin:16px 0 8px;">Top Landing Pages</h4>';
+                        gah += '<table class="ssf-report-table"><thead><tr><th>#</th><th>Page</th><th>Pageviews</th><th>Sessions</th></tr></thead><tbody>';
+                        ga.top_pages.forEach(function(p, i) {
+                            gah += '<tr><td>' + (i + 1) + '</td><td>' + SSF_ClientReport.esc(p.path) + '</td><td>' + (p.pageviews || 0).toLocaleString() + '</td><td>' + (p.sessions || 0).toLocaleString() + '</td></tr>';
+                        });
+                        gah += '</tbody></table>';
+                    }
+                    if (ga.top_sources && ga.top_sources.length) {
+                        gah += '<h4 style="margin:16px 0 8px;">Traffic Sources</h4>';
+                        gah += '<table class="ssf-report-table"><thead><tr><th>#</th><th>Source</th><th>Sessions</th></tr></thead><tbody>';
+                        ga.top_sources.forEach(function(s, i) {
+                            gah += '<tr><td>' + (i + 1) + '</td><td>' + SSF_ClientReport.esc(s.source) + '</td><td>' + (s.sessions || 0).toLocaleString() + '</td></tr>';
+                        });
+                        gah += '</tbody></table>';
+                    }
+                }
+                $('#ssf-analytics-content').html(gah);
             }
 
             // ── Worst Pages (full mode) ──

@@ -76,6 +76,7 @@ if (!defined('ABSPATH')) {
                         <label><input type="checkbox" name="ssf_section" value="optimizations" checked /> <?php esc_html_e('Optimizations Made', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="sitemap_status" checked /> <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="data_freshness" checked /> <?php esc_html_e('Data Freshness', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="analytics" checked /> <?php esc_html_e('Website Traffic (GA4)', 'smart-seo-fixer'); ?></label>
                         <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="worst_pages" checked /> <?php esc_html_e('Pages Needing Work', 'smart-seo-fixer'); ?></label>
                         <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="issues" checked /> <?php esc_html_e('Issues & Recommendations', 'smart-seo-fixer'); ?></label>
                     </div>
@@ -293,6 +294,15 @@ if (!defined('ABSPATH')) {
                     <?php esc_html_e('Data Freshness', 'smart-seo-fixer'); ?>
                 </h2>
                 <div id="ssf-data-freshness-content"></div>
+            </div>
+
+            <!-- Google Analytics (GA4) -->
+            <div class="ssf-report-section" id="ssf-section-analytics">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-chart-area"></span>
+                    <?php esc_html_e('Website Traffic (Google Analytics)', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-analytics-content"></div>
             </div>
 
             <!-- Pages Needing Work (full mode) -->

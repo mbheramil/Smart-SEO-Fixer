@@ -41,6 +41,7 @@ class SSF_Client_Report {
             'optimizations',
             'sitemap_status',
             'data_freshness',
+            'analytics',
         ];
 
         // Full mode adds extra sections
@@ -84,6 +85,7 @@ class SSF_Client_Report {
             'optimizations'      => 'get_optimization_count',
             'sitemap_status'     => 'get_sitemap_status',
             'data_freshness'     => 'get_data_freshness',
+            'analytics'          => 'get_analytics',
             'score_factors'      => 'get_score_factors',
             'worst_pages'        => 'get_worst_pages',
             'issues'             => 'get_issues',
@@ -94,7 +96,7 @@ class SSF_Client_Report {
                 continue;
             }
             $method = $method_map[$section];
-            $needs_dates = in_array($method, ['get_overview', 'get_keyword_highlights', 'get_optimization_count', 'get_broken_links_fixed']);
+            $needs_dates = in_array($method, ['get_overview', 'get_keyword_highlights', 'get_optimization_count', 'get_broken_links_fixed', 'get_analytics']);
             $needs_mode  = in_array($method, ['get_overview', 'get_score_distribution', 'get_broken_links_fixed', 'get_meta_coverage', 'get_image_seo']);
 
             if ($needs_dates && $needs_mode) {
@@ -166,6 +168,9 @@ class SSF_Client_Report {
 
             case 'data_freshness':
                 return ($result['analyzed_count'] ?? 0) > 0;
+
+            case 'analytics':
+                return !empty($result['connected']);
 
             case 'score_factors':
                 return !empty($result['factors']);
@@ -931,6 +936,43 @@ class SSF_Client_Report {
             'indexable_pages'  => intval($indexable_count),
             'post_types'      => $post_types,
         ];
+    }
+
+    /**
+     * Google Analytics (GA4) summary for the report.
+     * Honors the requested date range by computing a lookback window.
+     */
+    private static function get_analytics($dates) {
+        if (!class_exists('SSF_GA_Client')) {
+            return ['connected' => false, 'reason' => 'module_unavailable'];
+        }
+        $ga = new SSF_GA_Client();
+        if (!$ga->is_connected() || empty($ga->get_property_id())) {
+            return ['connected' => false, 'reason' => 'not_connected'];
+        }
+
+        // Convert the report date range to a lookback window in days.
+        $days = 30;
+        if (!empty($dates['start']) && !empty($dates['end'])) {
+            $start = strtotime($dates['start']);
+            $end   = strtotime($dates['end']);
+            if ($start && $end && $end >= $start) {
+                $days = max(1, min(365, (int) round(($end - $start) / 86400) + 1));
+            }
+        } elseif (!empty($dates['label']) && is_numeric($dates['label'])) {
+            $days = (int) $dates['label'];
+        }
+
+        $summary = $ga->get_report_summary($days);
+        if (is_wp_error($summary)) {
+            return [
+                'connected' => true,
+                'error'     => $summary->get_error_message(),
+                'days'      => $days,
+            ];
+        }
+
+        return array_merge(['connected' => true, 'property' => $ga->get_property_id()], $summary);
     }
 
     /**

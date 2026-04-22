@@ -3,7 +3,7 @@
  * Plugin Name: Smart SEO Fixer
  * Plugin URI: https://github.com/mbheramil/Smart-SEO-Fixer
  * Description: AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock.
- * Version: 2.0.27
+ * Version: 2.0.28
  * Author: 
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.27');
+define('SSF_VERSION', '2.0.28');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -49,6 +49,7 @@ final class Smart_SEO_Fixer {
     public $updater;
     public $search_console;
     public $gsc_client;
+    public $ga_client;
     public $admin;
     
     /**
@@ -95,6 +96,7 @@ final class Smart_SEO_Fixer {
             'includes/class-rate-limiter.php',
             'includes/class-search-console.php',
             'includes/class-gsc-client.php',
+            'includes/class-ga-client.php',
             'includes/class-db-migrator.php',
             'includes/class-validator.php',
             'includes/class-setup-wizard.php',
@@ -207,6 +209,7 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_WooCommerce'))  $this->woocommerce   = new SSF_WooCommerce();
         if (class_exists('SSF_Search_Console')) $this->search_console = new SSF_Search_Console();
         if (class_exists('SSF_GSC_Client'))   $this->gsc_client    = new SSF_GSC_Client();
+        if (class_exists('SSF_GA_Client'))    $this->ga_client     = new SSF_GA_Client();
         if (class_exists('SSF_Social_Preview')) new SSF_Social_Preview();
         if (class_exists('SSF_Ajax'))         new SSF_Ajax();
         
