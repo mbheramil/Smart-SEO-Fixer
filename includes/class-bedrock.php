@@ -829,9 +829,10 @@ class SSF_Bedrock {
     }
 
     /**
-     * Find a natural place in existing content to insert an internal link
+     * Build the message array for an internal-link anchor search (no API call).
+     * Use with request_multi() for concurrent processing.
      */
-    public function find_internal_link_placement( $source_content, $target_title, $target_url, $target_summary = '' ) {
+    public function build_internal_link_messages( $source_content, $target_title, $target_url, $target_summary = '' ) {
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $source_content ) ), 800 );
 
         $prompt  = "You are an SEO expert specializing in internal linking strategy.\n\n";
@@ -846,19 +847,35 @@ class SSF_Bedrock {
         $prompt .= 'Respond with ONLY valid JSON: {"found":true,"anchor_text":"exact phrase","context":"...surrounding sentence..."}' . "\n";
         $prompt .= 'If no natural fit exists: {"found":false}' . "\nDo NOT wrap in code blocks.";
 
-        $messages = [
+        return [
             [ 'role' => 'system', 'content' => 'You are an internal linking expert. Respond only with valid JSON. Never wrap in code blocks.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
-        $response = $this->request( $messages, 300, 0.3 );
+    }
+
+    /**
+     * Parse a raw internal-link placement response (handles ```json fences).
+     * @param string|WP_Error $response
+     * @return array|WP_Error
+     */
+    public function parse_internal_link_placement( $response ) {
         if ( is_wp_error( $response ) ) return $response;
-        $response = preg_replace( '/```json\s*/', '', $response );
+        $response = preg_replace( '/```json\s*/', '', (string) $response );
         $response = preg_replace( '/```\s*/',     '', $response );
         $data = json_decode( trim( $response ), true );
         if ( json_last_error() !== JSON_ERROR_NONE ) {
             return new WP_Error( 'json_error', __( 'Failed to parse AI response for internal link.', 'smart-seo-fixer' ) );
         }
         return $data;
+    }
+
+    /**
+     * Find a natural place in existing content to insert an internal link
+     */
+    public function find_internal_link_placement( $source_content, $target_title, $target_url, $target_summary = '' ) {
+        $messages = $this->build_internal_link_messages( $source_content, $target_title, $target_url, $target_summary );
+        $response = $this->request( $messages, 300, 0.3 );
+        return $this->parse_internal_link_placement( $response );
     }
 
     /**

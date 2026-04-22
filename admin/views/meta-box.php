@@ -1141,11 +1141,30 @@ jQuery(document).ready(function($) {
     $('#ai-suggest-internal-links').on('click', function() {
         var $btn = $(this);
         $btn.prop('disabled', true).find('.dashicons').addClass('spin');
-        
+
+        // Grab live editor content so the backend can find anchor phrases that
+        // haven't been saved to the database yet.
+        var liveContent = '';
+        try {
+            if (typeof tinymce !== 'undefined') {
+                var ed = tinymce.get('content');
+                if (ed && !ed.isHidden()) { liveContent = ed.getContent(); }
+            }
+            if (!liveContent) {
+                var $ta = $('#content');
+                if ($ta.length && $ta.is(':visible')) { liveContent = $ta.val() || ''; }
+            }
+            if (!liveContent && typeof wp !== 'undefined' && wp.data) {
+                var gb = wp.data.select('core/editor');
+                if (gb) { liveContent = gb.getEditedPostContent() || ''; }
+            }
+        } catch (e) { liveContent = ''; }
+
         $.post(ssfAdmin.ajax_url, {
             action: 'ssf_suggest_internal_links',
             nonce: ssfAdmin.nonce,
-            post_id: postId
+            post_id: postId,
+            content: liveContent
         }, function(response) {
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
             

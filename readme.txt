@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.34
+Stable tag: 2.0.35
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,12 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.35 =
+* Fix: "Insert Internal Links" button in the post editor now works on unsaved content. The meta-box JS sends the live editor content to the server so the AI can find anchor phrases that aren't saved to the database yet. Previously it failed on new or freshly-edited posts because the server was reading stale DB content.
+* Fix: Internal-link candidate search now uses the same broader word-overlap scoring as the Indexability "Orphan Fix" (trying 6 candidates instead of WP's narrow ?s= search against 10), so it finds related posts even when focus keyword is empty.
+* New: Automatic internal linking on first publish. When a new post/page is published for the first time, a background job runs ~30s later to add up to 3 outgoing links from the new post to related posts, and up to 3 incoming links from related posts back to the new post. Uses parallel Bedrock when available. Setting: Settings → General → "Auto Internal Links" (default: on).
+* Performance: Meta-box internal-link suggestions now run in parallel on Bedrock via curl_multi (up to 6 AI anchor searches fire concurrently instead of sequentially).
+
 = 2.0.34 =
 * Extended parallel Bedrock processing to three more AI flows:
   - Search Console "Fix All Not-Indexed" background job (20 posts concurrent per batch).

@@ -776,6 +776,7 @@ class SSF_Ajax {
             'gemini_model'            => sanitize_text_field(wp_unslash($_POST['gemini_model'] ?? 'gemini-2.0-flash')),
             'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
             'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
+            'auto_internal_links'     => !empty($_POST['auto_internal_links']) ? 1 : 0,
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
             'enable_sitemap'          => !empty($_POST['enable_sitemap']) ? 1 : 0,
             'disable_other_seo_output'=> !empty($_POST['disable_other_seo_output']) ? 1 : 0,
@@ -1263,68 +1264,118 @@ class SSF_Ajax {
         if (!$post) {
             wp_send_json_error(['message' => __('Post not found.', 'smart-seo-fixer')]);
         }
-        
+
+        // IMPORTANT: prefer the live editor content (sent from the meta-box JS)
+        // over $post->post_content, which is the last-saved version. On a new
+        // or just-edited post, the DB content is stale and the AI has nothing
+        // to anchor into, which is why this button used to find nothing.
+        $live_content = isset($_POST['content']) ? (string) wp_unslash($_POST['content']) : '';
+        $source_content = trim($live_content) !== '' ? $live_content : $post->post_content;
+        if (trim(wp_strip_all_tags(strip_shortcodes($source_content))) === '') {
+            wp_send_json_error(['message' => __('Add some content to the post first, then click again.', 'smart-seo-fixer')]);
+        }
+
         $focus_keyword = get_post_meta($post_id, '_ssf_focus_keyword', true);
-        
-        // Find related posts
-        $args = [
-            'post_type' => ['post', 'page'],
-            'post_status' => 'publish',
-            'posts_per_page' => 10,
-            'post__not_in' => [$post_id],
-            's' => $focus_keyword ?: $post->post_title,
-        ];
-        
-        $related = get_posts($args);
-        
+
+        // Find candidate posts with broader matching (same approach the orphan
+        // fixer uses on the Indexability page) instead of WP's narrow ?s= search.
+        global $wpdb;
+        $post_types   = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+        $candidates   = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, post_title, post_content FROM {$wpdb->posts}
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
+                 AND ID != %d AND LENGTH(post_content) > 200
+                 ORDER BY post_date DESC LIMIT 60",
+                ...array_merge($post_types, [$post_id])
+            )
+        );
+
+        // Score candidates by title-word + keyword overlap with the source post.
+        $source_text = strtolower($post->post_title . ' ' . ($focus_keyword ? $focus_keyword . ' ' : '') . wp_strip_all_tags($source_content));
+        $source_words = array_unique(array_filter(str_word_count($source_text, 1), function($w){ return strlen($w) > 3; }));
+        $scored = [];
+        foreach ($candidates as $c) {
+            $url = get_permalink($c->ID);
+            if ($url && stripos($source_content, $url) !== false) { continue; }
+            $path = wp_parse_url($url, PHP_URL_PATH);
+            if ($path && stripos($source_content, $path) !== false) { continue; }
+            $ctext = strtolower($c->post_title);
+            $score = 0;
+            foreach ($source_words as $w) { if (stripos($ctext, $w) !== false) { $score++; } }
+            if ($score <= 0) { continue; }
+            $scored[] = ['post' => $c, 'url' => $url, 'score' => $score];
+        }
+        usort($scored, function($a,$b){ return $b['score'] - $a['score']; });
+        $scored = array_slice($scored, 0, 6); // try up to 6 to find 3 good anchors
+
         $ai    = SSF_AI::get();
         $links = [];
-        
-        foreach ($related as $related_post) {
-            $url = get_permalink($related_post->ID);
-            
-            // Skip if already linked in content
-            if (strpos($post->post_content, $url) !== false) {
-                continue;
-            }
-            
-            if ($ai->is_configured()) {
-                // Ask AI to find an existing phrase in this post that would serve as an anchor
-                $placement = $ai->find_internal_link_placement(
-                    $post->post_content,
-                    $related_post->post_title,
-                    $url
-                );
-                
-                if ( ! is_wp_error($placement)
-                    && ! empty($placement['found'])
-                    && ! empty($placement['anchor_text'])
-                    && stripos($post->post_content, $placement['anchor_text']) !== false
-                ) {
-                    $links[] = [
-                        'title'       => $related_post->post_title,
-                        'url'         => $url,
-                        'anchor_text' => $placement['anchor_text'],
-                    ];
-                }
-            } else {
-                // No AI configured: return link without anchor placement
-                $links[] = [
-                    'title'       => $related_post->post_title,
-                    'url'         => $url,
-                    'anchor_text' => '',
+
+        // Parallel fast path on Bedrock: fire all AI anchor searches at once.
+        $use_parallel = (
+            $ai instanceof SSF_Bedrock
+            && function_exists('curl_multi_init')
+            && class_exists('SSF_AI')
+            && SSF_AI::active_provider() === 'bedrock'
+            && $ai->is_configured()
+            && !empty($scored)
+        );
+
+        if ($use_parallel && method_exists($ai, 'build_internal_link_messages')) {
+            $jobs = [];
+            foreach ($scored as $i => $s) {
+                $jobs["il_{$i}"] = [
+                    'messages'    => $ai->build_internal_link_messages($source_content, $s['post']->post_title, $s['url']),
+                    'max_tokens'  => 150,
+                    'temperature' => 0.3,
                 ];
             }
-            
-            if (count($links) >= 3) {
-                break;
+            $responses = $ai->request_multi($jobs);
+            foreach ($scored as $i => $s) {
+                if (count($links) >= 3) { break; }
+                $r = $responses["il_{$i}"] ?? null;
+                if (is_wp_error($r) || $r === null) { continue; }
+                $placement = $ai->parse_internal_link_placement($r);
+                if (is_wp_error($placement)) { continue; }
+                if (empty($placement['found']) || empty($placement['anchor_text'])) { continue; }
+                if (stripos($source_content, $placement['anchor_text']) === false) { continue; }
+                $links[] = [
+                    'title'       => $s['post']->post_title,
+                    'url'         => $s['url'],
+                    'anchor_text' => $placement['anchor_text'],
+                ];
+            }
+        } else {
+            foreach ($scored as $s) {
+                if (count($links) >= 3) { break; }
+                if ($ai->is_configured()) {
+                    $placement = $ai->find_internal_link_placement($source_content, $s['post']->post_title, $s['url']);
+                    if (!is_wp_error($placement)
+                        && !empty($placement['found'])
+                        && !empty($placement['anchor_text'])
+                        && stripos($source_content, $placement['anchor_text']) !== false) {
+                        $links[] = [
+                            'title'       => $s['post']->post_title,
+                            'url'         => $s['url'],
+                            'anchor_text' => $placement['anchor_text'],
+                        ];
+                    }
+                } else {
+                    $links[] = [
+                        'title'       => $s['post']->post_title,
+                        'url'         => $s['url'],
+                        'anchor_text' => '',
+                    ];
+                }
             }
         }
-        
+
         if (empty($links)) {
             wp_send_json_error(['message' => __('No suitable anchor phrases found in this content for internal linking.', 'smart-seo-fixer')]);
         }
-        
+
         wp_send_json_success(['links' => $links]);
     }
     

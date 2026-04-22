@@ -81,6 +81,7 @@ if (class_exists('SSF_GA_Client')) {
 
 $auto_meta = Smart_SEO_Fixer::get_option('auto_meta');
 $auto_alt_text = Smart_SEO_Fixer::get_option('auto_alt_text');
+$auto_internal_links = Smart_SEO_Fixer::get_option('auto_internal_links', true);
 $enable_schema = Smart_SEO_Fixer::get_option('enable_schema', true);
 $enable_sitemap = Smart_SEO_Fixer::get_option('enable_sitemap', true);
 $disable_other_seo_output = Smart_SEO_Fixer::get_option('disable_other_seo_output', false);
@@ -847,6 +848,21 @@ unset($available_post_types['attachment']);
                                 </button>
                                 <span id="ssf-bulk-alt-status" style="margin-left: 10px;"></span>
                             </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Auto Internal Links', 'smart-seo-fixer'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox"
+                                       name="auto_internal_links"
+                                       value="1"
+                                       <?php checked($auto_internal_links, true); ?>>
+                                <?php esc_html_e('Automatically add internal links when a post is first published', 'smart-seo-fixer'); ?>
+                            </label>
+                            <p class="description">
+                                <?php esc_html_e('Adds up to 3 outgoing links from the new post to related existing posts, and up to 3 incoming links from related posts back to the new post. Runs asynchronously ~30s after publish so it does not slow down saving.', 'smart-seo-fixer'); ?>
+                            </p>
                         </td>
                     </tr>
                     <tr>
