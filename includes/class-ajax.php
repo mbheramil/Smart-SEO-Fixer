@@ -30,6 +30,7 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_save_seo_data', [$this, 'save_seo_data']);
         add_action('wp_ajax_ssf_save_settings', [$this, 'save_settings']);
         add_action('wp_ajax_ssf_test_bedrock',  [$this, 'test_bedrock']);
+        add_action('wp_ajax_ssf_test_ai_provider', [$this, 'test_ai_provider']);
         
         // Fix actions
         add_action('wp_ajax_ssf_fix_issue', [$this, 'fix_issue']);
@@ -57,6 +58,7 @@ class SSF_Ajax {
         add_action('wp_ajax_ssf_gsc_inspect_url', [$this, 'gsc_inspect_url']);
         add_action('wp_ajax_ssf_gsc_submit_sitemap', [$this, 'gsc_submit_sitemap']);
         add_action('wp_ajax_ssf_gsc_not_indexed', [$this, 'gsc_not_indexed']);
+        add_action('wp_ajax_ssf_gsc_auto_setup', [$this, 'gsc_auto_setup']);
         add_action('wp_ajax_ssf_ai_fix_single', [$this, 'ai_fix_single']);
         add_action('wp_ajax_ssf_get_posts_by_issue', [$this, 'get_posts_by_issue']);
         
@@ -338,7 +340,7 @@ class SSF_Ajax {
         if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
-        $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
+        $focus_keyword = sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? ''));
         
         if (!$post_id) {
             wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
@@ -390,7 +392,7 @@ class SSF_Ajax {
         if (class_exists('SSF_History')) SSF_History::set_source('ai');
         
         $post_id = intval($_POST['post_id'] ?? 0);
-        $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
+        $focus_keyword = sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? ''));
         
         if (!$post_id) {
             wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
@@ -442,9 +444,9 @@ class SSF_Ajax {
     public function generate_alt_text() {
         $this->verify_nonce();
         
-        $image_url = esc_url_raw($_POST['image_url'] ?? '');
-        $page_context = sanitize_textarea_field($_POST['page_context'] ?? '');
-        $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
+        $image_url = esc_url_raw(wp_unslash($_POST['image_url'] ?? ''));
+        $page_context = sanitize_textarea_field(wp_unslash($_POST['page_context'] ?? ''));
+        $focus_keyword = sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? ''));
         
         if (empty($image_url)) {
             wp_send_json_error(['message' => __('Image URL required.', 'smart-seo-fixer')]);
@@ -472,7 +474,7 @@ class SSF_Ajax {
         $this->verify_nonce();
         
         $post_id = intval($_POST['post_id'] ?? 0);
-        $focus_keyword = sanitize_text_field($_POST['focus_keyword'] ?? '');
+        $focus_keyword = sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? ''));
         
         if (!$post_id) {
             wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
@@ -563,11 +565,11 @@ class SSF_Ajax {
         }
         
         $data = [
-            'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::seo_title($_POST['seo_title'] ?? '') : sanitize_text_field($_POST['seo_title'] ?? ''),
-            'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::meta_description($_POST['meta_description'] ?? '') : sanitize_textarea_field($_POST['meta_description'] ?? ''),
-            'focus_keyword'    => class_exists('SSF_Validator') ? SSF_Validator::focus_keyword($_POST['focus_keyword'] ?? '') : sanitize_text_field($_POST['focus_keyword'] ?? ''),
+            'seo_title'        => class_exists('SSF_Validator') ? SSF_Validator::seo_title(wp_unslash($_POST['seo_title'] ?? '')) : sanitize_text_field(wp_unslash($_POST['seo_title'] ?? '')),
+            'meta_description' => class_exists('SSF_Validator') ? SSF_Validator::meta_description(wp_unslash($_POST['meta_description'] ?? '')) : sanitize_textarea_field(wp_unslash($_POST['meta_description'] ?? '')),
+            'focus_keyword'    => class_exists('SSF_Validator') ? SSF_Validator::focus_keyword(wp_unslash($_POST['focus_keyword'] ?? '')) : sanitize_text_field(wp_unslash($_POST['focus_keyword'] ?? '')),
             'canonical_url'    => $this->normalize_canonical_for_storage(
-                                       class_exists('SSF_Validator') ? SSF_Validator::url($_POST['canonical_url'] ?? '') : esc_url_raw($_POST['canonical_url'] ?? ''),
+                                       class_exists('SSF_Validator') ? SSF_Validator::url(wp_unslash($_POST['canonical_url'] ?? '')) : esc_url_raw(wp_unslash($_POST['canonical_url'] ?? '')),
                                        intval($_POST['post_id'] ?? 0)
                                    ),
             'noindex'          => !empty($_POST['noindex']) ? 1 : 0,
@@ -614,9 +616,9 @@ class SSF_Ajax {
             );
         } else {
             // Credentials submitted from the settings form
-            $access_key = sanitize_text_field($_POST['access_key'] ?? '');
-            $secret_key = sanitize_text_field($_POST['secret_key'] ?? '');
-            $region     = sanitize_text_field($_POST['region']     ?? 'us-east-1');
+            $access_key = sanitize_text_field(wp_unslash($_POST['access_key'] ?? ''));
+            $secret_key = sanitize_text_field(wp_unslash($_POST['secret_key'] ?? ''));
+            $region     = sanitize_text_field(wp_unslash($_POST['region']     ?? 'us-east-1'));
 
             if (empty($access_key) || empty($secret_key)) {
                 wp_send_json_error(['message' => __('Access Key and Secret Key are required.', 'smart-seo-fixer')]);
@@ -657,6 +659,92 @@ class SSF_Ajax {
     }
 
     /**
+     * Test any AI provider connection
+     */
+    public function test_ai_provider() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        $provider = sanitize_text_field(wp_unslash($_POST['provider'] ?? ''));
+        $test_msg = [['role' => 'user', 'content' => 'Reply with exactly the word: CONNECTED']];
+
+        // Temporarily swap credentials so the provider class picks up the unsaved values
+        $originals = [];
+
+        switch ($provider) {
+            case 'bedrock':
+                // Bedrock has its own test handler — delegate
+                $this->test_bedrock();
+                return;
+
+            case 'openai':
+                $api_key = sanitize_text_field(wp_unslash($_POST['api_key'] ?? ''));
+                $model   = sanitize_text_field(wp_unslash($_POST['model']   ?? 'gpt-4o-mini'));
+                if (empty($api_key)) {
+                    wp_send_json_error(['message' => __('API key is required.', 'smart-seo-fixer')]);
+                }
+                $originals = [
+                    'openai_api_key' => Smart_SEO_Fixer::get_option('openai_api_key'),
+                    'openai_model'   => Smart_SEO_Fixer::get_option('openai_model'),
+                ];
+                Smart_SEO_Fixer::update_option('openai_api_key', $api_key);
+                Smart_SEO_Fixer::update_option('openai_model', $model);
+                $instance = new SSF_OpenAI();
+                break;
+
+            case 'claude':
+                $api_key = sanitize_text_field(wp_unslash($_POST['api_key'] ?? ''));
+                $model   = sanitize_text_field(wp_unslash($_POST['model']   ?? 'claude-sonnet-4-20250514'));
+                if (empty($api_key)) {
+                    wp_send_json_error(['message' => __('API key is required.', 'smart-seo-fixer')]);
+                }
+                $originals = [
+                    'claude_api_key' => Smart_SEO_Fixer::get_option('claude_api_key'),
+                    'claude_model'   => Smart_SEO_Fixer::get_option('claude_model'),
+                ];
+                Smart_SEO_Fixer::update_option('claude_api_key', $api_key);
+                Smart_SEO_Fixer::update_option('claude_model', $model);
+                $instance = new SSF_Claude();
+                break;
+
+            case 'gemini':
+                $api_key = sanitize_text_field(wp_unslash($_POST['api_key'] ?? ''));
+                $model   = sanitize_text_field(wp_unslash($_POST['model']   ?? 'gemini-2.0-flash'));
+                if (empty($api_key)) {
+                    wp_send_json_error(['message' => __('API key is required.', 'smart-seo-fixer')]);
+                }
+                $originals = [
+                    'gemini_api_key' => Smart_SEO_Fixer::get_option('gemini_api_key'),
+                    'gemini_model'   => Smart_SEO_Fixer::get_option('gemini_model'),
+                ];
+                Smart_SEO_Fixer::update_option('gemini_api_key', $api_key);
+                Smart_SEO_Fixer::update_option('gemini_model', $model);
+                $instance = new SSF_Gemini();
+                break;
+
+            default:
+                wp_send_json_error(['message' => __('Unknown provider.', 'smart-seo-fixer')]);
+                return;
+        }
+
+        $result = $instance->request($test_msg, 10, 0.0);
+
+        // Restore original credentials
+        foreach ($originals as $k => $v) {
+            Smart_SEO_Fixer::update_option($k, $v);
+        }
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+
+        wp_send_json_success(['reply' => trim($result)]);
+    }
+
+    /**
      * Save plugin settings
      */
     public function save_settings() {
@@ -669,11 +757,17 @@ class SSF_Ajax {
         $v = class_exists('SSF_Validator');
         
                 $settings = [
-            'ai_provider'             => 'bedrock',
-            'bedrock_region'          => sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1'),
-            'bedrock_access_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_access_key'] ?? '') : sanitize_text_field($_POST['bedrock_access_key'] ?? ''),
-            'bedrock_secret_key'      => $v ? SSF_Validator::api_key($_POST['bedrock_secret_key'] ?? '') : sanitize_text_field($_POST['bedrock_secret_key'] ?? ''),
+            'ai_provider'             => in_array(($_POST['ai_provider'] ?? ''), ['bedrock', 'openai', 'claude', 'gemini'], true) ? sanitize_text_field($_POST['ai_provider']) : 'bedrock',
+            'bedrock_region'          => sanitize_text_field(wp_unslash($_POST['bedrock_region'] ?? 'us-east-1')),
+            'bedrock_access_key'      => $v ? SSF_Validator::api_key(wp_unslash($_POST['bedrock_access_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['bedrock_access_key'] ?? '')),
+            'bedrock_secret_key'      => $v ? SSF_Validator::api_key(wp_unslash($_POST['bedrock_secret_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['bedrock_secret_key'] ?? '')),
             'bedrock_model'           => 'us.anthropic.claude-sonnet-4-6',
+            'openai_api_key'          => $v ? SSF_Validator::api_key(wp_unslash($_POST['openai_api_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['openai_api_key'] ?? '')),
+            'openai_model'            => sanitize_text_field(wp_unslash($_POST['openai_model'] ?? 'gpt-4o-mini')),
+            'claude_api_key'          => $v ? SSF_Validator::api_key(wp_unslash($_POST['claude_api_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['claude_api_key'] ?? '')),
+            'claude_model'            => sanitize_text_field(wp_unslash($_POST['claude_model'] ?? 'claude-sonnet-4-20250514')),
+            'gemini_api_key'          => $v ? SSF_Validator::api_key(wp_unslash($_POST['gemini_api_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['gemini_api_key'] ?? '')),
+            'gemini_model'            => sanitize_text_field(wp_unslash($_POST['gemini_model'] ?? 'gemini-2.0-flash')),
             'auto_meta'               => !empty($_POST['auto_meta']) ? 1 : 0,
             'auto_alt_text'           => !empty($_POST['auto_alt_text']) ? 1 : 0,
             'enable_schema'           => !empty($_POST['enable_schema']) ? 1 : 0,
@@ -681,12 +775,12 @@ class SSF_Ajax {
             'disable_other_seo_output'=> !empty($_POST['disable_other_seo_output']) ? 1 : 0,
             'redirect_attachments'    => in_array(($_POST['redirect_attachments'] ?? ''), ['parent', 'file'], true) ? sanitize_text_field($_POST['redirect_attachments']) : '',
             'background_seo_cron'     => !empty($_POST['background_seo_cron']) ? 1 : 0,
-            'github_token'            => $v ? SSF_Validator::api_key($_POST['github_token'] ?? '') : sanitize_text_field($_POST['github_token'] ?? ''),
-            'gsc_client_id'           => sanitize_text_field($_POST['gsc_client_id'] ?? ''),
-            'gsc_client_secret'       => sanitize_text_field($_POST['gsc_client_secret'] ?? ''),
-            'title_separator'         => $v ? SSF_Validator::title_separator($_POST['title_separator'] ?? '|') : sanitize_text_field($_POST['title_separator'] ?? '|'),
-            'homepage_title'          => $v ? SSF_Validator::seo_title($_POST['homepage_title'] ?? '') : sanitize_text_field($_POST['homepage_title'] ?? ''),
-            'homepage_description'    => $v ? SSF_Validator::meta_description($_POST['homepage_description'] ?? '') : sanitize_textarea_field($_POST['homepage_description'] ?? ''),
+            'github_token'            => $v ? SSF_Validator::api_key(wp_unslash($_POST['github_token'] ?? '')) : sanitize_text_field(wp_unslash($_POST['github_token'] ?? '')),
+            'gsc_client_id'           => sanitize_text_field(wp_unslash($_POST['gsc_client_id'] ?? '')),
+            'gsc_client_secret'       => sanitize_text_field(wp_unslash($_POST['gsc_client_secret'] ?? '')),
+            'title_separator'         => $v ? SSF_Validator::title_separator(wp_unslash($_POST['title_separator'] ?? '|')) : sanitize_text_field(wp_unslash($_POST['title_separator'] ?? '|')),
+            'homepage_title'          => $v ? SSF_Validator::seo_title(wp_unslash($_POST['homepage_title'] ?? '')) : sanitize_text_field(wp_unslash($_POST['homepage_title'] ?? '')),
+            'homepage_description'    => $v ? SSF_Validator::meta_description(wp_unslash($_POST['homepage_description'] ?? '')) : sanitize_textarea_field(wp_unslash($_POST['homepage_description'] ?? '')),
         ];
         
         // Schedule or unschedule background cron based on setting
@@ -712,12 +806,21 @@ class SSF_Ajax {
             }
         }
         
-        // Preserve existing Bedrock credentials if not re-submitted
+        // Preserve existing credentials if not re-submitted
         if (empty($settings['bedrock_access_key'])) {
             unset($settings['bedrock_access_key']);
         }
         if (empty($settings['bedrock_secret_key'])) {
             unset($settings['bedrock_secret_key']);
+        }
+        if (empty($settings['openai_api_key'])) {
+            unset($settings['openai_api_key']);
+        }
+        if (empty($settings['claude_api_key'])) {
+            unset($settings['claude_api_key']);
+        }
+        if (empty($settings['gemini_api_key'])) {
+            unset($settings['gemini_api_key']);
         }
         
         // Preserve existing GSC credentials if not submitted (connected state hides the fields)
@@ -1334,20 +1437,9 @@ class SSF_Ajax {
         $address = implode(', ', $address_parts);
         $encoded_address = urlencode($address);
         
-        // Generate embed code
+        // Embed using the free Google Maps search mode (no API key required)
         $embed = '<iframe 
-            width="100%" 
-            height="400" 
-            style="border:0" 
-            loading="lazy" 
-            allowfullscreen 
-            referrerpolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=' . $encoded_address . '">
-        </iframe>';
-        
-        // Alternative without API key (search mode)
-        $embed_simple = '<iframe 
-            src="https://maps.google.com/maps?q=' . $encoded_address . '&output=embed" 
+            src="https://maps.google.com/maps?q=' . esc_attr($encoded_address) . '&output=embed" 
             width="100%" 
             height="400" 
             style="border:0;" 
@@ -1357,7 +1449,7 @@ class SSF_Ajax {
         </iframe>';
         
         wp_send_json_success([
-            'embed' => $embed_simple,
+            'embed'   => $embed,
             'address' => $address,
         ]);
     }
@@ -2583,6 +2675,44 @@ class SSF_Ajax {
         
         wp_send_json_success(['message' => __('Disconnected from Google Search Console.', 'smart-seo-fixer')]);
     }
+
+    /**
+     * One-click: create + verify + submit-sitemap a Search Console property
+     * for this site.
+     */
+    public function gsc_auto_setup() {
+        $this->verify_nonce();
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
+        }
+
+        if (!class_exists('SSF_GSC_Client')) {
+            wp_send_json_error(['message' => __('GSC module not available.', 'smart-seo-fixer')]);
+        }
+
+        try {
+            $gsc = new SSF_GSC_Client();
+            if (!$gsc->is_connected()) {
+                wp_send_json_error(['message' => __('Please connect to Google first.', 'smart-seo-fixer')]);
+            }
+
+            // Can take ~15-30s: token request + homepage fetch + verify call.
+            @set_time_limit(60);
+
+            $result = $gsc->auto_setup_property();
+
+            if (!empty($result['success'])) {
+                wp_send_json_success($result);
+            }
+            wp_send_json_error($result);
+        } catch (\Throwable $e) {
+            wp_send_json_error([
+                'message' => $e->getMessage(),
+                'steps'   => [],
+            ]);
+        }
+    }
     
     /**
      * Get search performance data
@@ -3219,6 +3349,12 @@ class SSF_Ajax {
         foreach ($items as $item) {
             $post_id = intval($item['post_id'] ?? 0);
             if (!$post_id || !get_post($post_id)) {
+                $skipped++;
+                continue;
+            }
+            
+            // Per-post capability check
+            if (!current_user_can('edit_post', $post_id)) {
                 $skipped++;
                 continue;
             }
@@ -4080,8 +4216,16 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
         
-        $content = sanitize_textarea_field($_POST['robots_content'] ?? '');
-        Smart_SEO_Fixer::update_option('robots_txt', $content);
+        // JS sends 'content' (not 'robots_content') and 'enabled'
+        $content = sanitize_textarea_field(wp_unslash($_POST['content'] ?? ''));
+        $enabled = !empty($_POST['enabled']);
+        
+        if (class_exists('SSF_Robots_Editor')) {
+            SSF_Robots_Editor::save_content($content);
+            SSF_Robots_Editor::set_enabled($enabled);
+        } else {
+            Smart_SEO_Fixer::update_option('robots_txt', $content);
+        }
         
         if (class_exists('SSF_Logger')) {
             SSF_Logger::info('robots.txt content updated', 'general');
@@ -4122,14 +4266,23 @@ class SSF_Ajax {
         $this->verify_nonce();
         
         $post_id = intval($_POST['post_id'] ?? 0);
-        if (!$post_id) {
-            wp_send_json_error(['message' => __('Invalid post ID.', 'smart-seo-fixer')]);
+        if (!$post_id || !current_user_can('edit_post', $post_id)) {
+            wp_send_json_error(['message' => __('Permission denied.', 'smart-seo-fixer')]);
         }
         
-        $fields = ['og_title', 'og_description', 'og_image', 'twitter_title', 'twitter_description', 'twitter_image'];
-        foreach ($fields as $field) {
+        // URL fields need esc_url_raw; text fields use sanitize_text_field
+        $url_fields  = ['og_image', 'twitter_image'];
+        $text_fields = ['og_title', 'og_description', 'twitter_title', 'twitter_description'];
+        
+        foreach ($url_fields as $field) {
             if (isset($_POST[$field])) {
-                update_post_meta($post_id, '_ssf_' . $field, sanitize_text_field($_POST[$field]));
+                update_post_meta($post_id, '_ssf_' . $field, esc_url_raw(wp_unslash($_POST[$field])));
+            }
+        }
+        
+        foreach ($text_fields as $field) {
+            if (isset($_POST[$field])) {
+                update_post_meta($post_id, '_ssf_' . $field, sanitize_text_field(wp_unslash($_POST[$field])));
             }
         }
         

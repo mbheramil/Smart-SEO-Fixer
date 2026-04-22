@@ -426,7 +426,7 @@
             var sec = d.sections || {};
 
             // Toggle section visibility — only show sections with data
-            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'score_factors', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status', 'worst_pages', 'issues'];
+            var allSections = ['overview', 'meta_coverage', 'score_distribution', 'score_factors', 'top_pages', 'content_health', 'image_seo', 'schema_coverage', 'redirects', 'keywords', 'broken_links_fixed', 'optimizations', 'sitemap_status', 'data_freshness', 'worst_pages', 'issues'];
             allSections.forEach(function(s) {
                 var $el = $('#ssf-section-' + s);
                 if (sec[s] !== undefined) { $el.show(); } else { $el.hide(); }
@@ -557,7 +557,7 @@
             if (sec.image_seo) {
                 var im = sec.image_seo;
                 var imh = '<div class="ssf-report-info-grid" style="margin-bottom:16px;">';
-                imh += this.infoCard(im.total_images.toLocaleString(), 'Total Images');
+                imh += this.infoCard(im.total_images.toLocaleString(), 'Images in Content');
                 imh += this.infoCard(im.with_alt.toLocaleString(), 'With Alt Text');
                 imh += this.infoCard(im.alt_pct + '%', 'Alt Text Coverage');
                 imh += this.infoCard(im.posts_with_images.toLocaleString(), 'Pages With Images');
@@ -570,6 +570,7 @@
                 if (isFullMode && im.without_alt > 0) {
                     imh += '<div class="ssf-report-alert ssf-alert-warning">' + im.without_alt + ' images are missing alt text. Alt text improves accessibility and helps search engines understand your images.</div>';
                 }
+                imh += '<p class="ssf-report-note" style="font-size:12px;opacity:.75;margin-top:8px;">Scope: images actually used in published content. Orphan uploads in the media library are excluded so the coverage % reflects what visitors and search engines see.</p>';
                 $('#ssf-image-seo-content').html(imh);
             }
 
@@ -636,17 +637,31 @@
             // ── Broken links ──
             if (sec.broken_links_fixed) {
                 var bl = sec.broken_links_fixed;
+                var period = bl.period_label ? ' (' + SSF_ClientReport.esc(bl.period_label) + ')' : '';
                 var bh = '<div class="ssf-report-info-grid">';
-                bh += this.infoCard(bl.fixed, 'Links Fixed');
-                if (isFullMode && bl.unfixed > 0) bh += this.infoCard(bl.unfixed, 'Still Broken', '', 'ssf-card-error');
-                if (isFullMode && bl.total > 0) bh += this.infoCard(bl.total, 'Total Found');
+                bh += this.infoCard(bl.fixed || 0, 'Links Fixed' + period);
+                if ((bl.fixed_total || 0) > (bl.fixed || 0)) {
+                    bh += this.infoCard(bl.fixed_total, 'Fixed All Time');
+                }
+                if ((bl.dismissed || 0) > 0) {
+                    bh += this.infoCard(bl.dismissed, 'Dismissed' + period);
+                }
+                if (isFullMode && (bl.outstanding || 0) > 0) {
+                    bh += this.infoCard(bl.outstanding, 'Still Broken', '', 'ssf-card-error');
+                }
+                if (isFullMode && (bl.total_tracked || 0) > 0) {
+                    bh += this.infoCard(bl.total_tracked, 'Total Tracked');
+                }
                 bh += '</div>';
-                if (bl.fixed > 0) {
-                    bh += '<p class="ssf-report-note ssf-note-positive">' + bl.fixed + ' broken link(s) have been identified and addressed, keeping your visitors on the right path.</p>';
+                if ((bl.fixed || 0) > 0) {
+                    bh += '<p class="ssf-report-note ssf-note-positive">' + bl.fixed + ' broken link(s) were resolved during this period — keeping visitors on the right path.</p>';
+                } else if ((bl.fixed_total || 0) > 0) {
+                    bh += '<p class="ssf-report-note">No new link fixes in this period. ' + bl.fixed_total + ' total have been resolved historically.</p>';
                 }
-                if (isFullMode && bl.unfixed > 0) {
-                    bh += '<div class="ssf-report-alert ssf-alert-error">' + bl.unfixed + ' broken link(s) still need attention. Review them in the Broken Links page.</div>';
+                if (isFullMode && (bl.outstanding || 0) > 0) {
+                    bh += '<div class="ssf-report-alert ssf-alert-error">' + bl.outstanding + ' broken link(s) still need attention. Review them in the Broken Links page.</div>';
                 }
+                bh += '<p class="ssf-report-note" style="font-size:12px;opacity:.75;margin-top:8px;">“Fixed” means a previously broken link was re-checked and found working. “Dismissed” means an admin manually hid the entry.</p>';
                 $('#ssf-broken-links-content').html(bh);
             }
 
@@ -686,6 +701,40 @@
                     smh += '</div>';
                 }
                 $('#ssf-sitemap-status-content').html(smh);
+            }
+
+            // ── Data Freshness ──
+            if (sec.data_freshness) {
+                var df = sec.data_freshness;
+                var qualityMap = {
+                    good:    { label: 'Fresh',   cls: 'ssf-note-positive' },
+                    partial: { label: 'Partial', cls: '' },
+                    stale:   { label: 'Stale',   cls: 'ssf-alert-error' },
+                    none:    { label: 'Not Analyzed', cls: 'ssf-alert-error' },
+                    unknown: { label: 'Unknown', cls: '' }
+                };
+                var q = qualityMap[df.quality] || qualityMap.unknown;
+                var dfh = '<div class="ssf-report-info-grid">';
+                dfh += this.infoCard(df.analyzed_count || 0, 'Pages Analyzed');
+                dfh += this.infoCard((df.fresh_pct || 0) + '%', 'Analyzed in last 30 days');
+                if ((df.never_analyzed || 0) > 0) {
+                    dfh += this.infoCard(df.never_analyzed, 'Never Analyzed');
+                }
+                if ((df.stale_over_90d || 0) > 0) {
+                    dfh += this.infoCard(df.stale_over_90d, 'Older than 90 days');
+                }
+                dfh += '</div>';
+                if (df.last_analyzed) {
+                    dfh += '<p class="ssf-report-note">Most recent analysis: <strong>' + SSF_ClientReport.esc(df.last_analyzed) + '</strong></p>';
+                }
+                if (df.quality === 'stale' || df.quality === 'none') {
+                    dfh += '<div class="ssf-report-alert ssf-alert-error">Some scores in this report may be out of date. Run a bulk re-analysis for the most accurate figures.</div>';
+                } else if (df.quality === 'partial') {
+                    dfh += '<p class="ssf-report-note">Most scores are recent, but a bulk re-analysis will bring every page fully up to date.</p>';
+                } else if (df.quality === 'good') {
+                    dfh += '<p class="ssf-report-note ssf-note-positive">Scores in this report reflect a recent analysis of your content.</p>';
+                }
+                $('#ssf-data-freshness-content').html(dfh);
             }
 
             // ── Worst Pages (full mode) ──

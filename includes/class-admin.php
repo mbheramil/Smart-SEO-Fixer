@@ -76,12 +76,12 @@ class SSF_Admin {
                 display: none;
                 position: absolute;
                 left: 100%;
-                top: -7px;
                 min-width: 160px;
                 background: #2c3338;
                 box-shadow: 0 3px 5px rgba(0,0,0,.2);
                 padding: 7px 0;
                 z-index: 10000;
+                border-radius: 0 4px 4px 0;
             }
             .ssf-flyout-trigger:hover > .ssf-flyout-panel,
             .ssf-flyout-trigger.ssf-fly-open > .ssf-flyout-panel {
@@ -121,7 +121,7 @@ class SSF_Admin {
     }
     
     /**
-     * JS for grouped admin menu with hover flyouts
+     * JS for grouped admin menu with hover flyouts + smart vertical positioning
      */
     public function admin_menu_group_js() {
         ?>
@@ -176,6 +176,26 @@ class SSF_Admin {
 
                 // Insert before the first item of this group
                 $items.first().before($trigger);
+            });
+
+            // Smart flyout positioning — open upward if not enough space below
+            $sub.on('mouseenter', '.ssf-flyout-trigger', function() {
+                var $panel = $(this).find('.ssf-flyout-panel');
+                if (!$panel.length) return;
+
+                // Reset position so we can measure naturally
+                $panel.css({ top: '', bottom: '' });
+
+                var triggerRect = this.getBoundingClientRect();
+                var panelHeight = $panel.outerHeight();
+                var viewportHeight = window.innerHeight;
+
+                // If the panel would overflow the bottom of the viewport, anchor to bottom
+                if (triggerRect.top + panelHeight > viewportHeight - 8) {
+                    $panel.css({ top: 'auto', bottom: '-7px' });
+                } else {
+                    $panel.css({ top: '-7px', bottom: 'auto' });
+                }
             });
         })(jQuery);
         </script>

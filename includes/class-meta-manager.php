@@ -653,6 +653,8 @@ class SSF_Meta_Manager {
      * Save post SEO data
      */
     public function save_post_seo_data($post_id, $data) {
+        $textarea_fields = ['_ssf_meta_description'];
+
         $fields = [
             '_ssf_seo_title',
             '_ssf_meta_description',
@@ -665,7 +667,10 @@ class SSF_Meta_Manager {
         foreach ($fields as $field) {
             $key = str_replace('_ssf_', '', $field);
             if (isset($data[$key])) {
-                update_post_meta($post_id, $field, sanitize_text_field($data[$key]));
+                $sanitized = in_array($field, $textarea_fields, true)
+                    ? sanitize_textarea_field($data[$key])
+                    : sanitize_text_field($data[$key]);
+                update_post_meta($post_id, $field, $sanitized);
             }
         }
     }

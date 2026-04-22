@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.26
+Stable tag: 2.0.27
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,17 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.27 =
+* New: One-click Search Console auto-setup — creates property, verifies ownership via meta tag, and submits sitemap automatically
+* New: "Auto-Create Property for This Site" button in Settings after connecting Google
+* New: Integrated Google Site Verification API (requires siteverification OAuth scope — existing users must disconnect and reconnect)
+* New: Self-check step confirms the verification meta tag is actually served before asking Google to verify (catches cache issues early)
+* Fix: Client Report accuracy — broken links "fixed" count now uses resolved log instead of dismissed flag
+* Fix: Client Report date range now applies consistently across all sections
+* Fix: Image SEO stats now scoped to images used in published content (no longer diluted by orphan media library uploads)
+* Fix: Image detection now catches Gutenberg image blocks, not just raw <img> tags
+* New: Data freshness indicator on Client Report showing score quality (good/partial/stale/none)
+
 = 2.0.26 =
 * Fix: Sub-sitemaps (sitemap-post.xml, sitemap-page.xml, etc.) returning blog page instead of XML
 * Fix: Rewrite rules were registered too late (init priority bug) - now applied correctly

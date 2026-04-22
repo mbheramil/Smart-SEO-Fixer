@@ -40,6 +40,7 @@ class SSF_Client_Report {
             'broken_links_fixed',
             'optimizations',
             'sitemap_status',
+            'data_freshness',
         ];
 
         // Full mode adds extra sections
@@ -82,6 +83,7 @@ class SSF_Client_Report {
             'broken_links_fixed' => 'get_broken_links_fixed',
             'optimizations'      => 'get_optimization_count',
             'sitemap_status'     => 'get_sitemap_status',
+            'data_freshness'     => 'get_data_freshness',
             'score_factors'      => 'get_score_factors',
             'worst_pages'        => 'get_worst_pages',
             'issues'             => 'get_issues',
@@ -92,7 +94,7 @@ class SSF_Client_Report {
                 continue;
             }
             $method = $method_map[$section];
-            $needs_dates = in_array($method, ['get_overview', 'get_keyword_highlights', 'get_optimization_count']);
+            $needs_dates = in_array($method, ['get_overview', 'get_keyword_highlights', 'get_optimization_count', 'get_broken_links_fixed']);
             $needs_mode  = in_array($method, ['get_overview', 'get_score_distribution', 'get_broken_links_fixed', 'get_meta_coverage', 'get_image_seo']);
 
             if ($needs_dates && $needs_mode) {
@@ -152,13 +154,18 @@ class SSF_Client_Report {
                 return ($result['total_tracked'] ?? 0) > 0 && !empty($result['top_keywords']);
 
             case 'broken_links_fixed':
-                return ($result['fixed'] ?? 0) > 0;
+                return ($result['fixed'] ?? 0) > 0
+                    || ($result['dismissed'] ?? 0) > 0
+                    || ($result['fixed_total'] ?? 0) > 0;
 
             case 'optimizations':
                 return ($result['total'] ?? 0) > 0;
 
             case 'sitemap_status':
                 return !empty($result['url']);
+
+            case 'data_freshness':
+                return ($result['analyzed_count'] ?? 0) > 0;
 
             case 'score_factors':
                 return !empty($result['factors']);
@@ -511,39 +518,120 @@ class SSF_Client_Report {
     }
 
     /**
-     * Image SEO: images with alt text.
-     * Checks actual attachment metadata (_wp_attachment_image_alt) instead of
-     * parsing raw post_content HTML, which misses alt text added by WordPress/themes/builders.
+     * Image SEO: alt-text coverage scoped to images actually used by the site.
+     *
+     * We intentionally exclude orphan uploads (images in the media library that
+     * are never referenced in any published content) because including them
+     * dilutes the alt-text % with noise the client can't act on.
+     *
+     * "Used" = attachment is either (a) attached to a published post via
+     * post_parent, (b) set as a featured image, or (c) referenced in published
+     * content by ID (wp-image-{id} class or ?attachment_id={id}).
      */
     private static function get_image_seo($mode = 'positive') {
         global $wpdb;
 
-        // Count all image attachments
-        $total_images = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts}
-             WHERE post_type = 'attachment'
-             AND post_mime_type LIKE 'image/%'"
-        );
-
-        // Count images WITH non-empty alt text
-        $with_alt = (int) $wpdb->get_var(
-            "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p
-             INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-             WHERE p.post_type = 'attachment'
-             AND p.post_mime_type LIKE 'image/%'
-             AND pm.meta_key = '_wp_attachment_image_alt'
-             AND pm.meta_value != ''"
-        );
-
-        // Count posts that have at least one image in content
         $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        if (empty($post_types)) {
+            $post_types = ['post', 'page'];
+        }
         $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
+        // ── Build the set of attachment IDs that are actually "used" ──
+        // (a) attached via post_parent to a published post in active types
+        $attached_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT DISTINCT a.ID
+                 FROM {$wpdb->posts} a
+                 INNER JOIN {$wpdb->posts} parent ON a.post_parent = parent.ID
+                 WHERE a.post_type = 'attachment'
+                 AND a.post_mime_type LIKE 'image/%%'
+                 AND parent.post_status = 'publish'
+                 AND parent.post_type IN ($placeholders)",
+                ...$post_types
+            )
+        );
+
+        // (b) featured images (_thumbnail_id) of published posts
+        $featured_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT DISTINCT pm.meta_value + 0
+                 FROM {$wpdb->postmeta} pm
+                 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+                 WHERE pm.meta_key = '_thumbnail_id'
+                 AND p.post_status = 'publish'
+                 AND p.post_type IN ($placeholders)",
+                ...$post_types
+            )
+        );
+
+        // (c) referenced in content via wp-image-{id}
+        $content_ids = [];
+        $rows = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT post_content FROM {$wpdb->posts}
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
+                 AND post_content LIKE %s",
+                ...array_merge($post_types, ['%wp-image-%'])
+            )
+        );
+        if (is_array($rows)) {
+            foreach ($rows as $content) {
+                if (empty($content)) continue;
+                if (preg_match_all('/wp-image-(\d+)/', $content, $m)) {
+                    foreach ($m[1] as $id) {
+                        $content_ids[] = (int) $id;
+                    }
+                }
+            }
+        }
+
+        $used_ids = array_unique(array_filter(array_map('intval', array_merge(
+            (array) $attached_ids,
+            (array) $featured_ids,
+            $content_ids
+        ))));
+
+        $total_images = count($used_ids);
+
+        if ($total_images === 0) {
+            return [
+                'total_images'      => 0,
+                'with_alt'          => 0,
+                'alt_pct'           => 0,
+                'posts_with_images' => 0,
+                'scope'             => 'used_in_published_content',
+            ];
+        }
+
+        // Count used images that have non-empty alt text.
+        $id_placeholders = implode(',', array_fill(0, count($used_ids), '%d'));
+        $with_alt = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta}
+                 WHERE meta_key = '_wp_attachment_image_alt'
+                 AND meta_value != ''
+                 AND post_id IN ($id_placeholders)",
+                ...$used_ids
+            )
+        );
+
+        // Posts with at least one image: detect <img>, Gutenberg image blocks,
+        // a featured image, or an image attachment.
         $posts_with_images = (int) $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->posts}
-                 WHERE post_status = 'publish' AND post_type IN ($placeholders)
-                 AND post_content LIKE '%s'",
-                ...array_merge($post_types, ['%<img%'])
+                "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p
+                 LEFT JOIN {$wpdb->postmeta} pm
+                    ON pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
+                 WHERE p.post_status = 'publish' AND p.post_type IN ($placeholders)
+                 AND (
+                    p.post_content LIKE '%%<img%%'
+                    OR p.post_content LIKE '%%wp:image%%'
+                    OR p.post_content LIKE '%%wp-image-%%'
+                    OR p.post_content LIKE '%%[gallery%%'
+                    OR (pm.meta_value IS NOT NULL AND pm.meta_value != '' AND pm.meta_value != '0')
+                 )",
+                ...$post_types
             )
         );
 
@@ -554,6 +642,7 @@ class SSF_Client_Report {
             'with_alt'          => $with_alt,
             'alt_pct'           => $alt_pct,
             'posts_with_images' => $posts_with_images,
+            'scope'             => 'used_in_published_content',
         ];
 
         if ($mode === 'full') {
@@ -684,26 +773,70 @@ class SSF_Client_Report {
     }
 
     /**
-     * Broken links fixed (and unfixed in full mode).
+     * Broken link activity — honest numbers.
+     *
+     * "Fixed" = links that were previously broken and, on a later re-scan, were
+     * found working (rows are deleted from the broken-links table at that
+     * moment, and a resolved-log is appended by SSF_Broken_Links). We count
+     * entries in that log inside the selected date range.
+     *
+     * "Dismissed" = links the admin manually hid (not necessarily fixed) —
+     * shown separately so the report doesn't conflate the two.
+     * "Outstanding" = rows still present and not dismissed (full mode only).
      */
-    private static function get_broken_links_fixed($mode = 'positive') {
+    private static function get_broken_links_fixed($dates, $mode = 'positive') {
         global $wpdb;
         $table = $wpdb->prefix . 'ssf_broken_links';
 
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
-            return ['fixed' => 0];
+        // Count real fixes inside the date window from the resolved log.
+        $fixed_in_range = 0;
+        $log = get_option('ssf_broken_links_resolved_log', []);
+        if (is_array($log) && !empty($log)) {
+            $start_ts = strtotime($dates['start'] . ' 00:00:00');
+            $end_ts   = strtotime($dates['end']   . ' 23:59:59');
+            foreach ($log as $entry) {
+                if (!is_array($entry) || empty($entry['t'])) {
+                    continue;
+                }
+                $ts = strtotime($entry['t']);
+                if ($ts === false) {
+                    continue;
+                }
+                if ($ts >= $start_ts && $ts <= $end_ts) {
+                    $fixed_in_range++;
+                }
+            }
         }
 
-        $fixed = intval($wpdb->get_var("SELECT COUNT(*) FROM $table WHERE dismissed = 1"));
+        // Lifetime resolved count (for "all time" context).
+        $fixed_total = (int) get_option('ssf_broken_links_resolved_total', 0);
 
         $result = [
-            'fixed' => $fixed,
+            // Period metric — actual links that went from broken → working.
+            'fixed'           => $fixed_in_range,
+            'fixed_total'     => $fixed_total,
+            'period_label'    => $dates['label'],
         ];
 
-        if ($mode === 'full') {
-            $unfixed = intval($wpdb->get_var("SELECT COUNT(*) FROM $table WHERE dismissed = 0"));
-            $result['unfixed'] = $unfixed;
-            $result['total']   = $fixed + $unfixed;
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") === $table) {
+            // Dismissed in window (manually hidden by admin).
+            $dismissed_in_range = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table
+                 WHERE dismissed = 1
+                 AND last_checked >= %s AND last_checked <= %s",
+                $dates['start'] . ' 00:00:00',
+                $dates['end']   . ' 23:59:59'
+            ));
+            $result['dismissed'] = $dismissed_in_range;
+
+            if ($mode === 'full') {
+                $result['outstanding'] = (int) $wpdb->get_var(
+                    "SELECT COUNT(*) FROM $table WHERE dismissed = 0"
+                );
+                $result['total_tracked'] = (int) $wpdb->get_var(
+                    "SELECT COUNT(*) FROM $table"
+                );
+            }
         }
 
         return $result;
@@ -797,6 +930,87 @@ class SSF_Client_Report {
             'enabled'         => true,
             'indexable_pages'  => intval($indexable_count),
             'post_types'      => $post_types,
+        ];
+    }
+
+    /**
+     * Data freshness: tells the client how current the analyzed data is.
+     * Without this, snapshot sections (scores, content health, factors) can
+     * quietly show months-old numbers — this section flags that explicitly.
+     */
+    private static function get_data_freshness() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'ssf_seo_scores';
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            return ['analyzed_count' => 0];
+        }
+
+        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        if (empty($post_types)) {
+            $post_types = ['post', 'page'];
+        }
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
+        $total_posts = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_status = 'publish' AND post_type IN ($placeholders)",
+                ...$post_types
+            )
+        );
+
+        // Freshness buckets based on latest analysis per post.
+        $stats = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT
+                    COUNT(*) as analyzed_count,
+                    MAX(last_analyzed) as last_analyzed,
+                    SUM(CASE WHEN last_analyzed >= (NOW() - INTERVAL 7 DAY)  THEN 1 ELSE 0 END) as fresh_7d,
+                    SUM(CASE WHEN last_analyzed >= (NOW() - INTERVAL 30 DAY) THEN 1 ELSE 0 END) as fresh_30d,
+                    SUM(CASE WHEN last_analyzed <  (NOW() - INTERVAL 90 DAY) THEN 1 ELSE 0 END) as stale_90d
+                 FROM (
+                    SELECT t1.post_id, t1.last_analyzed
+                    FROM $table t1
+                    INNER JOIN {$wpdb->posts} p ON t1.post_id = p.ID
+                    WHERE p.post_status = 'publish'
+                    AND p.post_type IN ($placeholders)
+                    AND t1.id = (SELECT MAX(t2.id) FROM $table t2 WHERE t2.post_id = t1.post_id)
+                 ) latest",
+                ...$post_types
+            )
+        );
+
+        $analyzed = (int) ($stats->analyzed_count ?? 0);
+        $fresh_30d = (int) ($stats->fresh_30d ?? 0);
+        $stale_90d = (int) ($stats->stale_90d ?? 0);
+        $never     = max(0, $total_posts - $analyzed);
+
+        $fresh_pct = $total_posts > 0 ? round(($fresh_30d / $total_posts) * 100) : 0;
+
+        // Quality signal so the UI / client can see at a glance.
+        if ($total_posts === 0) {
+            $quality = 'unknown';
+        } elseif ($analyzed === 0) {
+            $quality = 'none';
+        } elseif ($fresh_pct >= 80) {
+            $quality = 'good';
+        } elseif ($fresh_pct >= 40) {
+            $quality = 'partial';
+        } else {
+            $quality = 'stale';
+        }
+
+        return [
+            'total_posts'    => $total_posts,
+            'analyzed_count' => $analyzed,
+            'never_analyzed' => $never,
+            'last_analyzed'  => $stats->last_analyzed ?? null,
+            'fresh_7d'       => (int) ($stats->fresh_7d ?? 0),
+            'fresh_30d'      => $fresh_30d,
+            'stale_over_90d' => $stale_90d,
+            'fresh_pct'      => $fresh_pct,
+            'quality'        => $quality,
         ];
     }
 
@@ -1100,6 +1314,27 @@ class SSF_Client_Report {
         $url = esc_url_raw($url);
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
             return ['success' => false, 'message' => __('Invalid URL.', 'smart-seo-fixer')];
+        }
+
+        // Restrict to http/https only (prevent file://, ftp://, etc.)
+        $scheme = wp_parse_url($url, PHP_URL_SCHEME);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return ['success' => false, 'message' => __('Only http and https URLs are allowed.', 'smart-seo-fixer')];
+        }
+
+        // Block SSRF: disallow requests to private/loopback IP ranges
+        $host = wp_parse_url($url, PHP_URL_HOST);
+        if (!empty($host)) {
+            $ip = gethostbyname($host);
+            if (
+                $ip !== false &&
+                (
+                    filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false ||
+                    $ip === '127.0.0.1' || $ip === '::1'
+                )
+            ) {
+                return ['success' => false, 'message' => __('Requests to internal network addresses are not allowed.', 'smart-seo-fixer')];
+            }
         }
 
         // Auto-convert Google Docs edit URL to export URL

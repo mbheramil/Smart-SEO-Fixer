@@ -20,10 +20,13 @@ class SSF_GSC_Client {
     private $token_url = 'https://oauth2.googleapis.com/token';
     private $api_base  = 'https://www.googleapis.com/webmasters/v3';
     private $inspection_api = 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect';
+    private $verification_api = 'https://www.googleapis.com/siteVerification/v1';
     
     private $scopes = [
         'https://www.googleapis.com/auth/webmasters.readonly',
         'https://www.googleapis.com/auth/webmasters',
+        // Needed to create+verify Search Console properties on behalf of the user.
+        'https://www.googleapis.com/auth/siteverification',
     ];
     
     public function __construct() {
@@ -33,6 +36,11 @@ class SSF_GSC_Client {
         
         // Handle OAuth callback
         add_action('admin_init', [$this, 'handle_oauth_callback']);
+
+        // Output the site-verification meta tag on the front-end whenever one is
+        // stored. The tag must remain present even after verification — Google
+        // re-checks periodically and will revoke ownership if it disappears.
+        add_action('wp_head', [$this, 'output_verification_meta'], 1);
     }
     
     /**
@@ -166,6 +174,7 @@ class SSF_GSC_Client {
             'refresh_token' => $body['refresh_token'] ?? '',
             'expires_at'    => time() + ($body['expires_in'] ?? 3600),
             'token_type'    => $body['token_type'] ?? 'Bearer',
+            'scope'         => $body['scope'] ?? '',
         ];
         
         $this->save_tokens($tokens);
@@ -558,6 +567,7 @@ class SSF_GSC_Client {
      */
     public function disconnect() {
         delete_option('ssf_gsc_tokens');
+        delete_option('ssf_gsc_verification_token');
         Smart_SEO_Fixer::update_option('gsc_site_url', '');
         delete_transient('ssf_gsc_performance');
         delete_transient('ssf_gsc_queries');
@@ -581,5 +591,289 @@ class SSF_GSC_Client {
             'site_url'  => $site_url,
             'expires'   => date('Y-m-d H:i:s', $tokens['expires_at'] ?? 0),
         ];
+    }
+
+    // ========================================================
+    // Auto-Setup: create + verify a Search Console property
+    // ========================================================
+
+    /**
+     * Return true if the connected OAuth token was granted the
+     * siteverification scope. Existing connections predating this feature
+     * will not have it and must reconnect.
+     */
+    public function has_siteverification_scope() {
+        $tokens = $this->get_tokens();
+        if (empty($tokens['scope'])) {
+            // Older connections did not persist scope — fall back to a live
+            // capability check the first time auto-setup is attempted.
+            return true; // optimistic; actual API call will tell us
+        }
+        return strpos($tokens['scope'], 'siteverification') !== false;
+    }
+
+    /**
+     * Output the saved google-site-verification meta tag on the front-end.
+     * Hosted permanently (not just until verified) because Google re-checks
+     * and will revoke ownership if the tag disappears.
+     */
+    public function output_verification_meta() {
+        if (is_admin()) {
+            return;
+        }
+        $token = get_option('ssf_gsc_verification_token', '');
+        if (empty($token)) {
+            return;
+        }
+        // Accept any of: raw token, "google-site-verification=xxx",
+        // or a full <meta> tag — always emit canonical form.
+        $content = self::extract_verification_content($token);
+        if ($content === '') {
+            return;
+        }
+        echo '<meta name="google-site-verification" content="' . esc_attr($content) . '" />' . "\n";
+    }
+
+    /**
+     * Normalise whatever Google returned into just the attribute value.
+     */
+    private static function extract_verification_content($raw) {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return '';
+        }
+        // Full <meta ... content="X" ...> form.
+        if (stripos($raw, '<meta') !== false) {
+            if (preg_match('/content\s*=\s*"([^"]+)"/i', $raw, $m)) {
+                return $m[1];
+            }
+            if (preg_match("/content\s*=\s*'([^']+)'/i", $raw, $m)) {
+                return $m[1];
+            }
+            return '';
+        }
+        // "google-site-verification=xxx" form.
+        if (stripos($raw, 'google-site-verification=') === 0) {
+            return substr($raw, strlen('google-site-verification='));
+        }
+        // Already just the value.
+        return $raw;
+    }
+
+    /**
+     * Resolve the homepage URL into a canonical URL-prefix property.
+     * e.g. https://www.example.com -> https://www.example.com/
+     * We intentionally DO NOT auto-generate sc-domain: properties because
+     * those require DNS verification which the plugin cannot self-host.
+     */
+    public function get_property_url_for_site() {
+        $url = home_url('/');
+        if (substr($url, -1) !== '/') {
+            $url .= '/';
+        }
+        return $url;
+    }
+
+    /**
+     * Ask Google for a verification token (META method).
+     *
+     * @param string $site_url URL-prefix property (must end with /)
+     * @return array|WP_Error ['token' => 'content value to put in meta tag']
+     */
+    public function request_verification_token($site_url) {
+        $endpoint = $this->verification_api . '/token';
+        $body = [
+            'verificationMethod' => 'META',
+            'site' => [
+                'type'       => 'SITE',
+                'identifier' => $site_url,
+            ],
+        ];
+        $result = $this->api_request($endpoint, 'POST', $body);
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        if (empty($result['token'])) {
+            return new WP_Error('gsc_no_token', __('Google did not return a verification token.', 'smart-seo-fixer'));
+        }
+        return $result;
+    }
+
+    /**
+     * Ask Google to verify the site (META method).
+     * The verification meta tag must already be live on the homepage.
+     */
+    public function verify_site($site_url) {
+        $endpoint = $this->verification_api . '/webResource?verificationMethod=META';
+        $body = [
+            'site' => [
+                'type'       => 'SITE',
+                'identifier' => $site_url,
+            ],
+        ];
+        return $this->api_request($endpoint, 'POST', $body);
+    }
+
+    /**
+     * Check if the homepage currently serves the verification meta tag
+     * that we expect. Called before asking Google to verify so we can
+     * fail fast with a helpful message instead of hitting the API.
+     */
+    private function homepage_has_verification_tag($expected_content) {
+        $response = wp_remote_get(home_url('/'), [
+            'timeout'     => 15,
+            'redirection' => 3,
+            'sslverify'   => false,
+            'headers'     => [
+                // Some hosts serve different HTML to bots; mimic a real browser.
+                'User-Agent' => 'Mozilla/5.0 (compatible; SmartSEOFixer-Verifier/1.0)',
+            ],
+        ]);
+        if (is_wp_error($response)) {
+            return new WP_Error('gsc_fetch_home', $response->get_error_message());
+        }
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code !== 200) {
+            return new WP_Error('gsc_home_status', sprintf(
+                __('Homepage returned HTTP %d — Google must be able to fetch it (200 OK) to verify ownership.', 'smart-seo-fixer'),
+                $code
+            ));
+        }
+        $html = wp_remote_retrieve_body($response);
+        if (strpos($html, 'google-site-verification') === false) {
+            return new WP_Error('gsc_tag_missing', __('The verification meta tag was not found on the homepage. Make sure no caching plugin is stripping it and that the site is public.', 'smart-seo-fixer'));
+        }
+        if (strpos($html, $expected_content) === false) {
+            return new WP_Error('gsc_tag_stale', __('A google-site-verification tag is on the homepage but it is a different token than expected — likely a cached copy. Please purge your cache (Cloudflare, LiteSpeed, WP Rocket, etc.) and try again.', 'smart-seo-fixer'));
+        }
+        return true;
+    }
+
+    /**
+     * Add a URL-prefix site to Search Console (requires prior verification).
+     */
+    public function add_site_to_search_console($site_url) {
+        $url = $this->api_base . '/sites/' . rawurlencode($site_url);
+        return $this->api_request($url, 'PUT');
+    }
+
+    /**
+     * Orchestrator: create + verify + submit-sitemap in one call.
+     *
+     * Returns a structured log of each step so the UI can show clearly
+     * what succeeded and what failed.
+     */
+    public function auto_setup_property() {
+        $log = [
+            'site_url' => '',
+            'steps'    => [],
+            'success'  => false,
+            'message'  => '',
+        ];
+
+        if (!$this->is_connected()) {
+            $log['message'] = __('Not connected to Google.', 'smart-seo-fixer');
+            return $log;
+        }
+
+        if (!$this->has_siteverification_scope()) {
+            $log['message'] = __('Your existing connection is missing the site-verification permission. Please disconnect and reconnect Google to re-grant permissions.', 'smart-seo-fixer');
+            return $log;
+        }
+
+        $site_url = $this->get_property_url_for_site();
+        $log['site_url'] = $site_url;
+
+        // Refuse to try on non-public URLs — verification will always fail.
+        $host = wp_parse_url($site_url, PHP_URL_HOST);
+        if (empty($host)
+            || $host === 'localhost'
+            || strpos($host, '.local') !== false
+            || strpos($host, '.test') !== false
+            || filter_var($host, FILTER_VALIDATE_IP)
+        ) {
+            $log['message'] = sprintf(
+                __('Auto-setup requires a public, internet-reachable domain. "%s" is not accessible to Google.', 'smart-seo-fixer'),
+                $host
+            );
+            $log['steps'][] = ['name' => 'precheck_domain', 'success' => false, 'detail' => $log['message']];
+            return $log;
+        }
+        $log['steps'][] = ['name' => 'precheck_domain', 'success' => true, 'detail' => $host];
+
+        // ── Step 1: request a verification token ─────────────────────────
+        $token_result = $this->request_verification_token($site_url);
+        if (is_wp_error($token_result)) {
+            // Missing scope shows up here with 403 "insufficientPermissions".
+            $msg = $token_result->get_error_message();
+            if (stripos($msg, 'insufficient') !== false || stripos($msg, 'scope') !== false) {
+                $msg .= ' ' . __('Please disconnect and reconnect Google to grant verification permission.', 'smart-seo-fixer');
+            }
+            $log['message'] = $msg;
+            $log['steps'][] = ['name' => 'request_token', 'success' => false, 'detail' => $msg];
+            return $log;
+        }
+        $content = self::extract_verification_content($token_result['token']);
+        if ($content === '') {
+            $log['message'] = __('Could not parse the verification token returned by Google.', 'smart-seo-fixer');
+            $log['steps'][] = ['name' => 'request_token', 'success' => false, 'detail' => $log['message']];
+            return $log;
+        }
+        update_option('ssf_gsc_verification_token', $content, false);
+        // Bust common page caches so the tag goes live immediately.
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+        }
+        $log['steps'][] = ['name' => 'request_token', 'success' => true, 'detail' => __('Token received and saved to site header.', 'smart-seo-fixer')];
+
+        // ── Step 2: confirm the homepage actually serves the tag ─────────
+        $local_check = $this->homepage_has_verification_tag($content);
+        if (is_wp_error($local_check)) {
+            $log['message'] = $local_check->get_error_message();
+            $log['steps'][] = ['name' => 'homepage_check', 'success' => false, 'detail' => $log['message']];
+            return $log;
+        }
+        $log['steps'][] = ['name' => 'homepage_check', 'success' => true, 'detail' => __('Meta tag is live on the homepage.', 'smart-seo-fixer')];
+
+        // ── Step 3: ask Google to verify ─────────────────────────────────
+        $verify_result = $this->verify_site($site_url);
+        if (is_wp_error($verify_result)) {
+            $log['message'] = $verify_result->get_error_message();
+            $log['steps'][] = ['name' => 'verify', 'success' => false, 'detail' => $log['message']];
+            return $log;
+        }
+        $log['steps'][] = ['name' => 'verify', 'success' => true, 'detail' => __('Google confirmed ownership.', 'smart-seo-fixer')];
+
+        // ── Step 4: add to Search Console ────────────────────────────────
+        $add_result = $this->add_site_to_search_console($site_url);
+        if (is_wp_error($add_result)) {
+            // Most common non-fatal: "alreadyExists" style — treat as success.
+            $msg = $add_result->get_error_message();
+            if (stripos($msg, 'already') === false) {
+                $log['message'] = $msg;
+                $log['steps'][] = ['name' => 'add_to_gsc', 'success' => false, 'detail' => $msg];
+                return $log;
+            }
+            $log['steps'][] = ['name' => 'add_to_gsc', 'success' => true, 'detail' => __('Property already existed in Search Console.', 'smart-seo-fixer')];
+        } else {
+            $log['steps'][] = ['name' => 'add_to_gsc', 'success' => true, 'detail' => __('Property added to Search Console.', 'smart-seo-fixer')];
+        }
+
+        // Persist the selected property immediately.
+        Smart_SEO_Fixer::update_option('gsc_site_url', $site_url);
+        delete_transient('ssf_gsc_sites_cache');
+
+        // ── Step 5: submit the sitemap (best-effort, non-fatal) ──────────
+        $sitemap_url = home_url('/sitemap.xml');
+        $sitemap_result = $this->submit_sitemap($sitemap_url);
+        if (is_wp_error($sitemap_result)) {
+            $log['steps'][] = ['name' => 'submit_sitemap', 'success' => false, 'detail' => $sitemap_result->get_error_message()];
+        } else {
+            $log['steps'][] = ['name' => 'submit_sitemap', 'success' => true, 'detail' => sprintf(__('Sitemap submitted: %s', 'smart-seo-fixer'), $sitemap_url)];
+        }
+
+        $log['success'] = true;
+        $log['message'] = __('Search Console property created and verified successfully.', 'smart-seo-fixer');
+        return $log;
     }
 }

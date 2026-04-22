@@ -16,75 +16,15 @@ if (!defined('ABSPATH')) {
     </h1>
     
     <p class="ssf-page-description">
-        <?php esc_html_e('Detects and fixes all 9 Google Search Console indexing issue types. Run a full audit to find every reason Google might not index your pages — then fix them with one click.', 'smart-seo-fixer'); ?>
+        <?php esc_html_e('Scans every published page against all 9 Google Search Console indexing issue types — then lets you fix them with one click.', 'smart-seo-fixer'); ?>
     </p>
     
-    <!-- Issue Type Guide — maps to exact GSC issue types -->
-    <div class="ssf-card ssf-gsc-guide">
-        <div class="ssf-card-header">
-            <h2>
-                <span class="dashicons dashicons-info-outline"></span>
-                <?php esc_html_e('Google Search Console Issues — Detection & Auto-Fix', 'smart-seo-fixer'); ?>
-            </h2>
-        </div>
-        <div class="ssf-card-body">
-            <div class="ssf-gsc-issues-grid">
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e('Page with redirect', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Detects published pages that have an active redirect. Fixes redirect chains (A→B→C to A→C).', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e("Excluded by 'noindex' tag", 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Finds pages with noindex that should be indexed. One-click remove noindex.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-info"></span>
-                    <strong><?php esc_html_e('Alternate page with proper canonical tag', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Lists pages with custom canonicals pointing elsewhere. Review to confirm they are intentional.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Review', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e('Duplicate without user-selected canonical', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Detects duplicate titles and descriptions that cause Google to see pages as duplicates. AI generates unique versions.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-ai"><?php esc_html_e('AI Fix', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e('Not found (404)', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Tracks 404 errors with hit count. Create redirects to fix broken URLs.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-warning"></span>
-                    <strong><?php esc_html_e('Crawled - currently not indexed', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Detects thin content (< 300 words) and orphaned pages with no internal links — top reasons Google skips indexing.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Action Required', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e('Duplicate, Google chose different canonical', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Prevented by consistent trailing slashes, UTM stripping, and normalized canonical URLs across all pages.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-auto"><?php esc_html_e('Auto-Prevent', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-warning"></span>
-                    <strong><?php esc_html_e('Blocked by robots.txt', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Parses your robots.txt and checks if any published pages are blocked from crawling.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-review"><?php esc_html_e('Review', 'smart-seo-fixer'); ?></span>
-                </div>
-                <div class="ssf-gsc-issue-type">
-                    <span class="ssf-gsc-status ssf-status-fixable"></span>
-                    <strong><?php esc_html_e('Discovered - currently not indexed', 'smart-seo-fixer'); ?></strong>
-                    <p><?php esc_html_e('Finds pages missing SEO title, description, or focus keyword. AI generates all missing data.', 'smart-seo-fixer'); ?></p>
-                    <span class="ssf-gsc-tag ssf-tag-ai"><?php esc_html_e('AI Fix', 'smart-seo-fixer'); ?></span>
-                </div>
-            </div>
-        </div>
+    <!-- Compact legend strip -->
+    <div class="ssf-legend-strip">
+        <span class="ssf-legend-item"><span class="ssf-legend-dot" style="background:#10b981;"></span><?php esc_html_e('Auto-Fix', 'smart-seo-fixer'); ?></span>
+        <span class="ssf-legend-item"><span class="ssf-legend-dot" style="background:#8b5cf6;"></span><?php esc_html_e('AI Fix', 'smart-seo-fixer'); ?></span>
+        <span class="ssf-legend-item"><span class="ssf-legend-dot" style="background:#f59e0b;"></span><?php esc_html_e('Review Needed', 'smart-seo-fixer'); ?></span>
+        <span class="ssf-legend-item"><span class="ssf-legend-dot" style="background:#ef4444;"></span><?php esc_html_e('Manual', 'smart-seo-fixer'); ?></span>
     </div>
     
     <!-- Summary Stats -->
@@ -210,62 +150,6 @@ if (!defined('ABSPATH')) {
         <div class="ssf-card-body">
             <div id="scan-results-content">
                 <!-- Results populated by JavaScript -->
-            </div>
-        </div>
-    </div>
-    
-    <!-- How It Works -->
-    <div class="ssf-card">
-        <div class="ssf-card-header">
-            <h2>
-                <span class="dashicons dashicons-lightbulb"></span>
-                <?php esc_html_e('Always-On Protection (Runs Automatically)', 'smart-seo-fixer'); ?>
-            </h2>
-        </div>
-        <div class="ssf-card-body">
-            <div class="ssf-feature-list">
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('Automatic Trailing Slash Normalization', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Detects your permalink structure and ensures all URLs use consistent trailing slashes. Redirects inconsistent requests.', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('UTM Parameter Stripping', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Automatically strips UTM and other tracking parameters from canonical URLs to prevent duplicate content issues.', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('Consistent Canonical Tags', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Outputs proper canonical URLs on all pages including archives, categories, and author pages.', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('Sitemap URL Normalization', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Sitemap URLs are automatically normalized to match your canonical URL format.', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('Redirect Chain Detection', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Scans for redirect chains (A→B→C) and can automatically update them to direct redirects (A→C).', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
-                <div class="ssf-feature-item">
-                    <span class="dashicons dashicons-yes-alt" style="color: #10b981;"></span>
-                    <div>
-                        <strong><?php esc_html_e('Noindex Conflict Detection', 'smart-seo-fixer'); ?></strong>
-                        <p><?php esc_html_e('Warns when noindex pages might be included in the sitemap, causing mixed signals.', 'smart-seo-fixer'); ?></p>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -850,54 +734,31 @@ jQuery(document).ready(function($) {
 </script>
 
 <style>
-/* Issue type guide grid */
-.ssf-gsc-issues-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-}
-.ssf-gsc-issue-type {
+/* Legend strip */
+.ssf-legend-strip {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 16px;
+    gap: 20px;
+    padding: 10px 16px;
     background: #f9fafb;
-    border-radius: 10px;
     border: 1px solid #e5e7eb;
-    position: relative;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
 }
-.ssf-gsc-issue-type strong {
-    font-size: 13.5px;
-}
-.ssf-gsc-issue-type p {
-    margin: 0;
-    color: #6b7280;
+.ssf-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 12.5px;
-    line-height: 1.5;
+    color: #4b5563;
+    font-weight: 500;
 }
-.ssf-gsc-status {
-    width: 10px;
-    height: 10px;
+.ssf-legend-dot {
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    display: inline-block;
     flex-shrink: 0;
 }
-.ssf-status-fixable { background: #10b981; }
-.ssf-status-info { background: #3b82f6; }
-.ssf-status-warning { background: #f59e0b; }
-
-.ssf-gsc-tag {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    width: fit-content;
-}
-.ssf-tag-auto { background: #d1fae5; color: #065f46; }
-.ssf-tag-ai { background: #ede9fe; color: #5b21b6; }
-.ssf-tag-review { background: #fef3c7; color: #92400e; }
-.ssf-tag-manual { background: #fee2e2; color: #991b1b; }
 
 /* Audit description */
 .ssf-audit-description {
@@ -1151,28 +1012,6 @@ jQuery(document).ready(function($) {
 }
 .ssf-spin {
     animation: ssf-spin 1s linear infinite;
-}
-
-/* Feature list (How it works section) */
-.ssf-feature-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-.ssf-feature-item {
-    display: flex;
-    gap: 15px;
-    align-items: flex-start;
-}
-.ssf-feature-item .dashicons {
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
-    margin-top: 2px;
-}
-.ssf-feature-item strong {
-    display: block;
-    margin-bottom: 4px;
 }
 .ssf-feature-item p {
     margin: 0;

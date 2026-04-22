@@ -308,14 +308,36 @@ class SSF_Broken_Links {
     }
     
     /**
-     * Remove a broken link record if it's now fixed
+     * Remove a broken link record if it's now fixed.
+     * Also increments a persistent resolved counter so reports can show an
+     * accurate "fixed over time" metric (the row itself is deleted here).
      */
     private static function remove_if_fixed($post_id, $url) {
         global $wpdb;
-        $wpdb->delete(self::table(), [
+        $deleted = $wpdb->delete(self::table(), [
             'post_id' => $post_id,
             'url'     => $url,
         ]);
+
+        if ($deleted) {
+            // Lifetime counter of links that were broken and later resolved.
+            $total = (int) get_option('ssf_broken_links_resolved_total', 0);
+            update_option('ssf_broken_links_resolved_total', $total + (int) $deleted, false);
+
+            // Rolling log: keep last 500 resolutions with timestamp for date-range reporting.
+            $log = get_option('ssf_broken_links_resolved_log', []);
+            if (!is_array($log)) {
+                $log = [];
+            }
+            $log[] = [
+                't' => current_time('mysql'),
+                'p' => (int) $post_id,
+            ];
+            if (count($log) > 500) {
+                $log = array_slice($log, -500);
+            }
+            update_option('ssf_broken_links_resolved_log', $log, false);
+        }
     }
     
     /**

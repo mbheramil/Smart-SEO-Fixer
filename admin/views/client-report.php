@@ -45,6 +45,7 @@ if (!defined('ABSPATH')) {
                         <option value="all"><?php esc_html_e('All Time', 'smart-seo-fixer'); ?></option>
                         <option value="custom"><?php esc_html_e('Custom Range', 'smart-seo-fixer'); ?></option>
                     </select>
+                    <p class="description"><?php esc_html_e('Applies to activity sections: Keyword Rankings, Broken Links Fixed, and Optimizations Made. Coverage & score sections always reflect the current state of the site.', 'smart-seo-fixer'); ?></p>
                 </div>
 
                 <!-- Custom Dates (hidden by default) -->
@@ -74,6 +75,7 @@ if (!defined('ABSPATH')) {
                         <label><input type="checkbox" name="ssf_section" value="broken_links_fixed" checked /> <?php esc_html_e('Broken Links Fixed', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="optimizations" checked /> <?php esc_html_e('Optimizations Made', 'smart-seo-fixer'); ?></label>
                         <label><input type="checkbox" name="ssf_section" value="sitemap_status" checked /> <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?></label>
+                        <label><input type="checkbox" name="ssf_section" value="data_freshness" checked /> <?php esc_html_e('Data Freshness', 'smart-seo-fixer'); ?></label>
                         <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="worst_pages" checked /> <?php esc_html_e('Pages Needing Work', 'smart-seo-fixer'); ?></label>
                         <label class="ssf-full-mode-only" style="display:none;"><input type="checkbox" name="ssf_section" value="issues" checked /> <?php esc_html_e('Issues & Recommendations', 'smart-seo-fixer'); ?></label>
                     </div>
@@ -282,6 +284,15 @@ if (!defined('ABSPATH')) {
                     <?php esc_html_e('Sitemap Status', 'smart-seo-fixer'); ?>
                 </h2>
                 <div id="ssf-sitemap-status-content"></div>
+            </div>
+
+            <!-- Data Freshness -->
+            <div class="ssf-report-section" id="ssf-section-data_freshness">
+                <h2 class="ssf-report-section-title">
+                    <span class="dashicons dashicons-clock"></span>
+                    <?php esc_html_e('Data Freshness', 'smart-seo-fixer'); ?>
+                </h2>
+                <div id="ssf-data-freshness-content"></div>
             </div>
 
             <!-- Pages Needing Work (full mode) -->

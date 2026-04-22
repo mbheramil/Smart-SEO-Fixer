@@ -2,8 +2,8 @@
 /**
  * AI Provider Factory
  *
- * Returns the AWS Bedrock AI provider instance.
- * All AI operations route through SSF_Bedrock via this factory.
+ * Routes all AI operations to the configured provider.
+ * Supports: AWS Bedrock, OpenAI, Anthropic Claude, Google Gemini.
  */
 
 if (!defined('ABSPATH')) {
@@ -13,12 +13,33 @@ if (!defined('ABSPATH')) {
 class SSF_AI {
 
     /**
+     * Provider registry: key => class name.
+     */
+    private static $providers = [
+        'bedrock' => 'SSF_Bedrock',
+        'openai'  => 'SSF_OpenAI',
+        'claude'  => 'SSF_Claude',
+        'gemini'  => 'SSF_Gemini',
+    ];
+
+    /**
+     * Return the slug of the active provider.
+     *
+     * @return string
+     */
+    public static function active_provider() {
+        $provider = Smart_SEO_Fixer::get_option('ai_provider', 'bedrock');
+        return isset(self::$providers[$provider]) ? $provider : 'bedrock';
+    }
+
+    /**
      * Get the currently configured AI provider instance.
      *
-     * @return SSF_Bedrock
+     * @return SSF_Bedrock|SSF_OpenAI|SSF_Claude|SSF_Gemini
      */
     public static function get() {
-        return new SSF_Bedrock();
+        $class = self::$providers[self::active_provider()];
+        return new $class();
     }
 
     /**
@@ -31,13 +52,31 @@ class SSF_AI {
     }
 
     /**
+     * Human-readable labels for each provider.
+     */
+    private static $labels = [
+        'bedrock' => 'AWS Bedrock',
+        'openai'  => 'OpenAI',
+        'claude'  => 'Anthropic Claude',
+        'gemini'  => 'Google Gemini',
+    ];
+
+    /**
      * Return a human-readable label for the active provider.
-     * Used in error messages and admin notices.
      *
      * @return string
      */
     public static function provider_label() {
-        return 'AWS Bedrock';
+        return self::$labels[self::active_provider()] ?? 'AI';
+    }
+
+    /**
+     * Return all available providers as slug => label.
+     *
+     * @return array
+     */
+    public static function available_providers() {
+        return self::$labels;
     }
 
     /**
@@ -46,6 +85,10 @@ class SSF_AI {
      * @return string
      */
     public static function not_configured_message() {
-        return __( 'AWS Bedrock credentials not configured. Please add your Access Key and Secret Key in Settings.', 'smart-seo-fixer' );
+        $label = self::provider_label();
+        return sprintf(
+            __('%s credentials not configured. Please add your API key in Settings.', 'smart-seo-fixer'),
+            $label
+        );
     }
 }

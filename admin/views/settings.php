@@ -7,9 +7,19 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+$ai_provider     = Smart_SEO_Fixer::get_option('ai_provider', 'bedrock');
 $bedrock_region  = Smart_SEO_Fixer::get_option('bedrock_region', 'us-east-1');
 $bedrock_access  = Smart_SEO_Fixer::get_option('bedrock_access_key');
 $bedrock_secret  = Smart_SEO_Fixer::get_option('bedrock_secret_key');
+
+$openai_api_key  = Smart_SEO_Fixer::get_option('openai_api_key');
+$openai_model    = Smart_SEO_Fixer::get_option('openai_model', 'gpt-4o-mini');
+
+$claude_api_key  = Smart_SEO_Fixer::get_option('claude_api_key');
+$claude_model    = Smart_SEO_Fixer::get_option('claude_model', 'claude-sonnet-4-20250514');
+
+$gemini_api_key  = Smart_SEO_Fixer::get_option('gemini_api_key');
+$gemini_model    = Smart_SEO_Fixer::get_option('gemini_model', 'gemini-2.0-flash');
 
 // Check if credentials are set as wp-config.php constants
 $const_access = defined('SSF_BEDROCK_ACCESS_KEY') && SSF_BEDROCK_ACCESS_KEY !== '';
@@ -21,7 +31,15 @@ $using_consts = $const_access && $const_secret;
 $effective_access = $const_access ? SSF_BEDROCK_ACCESS_KEY : $bedrock_access;
 $effective_secret = $const_secret ? SSF_BEDROCK_SECRET_KEY : $bedrock_secret;
 $effective_region = $const_region ? SSF_BEDROCK_REGION     : $bedrock_region;
-$is_configured    = !empty($effective_access) && !empty($effective_secret);
+$bedrock_configured = !empty($effective_access) && !empty($effective_secret);
+
+// Check if the ACTIVE provider is configured
+switch ($ai_provider) {
+    case 'openai':  $is_configured = !empty($openai_api_key); break;
+    case 'claude':  $is_configured = !empty($claude_api_key); break;
+    case 'gemini':  $is_configured = !empty($gemini_api_key); break;
+    default:        $is_configured = $bedrock_configured; break;
+}
 $github_token = Smart_SEO_Fixer::get_option('github_token', '');
 $gsc_client_id = Smart_SEO_Fixer::get_option('gsc_client_id', '');
 $gsc_client_secret = Smart_SEO_Fixer::get_option('gsc_client_secret', '');
@@ -85,30 +103,41 @@ unset($available_post_types['attachment']);
                 </h2>
             </div>
             <div class="ssf-card-body">
-                <input type="hidden" name="ai_provider" value="bedrock">
+                <!-- Provider selector -->
+                <table class="form-table" style="margin-top:0;">
+                    <tr>
+                        <th scope="row"><label for="ai_provider"><?php esc_html_e('Provider', 'smart-seo-fixer'); ?></label></th>
+                        <td>
+                            <select name="ai_provider" id="ai_provider" style="min-width:220px;">
+                                <option value="bedrock" <?php selected($ai_provider, 'bedrock'); ?>>AWS Bedrock (Claude)</option>
+                                <option value="openai"  <?php selected($ai_provider, 'openai'); ?>>OpenAI (GPT)</option>
+                                <option value="claude"  <?php selected($ai_provider, 'claude'); ?>>Anthropic Claude (Direct)</option>
+                                <option value="gemini"  <?php selected($ai_provider, 'gemini'); ?>>Google Gemini</option>
+                            </select>
+                            <span id="ssf-ai-status" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;margin-left:10px;
+                                <?php echo $is_configured ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;' : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;'; ?>">
+                                <span id="ssf-ai-status-dot" style="width:8px;height:8px;border-radius:50%;background:<?php echo $is_configured ? '#16a34a' : '#9ca3af'; ?>;"></span>
+                                <span id="ssf-ai-status-text"><?php echo $is_configured ? esc_html__('Configured', 'smart-seo-fixer') : esc_html__('Not configured', 'smart-seo-fixer'); ?></span>
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+
                 <!-- AWS Bedrock Settings -->
-                <div id="ssf-bedrock-settings">
-                    <hr style="margin:16px 0;">
+                <div id="ssf-bedrock-settings" class="ssf-provider-panel" style="<?php echo $ai_provider !== 'bedrock' ? 'display:none;' : ''; ?>">
+                    <hr style="margin:8px 0 16px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
                         <h3 style="margin:0;"><?php esc_html_e('AWS Bedrock Configuration', 'smart-seo-fixer'); ?></h3>
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            <span id="ssf-bedrock-status" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;
-                                <?php echo $is_configured ? 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;' : 'background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;'; ?>">
-                                <span id="ssf-bedrock-status-dot" style="width:8px;height:8px;border-radius:50%;background:<?php echo $is_configured ? '#16a34a' : '#9ca3af'; ?>;"></span>
-                                <span id="ssf-bedrock-status-text"><?php echo $is_configured ? esc_html__('Credentials saved', 'smart-seo-fixer') : esc_html__('Not configured', 'smart-seo-fixer'); ?></span>
-                            </span>
-                            <button type="button" class="button" id="ssf-test-bedrock" <?php echo !$is_configured ? 'disabled' : ''; ?>>
-                                <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
-                                <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
-                            </button>
-                        </div>
+                        <button type="button" class="button ssf-test-btn" id="ssf-test-bedrock" data-provider="bedrock" <?php echo !$bedrock_configured ? 'disabled' : ''; ?>>
+                            <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
+                            <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
+                        </button>
                     </div>
                     <p class="description" style="margin:0 0 12px;">
                         <?php if ($using_consts): ?>
-                            <span style="color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Credentials are set via wp-config.php constants and are not stored in the database.', 'smart-seo-fixer'); ?></span>
+                            <span style="color:#166534;font-weight:600;">&#128274; <?php esc_html_e('Credentials are set via wp-config.php constants.', 'smart-seo-fixer'); ?></span>
                         <?php else: ?>
                             <?php esc_html_e('Uses your own AWS account. Credentials are stored in WordPress options.', 'smart-seo-fixer'); ?>
-                            &mdash; <strong><?php esc_html_e('For better security, define them as constants in wp-config.php (see below).', 'smart-seo-fixer'); ?></strong>
                         <?php endif; ?>
                     </p>
                     <table class="form-table">
@@ -122,7 +151,6 @@ unset($available_post_types['attachment']);
                                            value="<?php echo esc_attr($bedrock_access); ?>"
                                            class="regular-text" autocomplete="off"
                                            placeholder="AKIA...">
-                                    <p class="description"><?php esc_html_e('Your AWS IAM Access Key ID with Bedrock permissions.', 'smart-seo-fixer'); ?></p>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -135,8 +163,7 @@ unset($available_post_types['attachment']);
                                     <input type="password" name="bedrock_secret_key" id="bedrock_secret_key"
                                            value="<?php echo esc_attr($bedrock_secret); ?>"
                                            class="regular-text" autocomplete="off">
-                                    <button type="button" class="button" id="toggle-bedrock-secret"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
-                                    <p class="description"><?php esc_html_e('Your AWS IAM Secret Access Key.', 'smart-seo-fixer'); ?></p>
+                                    <button type="button" class="button ssf-toggle-secret" data-target="bedrock_secret_key"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -163,29 +190,118 @@ unset($available_post_types['attachment']);
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <p class="description"><?php esc_html_e('Select the AWS region where Bedrock is enabled on your account.', 'smart-seo-fixer'); ?></p>
                                 <?php endif; ?>
                             </td>
                         </tr>
-
                     </table>
-                    <div id="ssf-bedrock-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
+                    <div id="ssf-test-result-bedrock" class="ssf-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
+                </div>
 
-                    <?php if (!$using_consts): ?>
-                    <div style="margin-top:12px;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
-                        <p style="margin:0 0 8px;font-weight:600;color:#166534;">
-                            <span class="dashicons dashicons-lock" style="font-size:16px;"></span>
-                            <?php esc_html_e('Store credentials securely in wp-config.php (recommended)', 'smart-seo-fixer'); ?>
-                        </p>
-                        <p style="margin:0 0 8px;font-size:12px;color:#14532d;"><?php esc_html_e('Add these lines to your wp-config.php before the "That\'s all, stop editing!" comment. Credentials defined as constants are never stored in the database.', 'smart-seo-fixer'); ?></p>
-                        <pre style="margin:0;padding:10px 14px;background:#fff;border:1px solid #d1fae5;border-radius:4px;font-size:12px;line-height:1.7;color:#065f46;overflow-x:auto;">define( 'SSF_BEDROCK_ACCESS_KEY', 'YOUR_ACCESS_KEY_ID' );
-define( 'SSF_BEDROCK_SECRET_KEY', 'YOUR_SECRET_ACCESS_KEY' );
-define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-east-1</pre>
-                        <p style="margin:8px 0 0;font-size:11px;color:#166534;"><?php esc_html_e('Once defined, the fields above will be locked and show a padlock icon. The database values will be ignored.', 'smart-seo-fixer'); ?></p>
+                <!-- OpenAI Settings -->
+                <div id="ssf-openai-settings" class="ssf-provider-panel" style="<?php echo $ai_provider !== 'openai' ? 'display:none;' : ''; ?>">
+                    <hr style="margin:8px 0 16px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                        <h3 style="margin:0;"><?php esc_html_e('OpenAI Configuration', 'smart-seo-fixer'); ?></h3>
+                        <button type="button" class="button ssf-test-btn" id="ssf-test-openai" data-provider="openai" <?php echo empty($openai_api_key) ? 'disabled' : ''; ?>>
+                            <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
+                            <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
+                        </button>
                     </div>
-                    <?php endif; ?>
+                    <p class="description" style="margin:0 0 12px;"><?php esc_html_e('Get your API key from platform.openai.com.', 'smart-seo-fixer'); ?></p>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="openai_api_key"><?php esc_html_e('API Key', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <input type="password" name="openai_api_key" id="openai_api_key"
+                                       value="<?php echo esc_attr($openai_api_key); ?>"
+                                       class="regular-text" autocomplete="off" placeholder="sk-...">
+                                <button type="button" class="button ssf-toggle-secret" data-target="openai_api_key"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="openai_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <select name="openai_model" id="openai_model">
+                                    <option value="gpt-4o-mini" <?php selected($openai_model, 'gpt-4o-mini'); ?>>GPT-4o Mini (fast, cheap)</option>
+                                    <option value="gpt-4o" <?php selected($openai_model, 'gpt-4o'); ?>>GPT-4o (balanced)</option>
+                                    <option value="gpt-4.1" <?php selected($openai_model, 'gpt-4.1'); ?>>GPT-4.1 (latest)</option>
+                                    <option value="gpt-4.1-mini" <?php selected($openai_model, 'gpt-4.1-mini'); ?>>GPT-4.1 Mini</option>
+                                    <option value="gpt-4.1-nano" <?php selected($openai_model, 'gpt-4.1-nano'); ?>>GPT-4.1 Nano (fastest)</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                    <div id="ssf-test-result-openai" class="ssf-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
+                </div>
 
+                <!-- Anthropic Claude Settings -->
+                <div id="ssf-claude-settings" class="ssf-provider-panel" style="<?php echo $ai_provider !== 'claude' ? 'display:none;' : ''; ?>">
+                    <hr style="margin:8px 0 16px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                        <h3 style="margin:0;"><?php esc_html_e('Anthropic Claude Configuration', 'smart-seo-fixer'); ?></h3>
+                        <button type="button" class="button ssf-test-btn" id="ssf-test-claude" data-provider="claude" <?php echo empty($claude_api_key) ? 'disabled' : ''; ?>>
+                            <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
+                            <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
+                        </button>
+                    </div>
+                    <p class="description" style="margin:0 0 12px;"><?php esc_html_e('Get your API key from console.anthropic.com.', 'smart-seo-fixer'); ?></p>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="claude_api_key"><?php esc_html_e('API Key', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <input type="password" name="claude_api_key" id="claude_api_key"
+                                       value="<?php echo esc_attr($claude_api_key); ?>"
+                                       class="regular-text" autocomplete="off" placeholder="sk-ant-...">
+                                <button type="button" class="button ssf-toggle-secret" data-target="claude_api_key"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="claude_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <select name="claude_model" id="claude_model">
+                                    <option value="claude-sonnet-4-20250514" <?php selected($claude_model, 'claude-sonnet-4-20250514'); ?>>Claude Sonnet 4 (recommended)</option>
+                                    <option value="claude-3-5-haiku-20241022" <?php selected($claude_model, 'claude-3-5-haiku-20241022'); ?>>Claude 3.5 Haiku (fast, cheap)</option>
+                                    <option value="claude-opus-4-20250514" <?php selected($claude_model, 'claude-opus-4-20250514'); ?>>Claude Opus 4 (most capable)</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                    <div id="ssf-test-result-claude" class="ssf-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
+                </div>
 
+                <!-- Google Gemini Settings -->
+                <div id="ssf-gemini-settings" class="ssf-provider-panel" style="<?php echo $ai_provider !== 'gemini' ? 'display:none;' : ''; ?>">
+                    <hr style="margin:8px 0 16px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                        <h3 style="margin:0;"><?php esc_html_e('Google Gemini Configuration', 'smart-seo-fixer'); ?></h3>
+                        <button type="button" class="button ssf-test-btn" id="ssf-test-gemini" data-provider="gemini" <?php echo empty($gemini_api_key) ? 'disabled' : ''; ?>>
+                            <span class="dashicons dashicons-controls-play" style="margin-top:3px;"></span>
+                            <?php esc_html_e('Test Connection', 'smart-seo-fixer'); ?>
+                        </button>
+                    </div>
+                    <p class="description" style="margin:0 0 12px;"><?php esc_html_e('Get your API key from aistudio.google.com.', 'smart-seo-fixer'); ?></p>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><label for="gemini_api_key"><?php esc_html_e('API Key', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <input type="password" name="gemini_api_key" id="gemini_api_key"
+                                       value="<?php echo esc_attr($gemini_api_key); ?>"
+                                       class="regular-text" autocomplete="off" placeholder="AIza...">
+                                <button type="button" class="button ssf-toggle-secret" data-target="gemini_api_key"><?php esc_html_e('Show', 'smart-seo-fixer'); ?></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="gemini_model"><?php esc_html_e('Model', 'smart-seo-fixer'); ?></label></th>
+                            <td>
+                                <select name="gemini_model" id="gemini_model">
+                                    <option value="gemini-2.0-flash" <?php selected($gemini_model, 'gemini-2.0-flash'); ?>>Gemini 2.0 Flash (fast)</option>
+                                    <option value="gemini-2.5-flash-preview-05-20" <?php selected($gemini_model, 'gemini-2.5-flash-preview-05-20'); ?>>Gemini 2.5 Flash (latest)</option>
+                                    <option value="gemini-2.5-pro-preview-05-06" <?php selected($gemini_model, 'gemini-2.5-pro-preview-05-06'); ?>>Gemini 2.5 Pro (most capable)</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                    <div id="ssf-test-result-gemini" class="ssf-test-result" style="display:none;margin-top:12px;padding:12px 16px;border-radius:6px;"></div>
                 </div>
             </div>
         </div>
@@ -276,10 +392,18 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
                             <span class="dashicons dashicons-chart-area" style="vertical-align: text-bottom;"></span>
                             <?php esc_html_e('View Search Performance', 'smart-seo-fixer'); ?>
                         </a>
+                        <button type="button" class="button button-secondary" id="ssf-gsc-auto-setup">
+                            <span class="dashicons dashicons-superhero" style="vertical-align: text-bottom;"></span>
+                            <?php esc_html_e('Auto-Create Property for This Site', 'smart-seo-fixer'); ?>
+                        </button>
                         <button type="button" class="button" id="ssf-gsc-disconnect" style="color: #dc2626; border-color: #dc2626;">
                             <?php esc_html_e('Disconnect', 'smart-seo-fixer'); ?>
                         </button>
                     </p>
+                    <p class="description" style="margin-top:4px;">
+                        <?php esc_html_e('Auto-create will: add this site to Google Search Console, verify ownership via a meta tag, and submit your sitemap — all in one click. Use if the site isn\'t listed yet.', 'smart-seo-fixer'); ?>
+                    </p>
+                    <div id="ssf-gsc-auto-setup-log" style="display:none; margin-top:12px;"></div>
                 <?php else: ?>
                     <p class="description" style="margin-bottom: 16px;">
                         <?php esc_html_e('Connect your Google Search Console to see real search performance data, index status, and more — directly inside WordPress.', 'smart-seo-fixer'); ?>
@@ -679,80 +803,115 @@ define( 'SSF_BEDROCK_REGION',     'us-east-1' );  // optional, defaults to us-ea
 
 <script>
 jQuery(document).ready(function($) {
-        // Toggle Bedrock secret visibility
-    $('#toggle-bedrock-secret').on('click', function() {
-        var $input = $('#bedrock_secret_key');
+    // ─── Provider panel switching ───
+    $('#ai_provider').on('change', function() {
+        var provider = $(this).val();
+        $('.ssf-provider-panel').hide();
+        $('#ssf-' + provider + '-settings').show();
+        // Update status badge
+        var $panel = $('#ssf-' + provider + '-settings');
+        var hasKey = false;
+        if (provider === 'bedrock') {
+            hasKey = $('#bedrock_access_key').val().trim().length > 0 && $('#bedrock_secret_key').val().trim().length > 0;
+        } else {
+            hasKey = $panel.find('input[type="password"]').first().val().trim().length > 0;
+        }
+        updateStatusBadge(hasKey);
+    });
+
+    function updateStatusBadge(configured) {
+        var $dot = $('#ssf-ai-status-dot'), $text = $('#ssf-ai-status-text'), $badge = $('#ssf-ai-status');
+        if (configured) {
+            $badge.css({background:'#dcfce7', color:'#166534', border:'1px solid #bbf7d0'});
+            $dot.css('background','#16a34a');
+            $text.text('<?php echo esc_js(__('Configured', 'smart-seo-fixer')); ?>');
+        } else {
+            $badge.css({background:'#f3f4f6', color:'#6b7280', border:'1px solid #e5e7eb'});
+            $dot.css('background','#9ca3af');
+            $text.text('<?php echo esc_js(__('Not configured', 'smart-seo-fixer')); ?>');
+        }
+    }
+
+    // ─── Toggle secret visibility (generic) ───
+    $(document).on('click', '.ssf-toggle-secret', function() {
+        var $input = $('#' + $(this).data('target'));
         var $btn = $(this);
         if ($input.attr('type') === 'password') {
             $input.attr('type', 'text');
-            $btn.text('<?php esc_html_e('Hide', 'smart-seo-fixer'); ?>');
+            $btn.text('<?php echo esc_js(__('Hide', 'smart-seo-fixer')); ?>');
         } else {
             $input.attr('type', 'password');
-            $btn.text('<?php esc_html_e('Show', 'smart-seo-fixer'); ?>');
+            $btn.text('<?php echo esc_js(__('Show', 'smart-seo-fixer')); ?>');
         }
     });
 
-    // Enable Test Connection button when credentials are typed
+    // ─── Enable/disable Test buttons when credentials change ───
     $('#bedrock_access_key, #bedrock_secret_key').on('input', function() {
-        var hasKey    = $('#bedrock_access_key').val().trim().length > 0;
-        var hasSecret = $('#bedrock_secret_key').val().trim().length > 0;
-        $('#ssf-test-bedrock').prop('disabled', !(hasKey && hasSecret));
+        var ok = $('#bedrock_access_key').val().trim().length > 0 && $('#bedrock_secret_key').val().trim().length > 0;
+        $('#ssf-test-bedrock').prop('disabled', !ok);
+    });
+    $('#openai_api_key').on('input', function() {
+        $('#ssf-test-openai').prop('disabled', !$(this).val().trim());
+    });
+    $('#claude_api_key').on('input', function() {
+        $('#ssf-test-claude').prop('disabled', !$(this).val().trim());
+    });
+    $('#gemini_api_key').on('input', function() {
+        $('#ssf-test-gemini').prop('disabled', !$(this).val().trim());
     });
 
-    // Test Bedrock Connection
-    $('#ssf-test-bedrock').on('click', function() {
-        var $btn    = $(this).prop('disabled', true);
-        var $result = $('#ssf-bedrock-test-result');
-        var $status = $('#ssf-bedrock-status');
-        var $dot    = $('#ssf-bedrock-status-dot');
-        var $text   = $('#ssf-bedrock-status-text');
+    // ─── Test Connection (unified) ───
+    $(document).on('click', '.ssf-test-btn', function() {
+        var $btn = $(this).prop('disabled', true);
+        var provider = $btn.data('provider');
+        var $result = $('#ssf-test-result-' + provider);
 
         $btn.find('.dashicons').removeClass('dashicons-controls-play').addClass('dashicons-update ssf-spin');
         $result.hide();
 
-        $.post(ssfAdmin.ajax_url, {
-            action:  'ssf_test_bedrock',
-            nonce:   ssfAdmin.nonce,
-            access_key: $('#bedrock_access_key').val(),
-            secret_key: $('#bedrock_secret_key').val(),
-            region:     $('#bedrock_region').val(),
-            model:      'us.anthropic.claude-sonnet-4-6'
-        }, function(r) {
+        var postData = {
+            action: 'ssf_test_ai_provider',
+            nonce: ssfAdmin.nonce,
+            provider: provider
+        };
+
+        // Send current field values so test uses unsaved data
+        if (provider === 'bedrock') {
+            postData.access_key = $('#bedrock_access_key').val();
+            postData.secret_key = $('#bedrock_secret_key').val();
+            postData.region     = $('#bedrock_region').val();
+        } else if (provider === 'openai') {
+            postData.api_key = $('#openai_api_key').val();
+            postData.model   = $('#openai_model').val();
+        } else if (provider === 'claude') {
+            postData.api_key = $('#claude_api_key').val();
+            postData.model   = $('#claude_model').val();
+        } else if (provider === 'gemini') {
+            postData.api_key = $('#gemini_api_key').val();
+            postData.model   = $('#gemini_model').val();
+        }
+
+        $.post(ssfAdmin.ajax_url, postData, function(r) {
             $btn.prop('disabled', false);
             $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
 
             if (r.success) {
                 $result.css({background:'#dcfce7', border:'1px solid #bbf7d0', color:'#166534'})
-                       .html('<strong>✅ Connected!</strong> Model responded: <em>' + $('<div>').text(r.data.reply).html() + '</em>')
+                       .html('<strong>&#10003; Connected!</strong> Model responded: <em>' + $('<div>').text(r.data.reply).html() + '</em>')
                        .show();
-                $status.css({background:'#dcfce7', color:'#166534', border:'1px solid #bbf7d0'});
-                $dot.css('background','#16a34a');
-                $text.text('<?php esc_html_e('Connected', 'smart-seo-fixer'); ?>');
+                updateStatusBadge(true);
             } else {
-                var msg    = r.data.message || 'Unknown error';
-                var detail = msg;
-
-                // Friendly guidance for the most common errors
-                if (msg.toLowerCase().indexOf('model identifier is invalid') !== -1 || msg.toLowerCase().indexOf('validationexception') !== -1) {
-                    detail = msg + '<br><br><strong>Make sure your AWS Region is set to us-east-1 or us-west-2 (required for Claude Sonnet 4.6).</strong>';
-                } else if (msg.toLowerCase().indexOf('signature') !== -1) {
-                    detail = msg + '<br><br><strong>Check that your Secret Access Key is correct.</strong>';
-                } else if (msg.toLowerCase().indexOf('credentials') !== -1 || msg.toLowerCase().indexOf('access denied') !== -1) {
-                    detail = msg + '<br><br><strong>Your IAM user does not have Bedrock permission. Attach AmazonBedrockFullAccess to the IAM user.</strong>';
-                }
-
+                var msg = r.data.message || 'Unknown error';
                 $result.css({background:'#fef2f2', border:'1px solid #fecaca', color:'#991b1b'})
-                       .html('<strong>❌ Failed:</strong> ' + detail)
+                       .html('<strong>&#10007; Failed:</strong> ' + $('<div>').text(msg).html())
                        .show();
-                $status.css({background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca'});
-                $dot.css('background','#dc2626');
-                $text.text('<?php esc_html_e('Connection failed', 'smart-seo-fixer'); ?>');
+                updateStatusBadge(false);
             }
         }).fail(function() {
             $btn.prop('disabled', false);
             $btn.find('.dashicons').removeClass('dashicons-update ssf-spin').addClass('dashicons-controls-play');
             $result.css({background:'#fef2f2', border:'1px solid #fecaca', color:'#991b1b'})
-                   .html('<strong>❌ Request failed.</strong> Check your server error log.')
+                   .html('<strong>&#10007; Request failed.</strong> Check your server error log.')
                    .show();
         });
     });
@@ -830,6 +989,90 @@ jQuery(document).ready(function($) {
             }
         });
     });
+
+    // GSC Auto-Setup — one-click create + verify + submit sitemap
+    $('#ssf-gsc-auto-setup').on('click', function() {
+        var $btn = $(this);
+        var $log = $('#ssf-gsc-auto-setup-log');
+        var originalHtml = $btn.html();
+
+        if (!confirm('<?php echo esc_js(__("This will add this site to Google Search Console, verify ownership with a meta tag, and submit your sitemap. Continue?", "smart-seo-fixer")); ?>')) {
+            return;
+        }
+
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="vertical-align: text-bottom; animation: ssf-spin 1s linear infinite;"></span> <?php echo esc_js(__("Setting up...", "smart-seo-fixer")); ?>');
+        $log.show().html('<div style="padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1e3a5f;">' +
+            '<?php echo esc_js(__("Contacting Google... this can take 20-30 seconds.", "smart-seo-fixer")); ?>' +
+            '</div>');
+
+        $.post(ssfAdmin.ajax_url, {
+            action: 'ssf_gsc_auto_setup',
+            nonce: ssfAdmin.nonce
+        }, function(response) {
+            var data = (response && response.data) ? response.data : {};
+            var steps = data.steps || [];
+            var ok = !!(response && response.success);
+
+            var stepLabels = {
+                precheck_domain:  '<?php echo esc_js(__("Domain reachable", "smart-seo-fixer")); ?>',
+                request_token:    '<?php echo esc_js(__("Request verification token", "smart-seo-fixer")); ?>',
+                homepage_check:   '<?php echo esc_js(__("Meta tag live on homepage", "smart-seo-fixer")); ?>',
+                verify:           '<?php echo esc_js(__("Google verifies ownership", "smart-seo-fixer")); ?>',
+                add_to_gsc:       '<?php echo esc_js(__("Add property to Search Console", "smart-seo-fixer")); ?>',
+                submit_sitemap:   '<?php echo esc_js(__("Submit sitemap", "smart-seo-fixer")); ?>'
+            };
+
+            var bgColor = ok ? '#f0fdf4' : '#fef2f2';
+            var borderColor = ok ? '#bbf7d0' : '#fecaca';
+            var titleColor = ok ? '#15803d' : '#b91c1c';
+
+            var html = '<div style="padding:14px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;">';
+            html += '<p style="margin:0 0 10px;font-weight:600;color:' + titleColor + ';font-size:14px;">';
+            html += ok
+                ? '<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__("All set!", "smart-seo-fixer")); ?>'
+                : '<span class="dashicons dashicons-warning"></span> <?php echo esc_js(__("Setup did not complete.", "smart-seo-fixer")); ?>';
+            html += '</p>';
+
+            if (data.message) {
+                html += '<p style="margin:0 0 10px;color:#374151;">' + $('<div>').text(data.message).html() + '</p>';
+            }
+
+            if (steps.length) {
+                html += '<ol style="margin:0;padding-left:22px;color:#374151;font-size:13px;">';
+                steps.forEach(function(step) {
+                    var label = stepLabels[step.name] || step.name;
+                    var icon = step.success
+                        ? '<span class="dashicons dashicons-yes" style="color:#16a34a;vertical-align:text-bottom;"></span>'
+                        : '<span class="dashicons dashicons-no" style="color:#dc2626;vertical-align:text-bottom;"></span>';
+                    html += '<li style="margin-bottom:4px;">' + icon + ' <strong>' + label + '</strong>';
+                    if (step.detail) {
+                        html += ' — <span style="color:#6b7280;">' + $('<div>').text(step.detail).html() + '</span>';
+                    }
+                    html += '</li>';
+                });
+                html += '</ol>';
+            }
+
+            if (ok) {
+                html += '<p style="margin:12px 0 0;color:#166534;font-size:13px;"><?php echo esc_js(__("Reloading in 3 seconds to refresh the site list…", "smart-seo-fixer")); ?></p>';
+            }
+
+            html += '</div>';
+            $log.html(html);
+
+            $btn.prop('disabled', false).html(originalHtml);
+
+            if (ok) {
+                setTimeout(function() { location.reload(); }, 3000);
+            }
+        }).fail(function(jqXHR, textStatus, errorThrown) {
+            $log.html('<div style="padding:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#b91c1c;">' +
+                '<?php echo esc_js(__("Request failed:", "smart-seo-fixer")); ?> ' +
+                (errorThrown || textStatus || 'Unknown error') +
+                '</div>');
+            $btn.prop('disabled', false).html(originalHtml);
+        });
+    });
     
     // Save settings
     $('#ssf-settings-form').on('submit', function(e) {
@@ -854,14 +1097,23 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 $status.html('<span class="dashicons dashicons-yes" style="color: #46b450;"></span> ' + response.data.message);
             } else {
-                $status.html('<span class="dashicons dashicons-no" style="color: #dc3232;"></span> ' + response.data.message);
+                var msg = (response.data && response.data.message) ? response.data.message : 'Save failed. Check your server error log.';
+                $status.html('<span class="dashicons dashicons-no" style="color: #dc3232;"></span> ' + msg);
             }
             
             setTimeout(function() {
                 $status.text('');
             }, 3000);
+        }).fail(function(jqXHR, textStatus, errorThrown) {
+            $btn.prop('disabled', false);
+            $spinner.removeClass('is-active');
+            var detail = errorThrown || textStatus || 'Unknown error';
+            $status.html('<span class="dashicons dashicons-no" style="color: #dc3232;"></span> Request failed: ' + detail + '. Check your server error log or browser console.');
         });
     });
 });
 </script>
 
+<style>
+@keyframes ssf-spin { 100% { transform: rotate(360deg); } }
+</style>
