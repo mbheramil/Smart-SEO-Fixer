@@ -162,7 +162,7 @@ class SSF_DB_Migrator {
      */
     public static function migrate_v7_fix_bedrock_model_id() {
         $opts = get_option('smart_seo_fixer_options', []);
-        $opts['bedrock_model'] = 'anthropic.claude-3-5-haiku-20241022-v1:0';
+        $opts['bedrock_model'] = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
         update_option('smart_seo_fixer_options', $opts);
     }
 

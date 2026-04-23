@@ -97,7 +97,7 @@ class SSF_Setup_Wizard {
                 $access_key = sanitize_text_field($_POST['bedrock_access_key'] ?? '');
                 $secret_key = sanitize_text_field($_POST['bedrock_secret_key'] ?? '');
                 $region     = sanitize_text_field($_POST['bedrock_region'] ?? 'us-east-1');
-                $model      = 'anthropic.claude-3-5-haiku-20241022-v1:0';
+                $model      = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
                 
                 if (!empty($access_key)) {
                     update_option('ssf_bedrock_access_key', $access_key);
