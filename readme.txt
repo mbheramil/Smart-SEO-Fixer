@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.46
+Stable tag: 2.0.47
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.47 =
+* Fix: "The provided model identifier is invalid" error on Bedrock after Haiku switch. Claude 3.x models use the direct Bedrock model ID (`anthropic.claude-haiku-3-5-20241022-v1:0`) without the `us.` cross-region prefix — that prefix is only for Claude 4.x inference profiles.
+
 = 2.0.46 =
 * Fix: Orphaned page "Add Link with AI" always failed with "Could not find a natural placement" for location/service-area pages (e.g. "Inspections in Webster Groves, MO"). Root cause: no other page on the site mentions the city name, so AI correctly returns `{found:false}` for all candidates — and the fallback page also fails. Added a guaranteed last-resort: when all AI placement attempts fail, the plugin now appends a `Related: [page title]` link paragraph to the highest-relevance candidate page, ensuring every orphan gets at least one incoming internal link.
 

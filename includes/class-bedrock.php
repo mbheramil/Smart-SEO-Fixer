@@ -47,7 +47,7 @@ class SSF_Bedrock {
      * Bedrock model ID — hardcoded to Claude 3.5 Haiku cross-region inference profile
      */
     private function get_model() {
-        return 'us.anthropic.claude-haiku-3-5-20241022-v1:0';
+        return 'anthropic.claude-haiku-3-5-20241022-v1:0';
     }
 
     /**
