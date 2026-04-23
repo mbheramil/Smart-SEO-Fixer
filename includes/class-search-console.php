@@ -1408,7 +1408,43 @@ class SSF_Search_Console {
                 );
             }
         }
-        
+
+        // Last resort: force-append a "Related" link to the best candidate.
+        // Handles location pages and other cases where no natural anchor exists in any candidate.
+        if ( ! $link_added ) {
+            $force_candidate = null;
+            foreach ( $scored as $item ) {
+                if ( stripos( $item['post']->post_content, $orphan_url ) === false ) {
+                    $force_candidate = $item['post'];
+                    break;
+                }
+            }
+            if ( ! $force_candidate ) {
+                foreach ( $candidates as $c ) {
+                    if ( stripos( $c->post_content, $orphan_url ) === false ) {
+                        $force_candidate = $c;
+                        break;
+                    }
+                }
+            }
+            if ( $force_candidate ) {
+                $fc_old = $force_candidate->post_content;
+                $fc_new = $fc_old . "\n<!-- wp:paragraph -->\n<p>" . __( 'Related:', 'smart-seo-fixer' ) . ' <a href="' . esc_url( $orphan_url ) . '">' . esc_html( $orphan_title ) . "</a></p>\n<!-- /wp:paragraph -->";
+                if ( class_exists( 'SSF_History' ) ) {
+                    SSF_History::record_content( $force_candidate->ID, $fc_old, $fc_new, 'orphan_fix' );
+                }
+                $upd = wp_update_post( [ 'ID' => $force_candidate->ID, 'post_content' => $fc_new ], true );
+                if ( ! is_wp_error( $upd ) ) {
+                    $link_added     = true;
+                    $result_message = sprintf(
+                        __( 'Appended "Related" link on "%1$s" → "%2$s" (no natural anchor found in content)', 'smart-seo-fixer' ),
+                        $force_candidate->post_title,
+                        $orphan_title
+                    );
+                }
+            }
+        }
+
         // === STEP 2: Add outgoing internal links WITHIN the orphaned page's content ===
         // This ensures the page links TO other relevant pages (fixes "No internal links found" analysis)
         $outgoing_messages = [];
