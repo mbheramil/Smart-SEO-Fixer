@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.44
+Stable tag: 2.0.45
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.45 =
+* Change: Switched AWS Bedrock model from Claude Sonnet 4.6 to Claude 3.5 Haiku (`us.anthropic.claude-haiku-3-5-20241022-v1:0`) — same quality for SEO tasks at 4x lower cost.
+
 = 2.0.44 =
 * Fixed: Image alt-text generation was producing hallucinated / generic output because every provider (Bedrock, Claude, OpenAI) was sending only the image URL as plain text — the AI could not actually see the image, it was just guessing from the filename slug. Now uses true vision: the image bytes are fetched, base64-encoded, and sent as a multimodal message block. Claude on Bedrock (vision-capable), Anthropic Claude, and OpenAI GPT-4o/4-turbo all receive the actual pixels and describe what they see. Images larger than 4 MB are auto-resized to Claude's recommended max 1568px edge. Non-vision models (Llama / Mistral / Titan on Bedrock) fall back to the URL-only prompt.
 * Added: `SSF_AI::fetch_image_as_base64()` helper that reads images from local uploads (fast path) or falls back to wp_remote_get, sniffs media type, and rejects unsupported formats (accepts jpeg/png/gif/webp only).

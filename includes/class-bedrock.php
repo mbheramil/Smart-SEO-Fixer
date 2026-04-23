@@ -44,10 +44,10 @@ class SSF_Bedrock {
     }
 
     /**
-     * Bedrock model ID — hardcoded to Claude Sonnet 4.6 cross-region inference profile
+     * Bedrock model ID — hardcoded to Claude 3.5 Haiku cross-region inference profile
      */
     private function get_model() {
-        return 'us.anthropic.claude-sonnet-4-6';
+        return 'us.anthropic.claude-haiku-3-5-20241022-v1:0';
     }
 
     /**

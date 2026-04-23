@@ -779,7 +779,7 @@ class SSF_Ajax {
             'bedrock_region'          => sanitize_text_field(wp_unslash($_POST['bedrock_region'] ?? 'us-east-1')),
             'bedrock_access_key'      => $v ? SSF_Validator::api_key(wp_unslash($_POST['bedrock_access_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['bedrock_access_key'] ?? '')),
             'bedrock_secret_key'      => $v ? SSF_Validator::api_key(wp_unslash($_POST['bedrock_secret_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['bedrock_secret_key'] ?? '')),
-            'bedrock_model'           => 'us.anthropic.claude-sonnet-4-6',
+            'bedrock_model'           => 'us.anthropic.claude-haiku-3-5-20241022-v1:0',
             'openai_api_key'          => $v ? SSF_Validator::api_key(wp_unslash($_POST['openai_api_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['openai_api_key'] ?? '')),
             'openai_model'            => sanitize_text_field(wp_unslash($_POST['openai_model'] ?? 'gpt-4o-mini')),
             'claude_api_key'          => $v ? SSF_Validator::api_key(wp_unslash($_POST['claude_api_key'] ?? '')) : sanitize_text_field(wp_unslash($_POST['claude_api_key'] ?? '')),
