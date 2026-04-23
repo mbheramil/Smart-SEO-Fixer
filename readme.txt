@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.47
+Stable tag: 2.0.48
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.48 =
+* Fix: Haiku model ID still invalid — segment order was wrong (`claude-haiku-3-5` → `claude-3-5-haiku`). Correct Bedrock ID is `anthropic.claude-3-5-haiku-20241022-v1:0`.
+
 = 2.0.47 =
 * Fix: "The provided model identifier is invalid" error on Bedrock after Haiku switch. Claude 3.x models use the direct Bedrock model ID (`anthropic.claude-haiku-3-5-20241022-v1:0`) without the `us.` cross-region prefix — that prefix is only for Claude 4.x inference profiles.
 
