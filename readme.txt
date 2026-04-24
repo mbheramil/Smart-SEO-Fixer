@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.49
+Stable tag: 2.0.50
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.50 =
+* Chore: Remove Plugin URI and Description from plugin header to hide author/repo info on WP Plugins page.
+
 = 2.0.49 =
 * Fix: Haiku 3.5 on Bedrock also requires the `us.` cross-region inference profile prefix — on-demand direct invocation is not supported. Correct model ID: `us.anthropic.claude-3-5-haiku-20241022-v1:0`.
 
