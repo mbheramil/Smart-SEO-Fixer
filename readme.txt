@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.51
+Stable tag: 2.0.52
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.52 =
+* Fix: Version bump to trigger auto-update on sites still running older versions.
+
 = 2.0.51 =
 * Feature: Instant auto-update — plugin checks GitHub every 5 minutes via WP-Cron and silently applies new versions without requiring a manual click.
 
