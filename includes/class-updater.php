@@ -42,6 +42,15 @@ class SSF_Updater {
         
         // Allow WordPress to download from GitHub (private repo auth)
         add_filter('http_request_args', [$this, 'authorize_download'], 10, 2);
+
+        // Register 5-minute cron interval
+        add_filter('cron_schedules', [$this, 'add_cron_interval']);
+
+        // Enable WP's native auto-update for this plugin as a fallback
+        add_filter('auto_update_plugin', [$this, 'enable_auto_update'], 10, 2);
+
+        // Cron callback for instant auto-update
+        add_action('ssf_auto_update_check', [$this, 'run_auto_update']);
     }
     
     /**
@@ -448,6 +457,109 @@ class SSF_Updater {
         exit;
     }
     
+    /**
+     * Register 5-minute cron schedule
+     */
+    public function add_cron_interval($schedules) {
+        if (!isset($schedules['ssf_five_minutes'])) {
+            $schedules['ssf_five_minutes'] = [
+                'interval' => 5 * MINUTE_IN_SECONDS,
+                'display'  => __('Every 5 Minutes (Smart SEO Fixer update check)', 'smart-seo-fixer'),
+            ];
+        }
+        return $schedules;
+    }
+
+    /**
+     * Enable WP native auto-update for this plugin
+     */
+    public function enable_auto_update($update, $item) {
+        if (isset($item->plugin) && $item->plugin === $this->plugin_file) {
+            return true;
+        }
+        return $update;
+    }
+
+    /**
+     * Schedule the 5-minute auto-update cron event
+     */
+    public static function schedule_cron() {
+        if (!wp_next_scheduled('ssf_auto_update_check')) {
+            wp_schedule_event(time(), 'ssf_five_minutes', 'ssf_auto_update_check');
+        }
+    }
+
+    /**
+     * Unschedule the auto-update cron event
+     */
+    public static function unschedule_cron() {
+        $timestamp = wp_next_scheduled('ssf_auto_update_check');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'ssf_auto_update_check');
+        }
+    }
+
+    /**
+     * Cron callback: check GitHub and immediately apply update if a newer version exists
+     */
+    public function run_auto_update() {
+        // Force a fresh version check (bypass transient cache)
+        delete_transient('ssf_github_release');
+        $release = $this->get_github_release(true);
+
+        if (!$release || !isset($release->tag_name)) {
+            return;
+        }
+
+        $remote_version = ltrim($release->tag_name, 'v');
+
+        if (!version_compare($remote_version, $this->current_version, '>')) {
+            return; // Already up to date
+        }
+
+        $download_url = $this->get_download_url($release);
+        if (!$download_url) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('Auto-update: could not resolve download URL', 'updater', ['tag' => $release->tag_name]);
+            }
+            return;
+        }
+
+        // Load upgrader classes (not available on frontend by default)
+        if (!class_exists('Plugin_Upgrader')) {
+            require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        }
+        if (!function_exists('request_filesystem_credentials')) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        if (!function_exists('get_plugin_data')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        // Use a silent (non-interactive) upgrader skin
+        $skin    = new WP_Ajax_Upgrader_Skin();
+        $upgrader = new Plugin_Upgrader($skin);
+        $result   = $upgrader->upgrade($this->plugin_file);
+
+        if (is_wp_error($result)) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::error('Auto-update failed', 'updater', [
+                    'version' => $remote_version,
+                    'error'   => $result->get_error_message(),
+                ]);
+            }
+        } elseif ($result !== false) {
+            if (class_exists('SSF_Logger')) {
+                SSF_Logger::info('Auto-update applied', 'updater', [
+                    'from' => $this->current_version,
+                    'to'   => $remote_version,
+                ]);
+            }
+            // Re-schedule with the new version loaded
+            delete_transient('ssf_github_release');
+        }
+    }
+
     /**
      * Display admin notice after update check
      */
