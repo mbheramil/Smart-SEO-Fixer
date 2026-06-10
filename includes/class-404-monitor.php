@@ -109,7 +109,39 @@ class SSF_404_Monitor {
                 'last_hit'   => $now,
                 'dismissed'  => 0,
             ]);
+
+            // Occasionally prune so scanner noise can't grow the table forever.
+            if (mt_rand(1, 25) === 1) {
+                self::enforce_cap();
+            }
         }
+    }
+
+    /**
+     * Keep the 404 log bounded. Drops the least useful rows (dismissed first,
+     * then single-hit entries with the oldest last_hit) once the table exceeds
+     * the cap. Redirected entries are kept — they document recovered URLs.
+     */
+    public static function enforce_cap($max_rows = 1000) {
+        global $wpdb;
+        $table = self::table();
+
+        // Purge old dismissed entries first (180+ days).
+        self::cleanup();
+
+        $count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table WHERE redirected_to = ''"));
+        if ($count <= $max_rows) {
+            return;
+        }
+
+        $excess = $count - $max_rows;
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM $table
+             WHERE redirected_to = ''
+             ORDER BY dismissed DESC, hit_count ASC, last_hit ASC
+             LIMIT %d",
+            $excess
+        ));
     }
     
     /**
@@ -242,16 +274,32 @@ class SSF_404_Monitor {
             'redirected_to' => esc_url_raw($redirect_to),
         ], ['id' => $id]);
         
-        // Also add to the plugin's redirect list if SSF_Redirects exists
+        // Also add to the plugin's redirect list if SSF_Redirects exists.
+        // Must go through add_redirect() so the rule gets an id and the
+        // 'enabled' flag that maybe_redirect() checks — raw option appends
+        // produced rules that never fired and couldn't be managed in the UI.
         if (class_exists('SSF_Redirects')) {
-            $redirects = get_option('ssf_redirects', []);
-            $redirects[] = [
-                'from'   => $record->url,
-                'to'     => $redirect_to,
-                'type'   => '301',
-                'active' => true,
-            ];
-            update_option('ssf_redirects', $redirects);
+            $redirects_manager = new SSF_Redirects();
+            $from_path = wp_parse_url($record->url, PHP_URL_PATH);
+            $from_path = $from_path !== null ? $from_path : $record->url;
+
+            $duplicate = false;
+            foreach ($redirects_manager->get_redirects() as $r) {
+                if (trim($r['from'] ?? '', '/') === trim($from_path, '/')) {
+                    $duplicate = true;
+                    break;
+                }
+            }
+
+            if (!$duplicate) {
+                $redirects_manager->add_redirect([
+                    'from' => $from_path,
+                    'to'   => esc_url_raw($redirect_to),
+                    'type' => 301,
+                    'note' => __('Created from 404 Monitor', 'smart-seo-fixer'),
+                    'auto' => false,
+                ]);
+            }
         }
         
         if (class_exists('SSF_Logger')) {

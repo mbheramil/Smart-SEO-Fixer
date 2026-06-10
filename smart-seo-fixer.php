@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Smart SEO Fixer
- * Version: 2.0.53
- * Author: 
+ * Version: 2.0.54
+ * Author: mbheramil
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: smart-seo-fixer
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.53');
+define('SSF_VERSION', '2.0.54');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -35,6 +35,8 @@ final class Smart_SEO_Fixer {
     /**
      * Plugin components
      */
+    public $ai;
+    /** @deprecated Use $ai — kept for back-compat, holds the same provider instance. */
     public $openai;
     public $analyzer;
     public $meta_manager;
@@ -206,7 +208,10 @@ final class Smart_SEO_Fixer {
      */
     public function init() {
         // Safely instantiate each class (defensive if a file failed to load)
-        if (class_exists('SSF_AI'))          $this->openai       = SSF_AI::get();
+        if (class_exists('SSF_AI')) {
+            $this->ai     = SSF_AI::get();
+            $this->openai = $this->ai; // back-compat alias
+        }
         if (class_exists('SSF_Analyzer'))     $this->analyzer      = new SSF_Analyzer();
         if (class_exists('SSF_Meta_Manager')) $this->meta_manager  = new SSF_Meta_Manager();
         if (class_exists('SSF_Schema'))       $this->schema        = new SSF_Schema();
@@ -347,9 +352,6 @@ final class Smart_SEO_Fixer {
         if (class_exists('SSF_Updater')) {
             SSF_Updater::schedule_cron();
         }
-        
-        // Flush rewrite rules
-        flush_rewrite_rules();
     }
     
     /**
@@ -500,9 +502,15 @@ final class Smart_SEO_Fixer {
     }
     
     /**
-     * Ensure database tables exist (runs on admin_init)
+     * Ensure database tables exist (runs on admin_init).
+     * Gated by a per-version option so the SHOW TABLES probes run once per
+     * plugin version instead of on every admin request.
      */
     public function maybe_create_tables() {
+        if (get_option('ssf_tables_verified') === SSF_VERSION) {
+            return;
+        }
+
         global $wpdb;
         $tables_to_check = [
             $wpdb->prefix . 'ssf_seo_scores',
@@ -513,13 +521,15 @@ final class Smart_SEO_Fixer {
             $wpdb->prefix . 'ssf_404_log',
             $wpdb->prefix . 'ssf_keyword_tracking',
         ];
-        
+
         foreach ($tables_to_check as $table_name) {
             if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") !== $table_name) {
                 $this->create_tables();
-                return;
+                break;
             }
         }
+
+        update_option('ssf_tables_verified', SSF_VERSION, false);
     }
     
     /**

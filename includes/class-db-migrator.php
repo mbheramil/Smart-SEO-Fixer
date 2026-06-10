@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 7;
+    const CURRENT_VERSION = 8;
     
     /**
      * Run any pending migrations
@@ -76,6 +76,10 @@ class SSF_DB_Migrator {
             6 => [__CLASS__, 'migrate_v6_keyword_tracking'],
             // v7: Fix stale Bedrock model IDs saved with wrong date suffix or us. prefix (v1.16.10)
             7 => [__CLASS__, 'migrate_v7_fix_bedrock_model_id'],
+            // v8: Repair redirect rules created by the 404 Monitor with the wrong
+            // 'active' key (instead of 'enabled') and no id — they never fired
+            // and couldn't be deleted/toggled from the Redirects UI (v2.0.54)
+            8 => [__CLASS__, 'migrate_v8_repair_404_redirects'],
         ];
     }
     
@@ -164,6 +168,40 @@ class SSF_DB_Migrator {
         $opts = get_option('smart_seo_fixer_options', []);
         $opts['bedrock_model'] = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
         update_option('smart_seo_fixer_options', $opts);
+    }
+
+    /**
+     * Migration v8: Repair redirect rules appended directly to the ssf_redirects
+     * option by the old 404 Monitor code path. Those rows used 'active' => true
+     * (never read by maybe_redirect, which checks 'enabled') and had no 'id',
+     * so they silently never redirected and couldn't be managed from the UI.
+     */
+    public static function migrate_v8_repair_404_redirects() {
+        $redirects = get_option('ssf_redirects', []);
+        if (!is_array($redirects) || empty($redirects)) {
+            return;
+        }
+
+        $changed = false;
+        foreach ($redirects as &$r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            if (!isset($r['enabled'])) {
+                $r['enabled'] = isset($r['active']) ? (bool) $r['active'] : true;
+                unset($r['active']);
+                $changed = true;
+            }
+            if (empty($r['id'])) {
+                $r['id'] = uniqid('r_');
+                $changed = true;
+            }
+        }
+        unset($r);
+
+        if ($changed) {
+            update_option('ssf_redirects', $redirects);
+        }
     }
 
     /**

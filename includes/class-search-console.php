@@ -490,8 +490,7 @@ class SSF_Search_Console {
         }
         
         // --- 5. Not found (404) log ---
-        $log_404 = get_option('ssf_404_log', []);
-        $top_404s = array_slice($log_404, 0, 20);
+        $top_404s = class_exists('SSF_Redirects') ? SSF_Redirects::get_404_entries(20) : [];
         foreach ($top_404s as $entry) {
             $issues['not_found_404'][] = [
                 'url' => $entry['url'] ?? '',
@@ -856,9 +855,12 @@ class SSF_Search_Console {
             )
         );
         
-        // 404 log count
-        $log_404 = get_option('ssf_404_log', []);
-        $count_404 = count($log_404);
+        // 404 log count (active, non-redirected entries from the 404 Monitor)
+        $count_404 = 0;
+        if (class_exists('SSF_404_Monitor')) {
+            $stats_404 = SSF_404_Monitor::get_stats();
+            $count_404 = intval($stats_404['total_active'] ?? 0);
+        }
         
         // Count missing SEO
         $missing_seo = $wpdb->get_var(

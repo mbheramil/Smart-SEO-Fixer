@@ -4,6 +4,10 @@
  *
  * Removes all plugin data when the plugin is deleted (not just deactivated).
  * This only runs when a user explicitly deletes the plugin from the admin.
+ *
+ * Cleanup is prefix-based so nothing is left behind — every option, transient,
+ * post meta, term meta, table, and cron event this plugin creates uses the
+ * ssf_ / _ssf_ prefix.
  */
 
 // Abort if not called by WordPress
@@ -11,91 +15,29 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
-// Only clean up if the user opted in (future setting) or always clean
-// For now, always clean up on delete
-
 global $wpdb;
 
-// 1. Remove plugin options
-$options = [
-    'ssf_ai_provider',
-    'ssf_bedrock_access_key',
-    'ssf_bedrock_secret_key',
-    'ssf_bedrock_region',
-    'ssf_bedrock_model',
-    'ssf_auto_meta',
-    'ssf_auto_alt_text',
-    'ssf_enable_schema',
-    'ssf_enable_sitemap',
-    'ssf_disable_other_seo_output',
-    'ssf_background_seo_cron',
-    'ssf_github_token',
-    'ssf_title_separator',
-    'ssf_homepage_title',
-    'ssf_homepage_description',
-    'ssf_post_types',
-    'ssf_local_seo_data',
-    'ssf_redirects',
-    'ssf_redirect_attachments',
-    'ssf_404_log',
-    'ssf_cron_last_run',
-    'ssf_gsc_client_id',
-    'ssf_gsc_client_secret',
-    'ssf_gsc_site_url',
-    'ssf_gsc_tokens',
-    'ssf_setup_completed',
-    'ssf_db_version',
-    'ssf_broken_links_last_post',
-    'ssf_robots_txt_custom',
-    'ssf_robots_txt_enabled',
-    'ssf_perf_history',
-];
+// 1. Remove ALL plugin options by prefix (includes every API key:
+//    Bedrock, OpenAI, Claude, Gemini, GitHub token, GSC/GA credentials).
+$wpdb->query(
+    "DELETE FROM {$wpdb->options}
+     WHERE option_name LIKE 'ssf\_%'
+        OR option_name LIKE '\_transient\_ssf\_%'
+        OR option_name LIKE '\_transient\_timeout\_ssf\_%'
+        OR option_name LIKE '\_site\_transient\_ssf\_%'
+        OR option_name LIKE '\_site\_transient\_timeout\_ssf\_%'"
+);
 
-foreach ($options as $option) {
-    delete_option($option);
-}
+// Legacy combined-options array used by early versions / migration v7.
+delete_option('smart_seo_fixer_options');
 
-// 2. Remove post meta
-$meta_keys = [
-    '_ssf_seo_title',
-    '_ssf_meta_description',
-    '_ssf_focus_keyword',
-    '_ssf_canonical_url',
-    '_ssf_noindex',
-    '_ssf_nofollow',
-    '_ssf_custom_schema',
-    '_ssf_schema_type',
-    '_ssf_product_brand',
-    '_ssf_product_gtin',
-    '_ssf_product_mpn',
-    '_ssf_og_title',
-    '_ssf_og_description',
-    '_ssf_og_image',
-    '_ssf_twitter_title',
-    '_ssf_twitter_description',
-    '_ssf_twitter_image',
-];
+// 2. Remove all plugin post meta (every key starts with _ssf_).
+$wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '\_ssf\_%'");
 
-foreach ($meta_keys as $key) {
-    $wpdb->query(
-        $wpdb->prepare("DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", $key)
-    );
-}
+// 3. Remove all plugin term meta (WooCommerce category SEO etc.).
+$wpdb->query("DELETE FROM {$wpdb->termmeta} WHERE meta_key LIKE '\_ssf\_%'");
 
-// 3. Remove term meta (WooCommerce category SEO)
-$term_meta_keys = [
-    '_ssf_cat_seo_title',
-    '_ssf_cat_meta_description',
-    '_ssf_cat_focus_keyword',
-];
-
-foreach ($term_meta_keys as $key) {
-    $wpdb->query(
-        $wpdb->prepare("DELETE FROM {$wpdb->termmeta} WHERE meta_key = %s", $key)
-    );
-}
-
-// 4. Drop custom database tables
+// 4. Drop custom database tables.
 $tables = [
     $wpdb->prefix . 'ssf_seo_scores',
     $wpdb->prefix . 'ssf_history',
@@ -109,26 +51,20 @@ foreach ($tables as $table_name) {
     $wpdb->query("DROP TABLE IF EXISTS $table_name");
 }
 
-// 5. Clear any scheduled cron events
-$timestamp = wp_next_scheduled('ssf_cron_generate_missing_seo');
-if ($timestamp) {
-    wp_unschedule_event($timestamp, 'ssf_cron_generate_missing_seo');
-}
-$timestamp = wp_next_scheduled('ssf_process_job_queue');
-if ($timestamp) {
-    wp_unschedule_event($timestamp, 'ssf_process_job_queue');
-}
-$timestamp = wp_next_scheduled('ssf_check_broken_links');
-if ($timestamp) {
-    wp_unschedule_event($timestamp, 'ssf_check_broken_links');
-}
-$timestamp = wp_next_scheduled('ssf_track_keywords');
-if ($timestamp) {
-    wp_unschedule_event($timestamp, 'ssf_track_keywords');
+// 5. Clear ALL scheduled cron events (wp_clear_scheduled_hook removes
+//    every occurrence of the hook, not just the next one).
+$cron_hooks = [
+    'ssf_cron_generate_missing_seo',
+    'ssf_process_job_queue',
+    'ssf_check_broken_links',
+    'ssf_track_keywords',
+    'ssf_send_email_digest',
+    'ssf_auto_update_check',
+    'ssf_auto_internal_links_run',
+];
+foreach ($cron_hooks as $hook) {
+    wp_clear_scheduled_hook($hook);
 }
 
-// 6. Clear transients
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '%ssf_%' AND option_name LIKE '%transient%'");
-
-// 7. Flush rewrite rules (sitemap rules)
+// 6. Flush rewrite rules (sitemap rules).
 flush_rewrite_rules();

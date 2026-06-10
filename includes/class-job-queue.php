@@ -174,9 +174,57 @@ class SSF_Job_Queue {
      * Called by WordPress cron every minute
      */
     public static function process_queue() {
+        // Serialize workers: WP-Cron, the loopback tick chain, and the AJAX
+        // poll nudge can all land here concurrently. Without a lock, two
+        // workers read the same processed_items offset and process the same
+        // slice twice — duplicate AI spend and corrupted progress counts.
+        if (!self::acquire_lock()) {
+            return; // Another worker is already processing the queue.
+        }
+
+        try {
+            self::process_queue_locked();
+        } finally {
+            self::release_lock();
+        }
+    }
+
+    /**
+     * Acquire the cross-request queue lock (MySQL advisory lock, auto-released
+     * if the PHP process dies). Waits up to 3 seconds so a chained tick that
+     * lands just as the previous worker is finishing isn't dropped; if the
+     * holder is mid-batch (AI calls run 30s+), we give up — the holder spawns
+     * its own follow-up tick when its batch completes.
+     */
+    private static function acquire_lock() {
+        global $wpdb;
+        $got = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 3)', self::lock_name()));
+        return (string) $got === '1';
+    }
+
+    /**
+     * Release the queue lock.
+     */
+    private static function release_lock() {
+        global $wpdb;
+        $wpdb->query($wpdb->prepare('SELECT RELEASE_LOCK(%s)', self::lock_name()));
+    }
+
+    /**
+     * Per-site lock name (prefix makes it unique per install on shared DBs).
+     */
+    private static function lock_name() {
+        global $wpdb;
+        return $wpdb->prefix . 'ssf_queue_lock';
+    }
+
+    /**
+     * The actual queue worker. Must only run while holding the queue lock.
+     */
+    private static function process_queue_locked() {
         global $wpdb;
         $table = self::table();
-        
+
         // Check for stuck jobs first
         self::handle_dead_letters();
         
@@ -293,7 +341,7 @@ class SSF_Job_Queue {
         if ($job_completed) {
             $update_data['status'] = self::STATUS_COMPLETED;
             $update_data['completed_at'] = current_time('mysql');
-            
+
             if (class_exists('SSF_Logger')) {
                 SSF_Logger::info(sprintf(
                     'Job #%d completed: %d processed, %d failed',
@@ -301,8 +349,13 @@ class SSF_Job_Queue {
                 ), 'queue');
             }
         }
-        
+
         $wpdb->update($table, $update_data, ['id' => $job->id]);
+
+        if ($job_completed) {
+            self::clear_progress_snapshot($job->id);
+            self::cleanup();
+        }
 
         // If the job isn't done, fire a non-blocking loopback request so the
         // next batch runs in seconds rather than waiting for WP-Cron's next
@@ -346,9 +399,12 @@ class SSF_Job_Queue {
     /**
      * Rotating token for the loopback tick endpoint (not a full nonce because
      * cron-style callers don't have a session). Tied to auth key + hour.
+     *
+     * @param int $offset_hours 0 for the current hour, -1 for the previous one.
      */
-    public static function get_tick_token() {
-        return substr(hash_hmac('sha256', 'ssf_queue_tick|' . gmdate('YmdH'), wp_salt('auth')), 0, 32);
+    public static function get_tick_token($offset_hours = 0) {
+        $hour = gmdate('YmdH', time() + ($offset_hours * HOUR_IN_SECONDS));
+        return substr(hash_hmac('sha256', 'ssf_queue_tick|' . $hour, wp_salt('auth')), 0, 32);
     }
 
     /**
@@ -356,7 +412,11 @@ class SSF_Job_Queue {
      */
     public static function ajax_queue_tick() {
         $token = isset($_GET['token']) ? sanitize_text_field(wp_unslash($_GET['token'])) : '';
-        if (!hash_equals(self::get_tick_token(), $token)) {
+        // Accept the previous hour's token too, so a tick spawned right before
+        // the hour rolls over isn't rejected when it arrives just after.
+        $valid = hash_equals(self::get_tick_token(), $token)
+              || hash_equals(self::get_tick_token(-1), $token);
+        if (!$valid) {
             wp_die('Invalid token', '', ['response' => 403]);
         }
         // Close the HTTP connection back to the caller immediately so this
@@ -926,11 +986,13 @@ class SSF_Job_Queue {
             ['%s', '%s'],
             ['%d']
         );
-        
+
+        self::clear_progress_snapshot($job_id);
+
         if (class_exists('SSF_Logger')) {
             SSF_Logger::info(sprintf('Job #%d cancelled', $job_id), 'queue');
         }
-        
+
         return true;
     }
     
@@ -976,6 +1038,8 @@ class SSF_Job_Queue {
             ['%s', '%s'],
             ['%d']
         );
+        self::clear_progress_snapshot($job_id);
+        self::cleanup();
     }
     
     /**
@@ -1025,25 +1089,69 @@ class SSF_Job_Queue {
     }
     
     /**
+     * Progress-snapshot option key for a job. Used by handle_dead_letters()
+     * to detect jobs that have genuinely stalled (no items processed for 30+
+     * minutes) as opposed to jobs that are simply large and long-running.
+     */
+    private static function progress_key($job_id) {
+        return 'ssf_job_progress_' . intval($job_id);
+    }
+
+    /**
+     * Remove the progress snapshot once a job reaches a terminal state.
+     */
+    private static function clear_progress_snapshot($job_id) {
+        delete_option(self::progress_key($job_id));
+    }
+
+    /**
      * Detect and handle stuck/dead-letter jobs.
-     * 
+     *
      * A job is "stuck" if it has been in 'processing' status for more than 30 minutes
      * without any progress. These are marked as failed and an admin email is sent.
-     * 
+     *
+     * Progress is tracked via a per-job snapshot (processed count + timestamp):
+     * comparing against started_at alone would kill big jobs that are still
+     * advancing, since started_at is set once and never refreshed.
+     *
      * Call this from process_queue() or on a separate cron schedule.
      */
     public static function handle_dead_letters() {
         global $wpdb;
         $table = self::table();
-        
-        // Find jobs stuck in 'processing' for over 30 minutes
-        $stuck_jobs = $wpdb->get_results(
-            "SELECT * FROM $table 
-             WHERE status = 'processing' 
+
+        // Candidates: anything that's been in 'processing' longer than the window.
+        $candidates = $wpdb->get_results(
+            "SELECT * FROM $table
+             WHERE status = 'processing'
              AND started_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)
              ORDER BY started_at ASC"
         );
-        
+
+        if (empty($candidates)) {
+            return;
+        }
+
+        $stuck_jobs = [];
+        foreach ($candidates as $job) {
+            $key      = self::progress_key($job->id);
+            $snapshot = get_option($key);
+            $processed = intval($job->processed_items);
+
+            if (!is_array($snapshot) || intval($snapshot['processed'] ?? -1) !== $processed) {
+                // First sighting at this progress level — record it and give the
+                // job another full window to advance before declaring it dead.
+                update_option($key, ['processed' => $processed, 'time' => time()], false);
+                continue;
+            }
+
+            if ((time() - intval($snapshot['time'] ?? 0)) < 30 * MINUTE_IN_SECONDS) {
+                continue; // Same progress, but not stalled long enough yet.
+            }
+
+            $stuck_jobs[] = $job;
+        }
+
         if (empty($stuck_jobs)) {
             return;
         }
@@ -1066,8 +1174,9 @@ class SSF_Job_Queue {
                 ['%d']
             );
             
+            self::clear_progress_snapshot($job->id);
             $dead_letters[] = $job;
-            
+
             if (class_exists('SSF_Logger')) {
                 SSF_Logger::error(sprintf(
                     'Job #%d marked as dead letter: stuck in processing since %s (%d/%d items)',

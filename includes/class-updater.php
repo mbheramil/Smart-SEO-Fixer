@@ -347,25 +347,28 @@ class SSF_Updater {
      * Inject auth header and download settings for GitHub requests
      */
     public function authorize_download($args, $url) {
-        // Only apply to GitHub URLs for our repo
-        if (strpos($url, 'github.com') === false && strpos($url, 'api.github.com') === false) {
+        // Only apply to genuine GitHub hosts — substring checks could be
+        // tricked into sending the token to a third-party URL that merely
+        // contains "github.com" somewhere in its path or query string.
+        $host = strtolower((string) wp_parse_url($url, PHP_URL_HOST));
+        $github_hosts = ['github.com', 'api.github.com', 'codeload.github.com', 'objects.githubusercontent.com'];
+        if (!in_array($host, $github_hosts, true)) {
             return $args;
         }
-        
+
         if (strpos($url, $this->github_repo) === false) {
             return $args;
         }
-        
+
         $token = $this->get_token();
         if (!empty($token)) {
             $args['headers']['Authorization'] = 'token ' . $token;
         }
-        
+
         // GitHub redirects — follow them and increase timeout
-        $args['reject_unsafe_urls'] = false;
         $args['timeout'] = 60;
         $args['redirection'] = 10;
-        
+
         return $args;
     }
     

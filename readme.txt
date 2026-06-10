@@ -3,21 +3,21 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.53
+Stable tag: 2.0.54
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI-powered SEO optimization plugin that analyzes and fixes SEO issues using OpenAI.
+AI-powered SEO optimization plugin that analyzes and fixes SEO issues using AWS Bedrock (Claude), OpenAI, Anthropic, or Google Gemini.
 
 == Description ==
 
-Smart SEO Fixer is a powerful WordPress plugin that uses AI (powered by OpenAI) to analyze and optimize your website's SEO. It automatically detects issues and generates optimized titles, meta descriptions, and alt text — with zero gaps.
+Smart SEO Fixer is a powerful WordPress plugin that uses AI to analyze and optimize your website's SEO. Choose your AI provider — AWS Bedrock (Claude, the default), OpenAI, Anthropic Claude, or Google Gemini. It automatically detects issues and generates optimized titles, meta descriptions, and alt text — with zero gaps.
 
 **Key Features:**
 
 * **SEO Analysis** - Comprehensive analysis of titles, meta descriptions, content, headings, images, and links
-* **AI-Powered Generation** - Generate optimized SEO titles, meta descriptions, and focus keywords using OpenAI
+* **AI-Powered Generation** - Generate optimized SEO titles, meta descriptions, and focus keywords using AWS Bedrock (Claude), OpenAI, Anthropic, or Gemini
 * **4-Layer SEO Protection** - Auto-generate on publish/update, background cron, dashboard alerts, and bulk fix
 * **SEO Score** - Get a score from 0-100 for each post/page with detailed feedback
 * **Readability Scoring** - Flesch Reading Ease, sentence length, passive voice detection
@@ -51,15 +51,15 @@ Smart SEO Fixer is a powerful WordPress plugin that uses AI (powered by OpenAI) 
 
 1. Upload the plugin files to `/wp-content/plugins/smart-seo-fixer/`
 2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Go to **Smart SEO → Settings** and enter your OpenAI API key
+3. Go to **Smart SEO → Settings** and configure your AI provider (AWS Bedrock, OpenAI, Anthropic Claude, or Google Gemini)
 4. Click **Analyze All Posts** on the dashboard to get started
 5. Enable **Auto Meta Generation** in Settings for hands-free SEO
 
 == Frequently Asked Questions ==
 
-= Do I need an OpenAI API key? =
+= Do I need an AI API key? =
 
-Yes, to use the AI-powered features (title generation, meta description generation, keyword suggestions), you need an OpenAI API key. You can get one from https://platform.openai.com/api-keys
+Yes, to use the AI-powered features (title generation, meta description generation, keyword suggestions), you need credentials for one provider: AWS Bedrock (access key + secret), OpenAI, Anthropic Claude, or Google Gemini.
 
 The plugin will still work for manual SEO analysis without an API key.
 
@@ -93,6 +93,18 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.54 =
+* Fix: Redirects created from the 404 Monitor never actually fired (wrong flag key, no ID) — now routed through the Redirect Manager, and existing broken rules are auto-repaired via DB migration v8.
+* Fix: Background job queue is now protected by a cross-request lock — concurrent cron/loopback/poll workers could previously process the same batch twice (duplicate AI calls, corrupted progress counts).
+* Fix: Stuck-job detection now tracks real progress — large bulk jobs running longer than 30 minutes were being killed mid-run even while still advancing.
+* Fix: Consolidated the two parallel 404 logging systems into the DB-backed 404 Monitor; the Redirects page tab and Search Console scan now read from it.
+* Fix: 404 log growth is now capped (least useful entries pruned automatically) and stale job/404 cleanup routines actually run.
+* Fix: Slug-change auto-redirects now compute the old URL safely (previously corrupted URLs when the slug appeared elsewhere in the path).
+* Security: Plugin deletion now removes ALL stored credentials (OpenAI/Claude/Gemini API keys were previously left in the database) plus every option, transient, and cron event.
+* Security: GitHub updater token is now only sent to verified github.com hosts (was vulnerable to substring-match spoofing).
+* Performance: Table-existence checks run once per plugin version instead of on every admin page load.
+* Reliability: Queue loopback tick no longer rejected at hour boundaries.
+
 = 2.0.53 =
 * Chore: Version bump.
 
