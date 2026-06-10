@@ -6,21 +6,52 @@
    Variables
    ========================================================================== */
 :root {
+    /* Brand */
     --ssf-primary: #2563eb;
     --ssf-primary-dark: #1d4ed8;
+    --ssf-primary-soft: #eff6ff;
+    --ssf-primary-ring: rgba(37, 99, 235, 0.18);
+    --ssf-gradient-primary: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+
+    /* Semantic */
     --ssf-success: #22c55e;
+    --ssf-success-soft: #ecfdf5;
     --ssf-warning: #f59e0b;
+    --ssf-warning-soft: #fffbeb;
     --ssf-danger: #ef4444;
-    --ssf-gray-50: #f9fafb;
-    --ssf-gray-100: #f3f4f6;
-    --ssf-gray-200: #e5e7eb;
-    --ssf-gray-300: #d1d5db;
-    --ssf-gray-500: #6b7280;
-    --ssf-gray-700: #374151;
-    --ssf-gray-900: #111827;
-    --ssf-radius: 8px;
-    --ssf-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    --ssf-shadow-lg: 0 4px 6px -1px rgba(0,0,0,0.1);
+    --ssf-danger-soft: #fef2f2;
+    --ssf-info: #0ea5e9;
+    --ssf-info-soft: #f0f9ff;
+
+    /* Neutrals */
+    --ssf-gray-50: #f8fafc;
+    --ssf-gray-100: #f1f5f9;
+    --ssf-gray-200: #e2e8f0;
+    --ssf-gray-300: #cbd5e1;
+    --ssf-gray-400: #94a3b8;
+    --ssf-gray-500: #64748b;
+    --ssf-gray-600: #475569;
+    --ssf-gray-700: #334155;
+    --ssf-gray-800: #1e293b;
+    --ssf-gray-900: #0f172a;
+
+    /* Shape */
+    --ssf-radius-sm: 8px;
+    --ssf-radius: 12px;
+    --ssf-radius-lg: 16px;
+    --ssf-radius-full: 999px;
+
+    /* Elevation — layered, soft */
+    --ssf-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --ssf-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.06);
+    --ssf-shadow-lg: 0 4px 12px rgba(15, 23, 42, 0.08), 0 12px 32px rgba(15, 23, 42, 0.10);
+    --ssf-shadow-xl: 0 8px 24px rgba(15, 23, 42, 0.12), 0 24px 64px rgba(15, 23, 42, 0.16);
+
+    /* Motion */
+    --ssf-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ssf-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ssf-speed: 0.2s;
+    --ssf-speed-slow: 0.35s;
 }
 
 /* ==========================================================================
@@ -1401,5 +1432,488 @@ body.ssf-pdf-exporting .ssf-report {
 
     /* Hide browser URL in print footer */
     @page { margin: 0.5in; }
+}
+
+/* ==========================================================================
+   Design System v2 — fluid, professional polish layer
+   Appended last so it wins the cascade over the legacy rules above.
+   Everything is scoped to .ssf-wrap (every plugin screen uses it).
+   ========================================================================== */
+
+/* ----- Typography & rendering ------------------------------------------- */
+.ssf-wrap {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: var(--ssf-gray-700);
+    animation: ssf-page-in 0.35s var(--ssf-ease) both;
+}
+
+.ssf-page-title {
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ssf-gray-900);
+}
+
+.ssf-page-title .dashicons {
+    background: var(--ssf-gradient-primary);
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    line-height: 36px;
+    text-align: center;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px var(--ssf-primary-ring);
+}
+
+.ssf-version {
+    background: var(--ssf-primary-soft);
+    color: var(--ssf-primary);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+.ssf-stat-value,
+.ssf-stat-num,
+.ssf-mini-val,
+.ssf-perf-num,
+.ssf-report-stat-box .stat-number,
+.ssf-report-info-card .info-value {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+/* ----- Cards -------------------------------------------------------------- */
+.ssf-wrap .ssf-card {
+    border: 1px solid var(--ssf-gray-200);
+    box-shadow: var(--ssf-shadow-xs);
+    transition: box-shadow var(--ssf-speed) var(--ssf-ease),
+                border-color var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-card:hover {
+    box-shadow: var(--ssf-shadow);
+}
+
+.ssf-wrap .ssf-card-header {
+    padding: 16px 20px;
+    background: linear-gradient(180deg, #fff 0%, var(--ssf-gray-50) 140%);
+}
+
+.ssf-wrap .ssf-card-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+}
+
+.ssf-wrap .ssf-card-header h2 .dashicons {
+    color: var(--ssf-primary);
+}
+
+/* ----- Stat cards: lift + staggered entrance ------------------------------ */
+.ssf-wrap .ssf-stat-card {
+    border: 1px solid var(--ssf-gray-200);
+    box-shadow: var(--ssf-shadow-xs);
+    transition: transform var(--ssf-speed) var(--ssf-ease),
+                box-shadow var(--ssf-speed) var(--ssf-ease),
+                border-color var(--ssf-speed) var(--ssf-ease);
+    animation: ssf-rise-in 0.4s var(--ssf-ease) both;
+}
+
+.ssf-wrap .ssf-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ssf-shadow-lg);
+    border-color: var(--ssf-gray-300);
+}
+
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(1) { animation-delay: 0.00s; }
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(2) { animation-delay: 0.05s; }
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(3) { animation-delay: 0.10s; }
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(4) { animation-delay: 0.15s; }
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(5) { animation-delay: 0.20s; }
+.ssf-wrap .ssf-stats-grid .ssf-stat-card:nth-child(6) { animation-delay: 0.25s; }
+
+.ssf-wrap .ssf-stat-icon {
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 6px rgba(15, 23, 42, 0.18);
+}
+
+/* ----- WordPress buttons, modernized inside plugin screens ---------------- */
+.ssf-wrap .button,
+.ssf-wrap .button-secondary {
+    border-radius: var(--ssf-radius-sm);
+    border-color: var(--ssf-gray-300);
+    color: var(--ssf-gray-700);
+    font-weight: 500;
+    box-shadow: var(--ssf-shadow-xs);
+    transition: all var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .button:hover,
+.ssf-wrap .button-secondary:hover {
+    border-color: var(--ssf-gray-400);
+    color: var(--ssf-gray-900);
+    background: var(--ssf-gray-50);
+    transform: translateY(-1px);
+    box-shadow: var(--ssf-shadow);
+}
+
+.ssf-wrap .button:active {
+    transform: translateY(0);
+    box-shadow: var(--ssf-shadow-xs);
+}
+
+.ssf-wrap .button-primary,
+.ssf-wrap .button.button-primary {
+    background: var(--ssf-gradient-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    text-shadow: none;
+    box-shadow: 0 1px 2px rgba(29, 78, 216, 0.35), 0 3px 10px var(--ssf-primary-ring);
+}
+
+.ssf-wrap .button-primary:hover,
+.ssf-wrap .button.button-primary:hover {
+    background: linear-gradient(135deg, #4f8df7 0%, #2f6ced 55%, #2153e0 100%);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(29, 78, 216, 0.35), 0 6px 18px var(--ssf-primary-ring);
+}
+
+.ssf-wrap .button-primary:active,
+.ssf-wrap .button.button-primary:active {
+    background: var(--ssf-primary-dark);
+    transform: translateY(0);
+}
+
+.ssf-wrap .button:disabled,
+.ssf-wrap .button[disabled],
+.ssf-wrap .button.disabled {
+    transform: none !important;
+    box-shadow: none !important;
+    opacity: 0.6;
+}
+
+.ssf-wrap .button .dashicons {
+    vertical-align: middle;
+    margin-top: -2px;
+}
+
+/* Small utility buttons used across tables */
+.ssf-wrap .ssf-btn-sm,
+.ssf-wrap .ssf-fix-btn,
+.ssf-wrap .ssf-test-btn {
+    border-radius: var(--ssf-radius-sm);
+    transition: all var(--ssf-speed) var(--ssf-ease);
+}
+
+/* ----- Inputs & selects ---------------------------------------------------- */
+.ssf-wrap input[type="text"],
+.ssf-wrap input[type="url"],
+.ssf-wrap input[type="email"],
+.ssf-wrap input[type="number"],
+.ssf-wrap input[type="search"],
+.ssf-wrap input[type="password"],
+.ssf-wrap input[type="date"],
+.ssf-wrap select,
+.ssf-wrap textarea,
+.ssf-wrap .ssf-input,
+.ssf-wrap .ssf-select {
+    border-radius: var(--ssf-radius-sm);
+    border: 1px solid var(--ssf-gray-300);
+    box-shadow: var(--ssf-shadow-xs);
+    transition: border-color var(--ssf-speed) var(--ssf-ease),
+                box-shadow var(--ssf-speed) var(--ssf-ease);
+    min-height: 34px;
+}
+
+.ssf-wrap input[type="text"]:focus,
+.ssf-wrap input[type="url"]:focus,
+.ssf-wrap input[type="email"]:focus,
+.ssf-wrap input[type="number"]:focus,
+.ssf-wrap input[type="search"]:focus,
+.ssf-wrap input[type="password"]:focus,
+.ssf-wrap input[type="date"]:focus,
+.ssf-wrap select:focus,
+.ssf-wrap textarea:focus,
+.ssf-wrap .ssf-input:focus,
+.ssf-wrap .ssf-select:focus {
+    border-color: var(--ssf-primary);
+    box-shadow: 0 0 0 3px var(--ssf-primary-ring);
+    outline: none;
+}
+
+.ssf-wrap input::placeholder,
+.ssf-wrap textarea::placeholder {
+    color: var(--ssf-gray-400);
+}
+
+/* ----- Tables --------------------------------------------------------------- */
+.ssf-wrap .wp-list-table,
+.ssf-wrap .ssf-table {
+    border: 1px solid var(--ssf-gray-200);
+    border-radius: var(--ssf-radius-sm);
+    overflow: hidden;
+    box-shadow: var(--ssf-shadow-xs);
+}
+
+.ssf-wrap .wp-list-table th,
+.ssf-wrap .ssf-table th {
+    background: var(--ssf-gray-50);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ssf-gray-500);
+    border-bottom: 1px solid var(--ssf-gray-200);
+}
+
+.ssf-wrap .wp-list-table td,
+.ssf-wrap .ssf-table td {
+    border-bottom: 1px solid var(--ssf-gray-100);
+    vertical-align: middle;
+}
+
+.ssf-wrap .wp-list-table tbody tr,
+.ssf-wrap .ssf-table tbody tr {
+    transition: background var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .wp-list-table tbody tr:hover,
+.ssf-wrap .ssf-table tbody tr:hover {
+    background: var(--ssf-primary-soft);
+}
+
+.ssf-wrap .wp-list-table.striped > tbody > :nth-child(odd),
+.ssf-wrap .ssf-table.striped > tbody > :nth-child(odd) {
+    background: transparent;
+}
+
+.ssf-wrap .wp-list-table.striped > tbody > tr:nth-child(odd):hover,
+.ssf-wrap .ssf-table.striped > tbody > tr:nth-child(odd):hover {
+    background: var(--ssf-primary-soft);
+}
+
+/* ----- Badges & score pills -------------------------------------------------- */
+.ssf-wrap .ssf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: var(--ssf-radius-full);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+}
+
+.ssf-wrap .ssf-score {
+    box-shadow: var(--ssf-shadow-xs);
+    transition: transform var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-score:hover {
+    transform: scale(1.06);
+}
+
+/* ----- Filter chips ------------------------------------------------------------ */
+.ssf-wrap .ssf-filter-btn {
+    border-radius: var(--ssf-radius-full);
+    font-weight: 500;
+    box-shadow: var(--ssf-shadow-xs);
+    transition: all var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-filter-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--ssf-shadow);
+    background: var(--ssf-primary-soft);
+}
+
+.ssf-wrap .ssf-filter-btn.active {
+    box-shadow: 0 2px 8px var(--ssf-primary-ring);
+}
+
+/* ----- Action tiles -------------------------------------------------------------- */
+.ssf-wrap .ssf-action-btn {
+    border-radius: var(--ssf-radius);
+    transition: all var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ssf-shadow-lg);
+    border-color: var(--ssf-primary);
+    background: #fff;
+}
+
+.ssf-wrap .ssf-action-btn .dashicons {
+    transition: transform var(--ssf-speed) var(--ssf-ease-spring);
+}
+
+.ssf-wrap .ssf-action-btn:hover .dashicons {
+    transform: scale(1.15);
+}
+
+/* ----- Pagination ------------------------------------------------------------------ */
+.ssf-wrap .ssf-pagination .page-numbers,
+.ssf-wrap .ssf-page-link,
+.ssf-wrap .ssf-page-current {
+    border-radius: var(--ssf-radius-sm);
+    transition: all var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-pagination .page-numbers:hover {
+    background: var(--ssf-primary-soft);
+    border-color: var(--ssf-primary);
+    color: var(--ssf-primary);
+}
+
+/* ----- Progress bars: gradient + shimmer --------------------------------------------- */
+.ssf-wrap .ssf-progress-bar {
+    height: 12px;
+    border-radius: var(--ssf-radius-full);
+    background: var(--ssf-gray-100);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.ssf-wrap .ssf-progress-bar .ssf-progress-fill {
+    background: var(--ssf-gradient-primary);
+    border-radius: var(--ssf-radius-full);
+    position: relative;
+    overflow: hidden;
+    transition: width 0.45s var(--ssf-ease);
+}
+
+.ssf-wrap .ssf-progress-bar .ssf-progress-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.35) 45%,
+        rgba(255, 255, 255, 0.35) 55%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: ssf-shimmer 1.6s linear infinite;
+}
+
+/* ----- Modals: backdrop blur + scale-in ------------------------------------------------ */
+.ssf-wrap .ssf-modal,
+.ssf-modal {
+    background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    animation: ssf-fade-in 0.18s var(--ssf-ease) both;
+}
+
+.ssf-wrap .ssf-modal-content,
+.ssf-modal .ssf-modal-content {
+    border-radius: var(--ssf-radius-lg);
+    box-shadow: var(--ssf-shadow-xl);
+    animation: ssf-pop-in 0.25s var(--ssf-ease-spring) both;
+}
+
+.ssf-modal .ssf-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ssf-modal .ssf-modal-close {
+    cursor: pointer;
+    color: var(--ssf-gray-400);
+    transition: color var(--ssf-speed) var(--ssf-ease), transform var(--ssf-speed) var(--ssf-ease);
+}
+
+.ssf-modal .ssf-modal-close:hover {
+    color: var(--ssf-gray-700);
+    transform: rotate(90deg);
+}
+
+/* ----- Notices ---------------------------------------------------------------------------- */
+.ssf-wrap .ssf-notice {
+    border: 1px solid var(--ssf-gray-200);
+    border-left-width: 4px;
+    box-shadow: var(--ssf-shadow-xs);
+    animation: ssf-rise-in 0.3s var(--ssf-ease) both;
+}
+
+/* ----- Scrollbars (WebKit) for in-card scroll areas ----------------------------------------- */
+.ssf-wrap .ssf-post-list::-webkit-scrollbar,
+.ssf-wrap .ssf-progress-log::-webkit-scrollbar,
+.ssf-wrap .ssf-factor-fix-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ssf-wrap .ssf-post-list::-webkit-scrollbar-track,
+.ssf-wrap .ssf-progress-log::-webkit-scrollbar-track,
+.ssf-wrap .ssf-factor-fix-log::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ssf-wrap .ssf-post-list::-webkit-scrollbar-thumb,
+.ssf-wrap .ssf-progress-log::-webkit-scrollbar-thumb,
+.ssf-wrap .ssf-factor-fix-log::-webkit-scrollbar-thumb {
+    background: var(--ssf-gray-300);
+    border-radius: var(--ssf-radius-full);
+}
+
+.ssf-wrap .ssf-post-list::-webkit-scrollbar-thumb:hover,
+.ssf-wrap .ssf-progress-log::-webkit-scrollbar-thumb:hover,
+.ssf-wrap .ssf-factor-fix-log::-webkit-scrollbar-thumb:hover {
+    background: var(--ssf-gray-400);
+}
+
+/* ----- Accessibility: visible keyboard focus -------------------------------------------------- */
+.ssf-wrap a:focus-visible,
+.ssf-wrap button:focus-visible,
+.ssf-wrap .button:focus-visible,
+.ssf-wrap input:focus-visible,
+.ssf-wrap select:focus-visible {
+    outline: 2px solid var(--ssf-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--ssf-primary-ring);
+}
+
+/* ----- Keyframes --------------------------------------------------------------------------------- */
+@keyframes ssf-page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ssf-rise-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ssf-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes ssf-pop-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes ssf-shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+}
+
+/* ----- Reduced motion: respect user preference ----------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    .ssf-wrap,
+    .ssf-wrap *,
+    .ssf-modal,
+    .ssf-modal * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
