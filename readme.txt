@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.55
+Stable tag: 2.0.56
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,16 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.56 =
+* Fix: Migration engine rewritten — Rank Math template variables (%title%, %sitename%, %sep%) are now resolved instead of being imported as literal text, and Rank Math's robots array no longer crashes the import on PHP 8.
+* Fix: All in One SEO v4 data is now read from its custom database table (titles, descriptions, focus keyphrase, canonical, robots, social) — previously v4 sites migrated almost nothing.
+* Feature: Migration now imports social media data (Open Graph + Twitter titles, descriptions, images), nofollow flags, and AIOSEO v4 smart tags (#post_title etc.).
+* Feature: SEOPress and The SEO Framework migration support (previously claimed but not implemented).
+* Fix: Drafts, scheduled, pending, and private posts are now migrated (previously silently skipped — published-only).
+* Fix: Posts with only a focus keyword, canonical, or robots flag (no title/description) are now picked up by migration.
+* Fix: Migration errors now surface as readable messages in the progress UI instead of breaking the progress loop.
+* UI: Migration page now states exactly what is and isn't migrated; preview shows resolved titles exactly as they will be saved.
+
 = 2.0.55 =
 * UI: Complete admin design-system refresh — modern layered shadows, refined color palette, larger radii, gradient primary buttons, polished inputs with focus rings, table row hover states, filter chips, animated progress bars with shimmer, modal backdrop blur with spring entrance, staggered stat-card animations, styled scrollbars, and page fade-in.
 * UI: Visible keyboard-focus outlines for accessibility; all motion respects prefers-reduced-motion.

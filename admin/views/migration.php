@@ -19,7 +19,15 @@ $last_migration = get_option('ssf_last_migration', null);
     </h1>
     
     <div class="ssf-migration-intro">
-        <p><?php esc_html_e('Import your existing SEO data from other plugins. This will copy titles, meta descriptions, focus keywords, and other SEO settings to Smart SEO Fixer.', 'smart-seo-fixer'); ?></p>
+        <p><?php esc_html_e('Import your existing SEO data from Yoast SEO, Rank Math, All in One SEO, SEOPress, or The SEO Framework.', 'smart-seo-fixer'); ?></p>
+        <p>
+            <strong><?php esc_html_e('What gets migrated:', 'smart-seo-fixer'); ?></strong>
+            <?php esc_html_e('SEO titles, meta descriptions, focus keywords, canonical URLs, noindex/nofollow flags, and social media (Open Graph + Twitter) titles, descriptions, and images — for posts of every status (drafts and private pages included). Template variables like %%title%% or %sitename% are resolved into real text during import.', 'smart-seo-fixer'); ?>
+        </p>
+        <p style="color:#64748b;font-size:13px;">
+            <strong><?php esc_html_e('Not migrated:', 'smart-seo-fixer'); ?></strong>
+            <?php esc_html_e('redirects managed by the old plugin, category/taxonomy SEO, and sitewide title templates — review those manually after import.', 'smart-seo-fixer'); ?>
+        </p>
     </div>
     
     <?php if ($last_migration): ?>
