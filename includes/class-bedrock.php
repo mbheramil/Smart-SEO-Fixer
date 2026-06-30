@@ -44,10 +44,13 @@ class SSF_Bedrock {
     }
 
     /**
-     * Bedrock model ID — hardcoded to Claude 3.5 Haiku cross-region inference profile
+     * Bedrock model ID — hardcoded to Claude Haiku 4.5 cross-region inference profile.
+     * Claude 4.x-tier models on Bedrock are only invokable on-demand through a
+     * cross-region inference profile, so the ID carries the `us.` prefix (the same
+     * requirement that applied to Claude 3.5 Haiku — see v2.0.49).
      */
     private function get_model() {
-        return 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
+        return 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
     }
 
     /**

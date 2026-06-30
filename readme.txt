@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.56
+Stable tag: 2.0.57
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.57 =
+* CRITICAL FIX: The XML sitemap was being served with an HTTP 404 status on many sites — valid XML, but Google rejects any sitemap that doesn't return HTTP 200, so nothing got indexed from it. The sitemap now always responds 200 OK.
+* Fix: Sitemap stylesheet declared XSLT 2.0, which no browser can render — viewing /sitemap.xml showed a blank or raw page. Corrected to XSLT 1.0.
+* Fix: Sitemap rewrite rules are now re-flushed automatically on update, so /sitemap.xml and all sub-sitemaps resolve without a manual Settings → Permalinks save.
+* Fix: Post-type sub-sitemaps are no longer listed in the index when all their published posts are noindex (which produced empty sitemaps Google flags as errors).
+* Change: AI model upgraded to Claude Haiku 4.5 on AWS Bedrock (us.anthropic.claude-haiku-4-5-20251001-v1:0) — newer, sharper SEO copy at the same low cost. Existing sites are migrated automatically.
+
 = 2.0.56 =
 * Fix: Migration engine rewritten — Rank Math template variables (%title%, %sitename%, %sep%) are now resolved instead of being imported as literal text, and Rank Math's robots array no longer crashes the import on PHP 8.
 * Fix: All in One SEO v4 data is now read from its custom database table (titles, descriptions, focus keyphrase, canonical, robots, social) — previously v4 sites migrated almost nothing.

@@ -208,16 +208,18 @@ class SSF_Sitemap {
         }
         
         $output = '';
-        
+
         if ($sitemap_type === 'index') {
             $output = $this->generate_index_sitemap();
             header('Content-Type: application/xml; charset=UTF-8');
         } elseif ($sitemap_type === 'xsl-index') {
+            $this->force_ok_status();
             header('Content-Type: text/xsl; charset=UTF-8');
             header('X-Robots-Tag: noindex, follow');
             echo $this->get_xsl_stylesheet(true);
             exit;
         } elseif ($sitemap_type === 'xsl') {
+            $this->force_ok_status();
             header('Content-Type: text/xsl; charset=UTF-8');
             header('X-Robots-Tag: noindex, follow');
             echo $this->get_xsl_stylesheet(false);
@@ -243,11 +245,32 @@ class SSF_Sitemap {
         if (empty($output)) {
             return;
         }
-        
+
+        // Critical: WordPress runs handle_404() before template_redirect, and a
+        // request that matched no posts (which a virtual sitemap URL does) is
+        // flagged 404 with a 404 status header already queued. Without forcing
+        // 200 here, /sitemap.xml is served as valid XML but with an HTTP 404 —
+        // and Google rejects any sitemap that doesn't return 200.
+        $this->force_ok_status();
+
         header('Content-Type: application/xml; charset=UTF-8');
         header('X-Robots-Tag: noindex, follow');
         echo $output;
         exit;
+    }
+
+    /**
+     * Force a 200 OK status for sitemap output and clear the 404 flag that
+     * WordPress may have set during handle_404() for this no-posts request.
+     */
+    private function force_ok_status() {
+        global $wp_query;
+        if ($wp_query instanceof WP_Query) {
+            $wp_query->is_404 = false;
+        }
+        if (!headers_sent()) {
+            status_header(200);
+        }
     }
     
     /**
@@ -318,8 +341,16 @@ class SSF_Sitemap {
      */
     private function count_posts_for_type($post_type) {
         global $wpdb;
+        // Exclude noindex posts so the count matches the URLs actually emitted by
+        // generate_post_type_sitemap() (which skips noindex) — otherwise the index
+        // can list a sub-sitemap that renders empty, which Google flags as an error.
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish'",
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             WHERE p.post_type = %s AND p.post_status = 'publish'
+             AND NOT EXISTS (
+                 SELECT 1 FROM {$wpdb->postmeta} pm
+                 WHERE pm.post_id = p.ID AND pm.meta_key = '_ssf_noindex' AND pm.meta_value = '1'
+             )",
             $post_type
         ));
     }
@@ -527,7 +558,10 @@ class SSF_Sitemap {
         $sitemap_url = esc_url(home_url('/sitemap.xml'));
         
         $xsl = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xsl .= '<xsl:stylesheet version="2.0"
+        // Must be XSLT 1.0 — every browser's built-in XSLT engine (libxslt) is
+        // 1.0 only. Declaring version="2.0" makes Chrome/Firefox refuse to
+        // render the stylesheet, so the sitemap shows as a blank or raw page.
+        $xsl .= '<xsl:stylesheet version="1.0"
             xmlns:html="http://www.w3.org/TR/REC-html40"
             xmlns:sitemap="http://www.sitemaps.org/schemas/sitemap/0.9"
             xmlns:xsl="http://www.w3.org/1999/XSL/Transform">

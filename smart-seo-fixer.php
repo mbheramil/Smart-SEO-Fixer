@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Smart SEO Fixer
- * Version: 2.0.56
+ * Version: 2.0.57
  * Author: mbheramil
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.56');
+define('SSF_VERSION', '2.0.57');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -286,7 +286,7 @@ final class Smart_SEO_Fixer {
         // Set default options
         $defaults = [
             'ai_provider' => 'bedrock',
-            'bedrock_model' => 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            'bedrock_model' => 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             'bedrock_region' => 'us-east-1',
             'auto_meta' => false,
             'auto_alt_text' => false,

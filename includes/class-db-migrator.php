@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 8;
+    const CURRENT_VERSION = 9;
     
     /**
      * Run any pending migrations
@@ -80,6 +80,9 @@ class SSF_DB_Migrator {
             // 'active' key (instead of 'enabled') and no id — they never fired
             // and couldn't be deleted/toggled from the Redirects UI (v2.0.54)
             8 => [__CLASS__, 'migrate_v8_repair_404_redirects'],
+            // v9: Upgrade Bedrock model to Claude Haiku 4.5 and re-flush sitemap
+            // rewrite rules so /sitemap.xml resolves after the auto-update (v2.0.57)
+            9 => [__CLASS__, 'migrate_v9_haiku_45_and_sitemap'],
         ];
     }
     
@@ -202,6 +205,34 @@ class SSF_DB_Migrator {
         if ($changed) {
             update_option('ssf_redirects', $redirects);
         }
+    }
+
+    /**
+     * Migration v9: Move existing installs to Claude Haiku 4.5 (the prior default
+     * was Claude 3.5 Haiku) and force a rewrite-rule flush so the sitemap routes
+     * resolve immediately after the auto-update — without waiting for a manual
+     * Settings → Permalinks save.
+     */
+    public static function migrate_v9_haiku_45_and_sitemap() {
+        $new_model = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+
+        // Standalone option used by SSF_Bedrock / settings.
+        $current = get_option('ssf_bedrock_model', '');
+        if ($current !== $new_model) {
+            update_option('ssf_bedrock_model', $new_model);
+        }
+
+        // Legacy combined-options array (kept in sync by v7).
+        $opts = get_option('smart_seo_fixer_options', []);
+        if (is_array($opts)) {
+            $opts['bedrock_model'] = $new_model;
+            update_option('smart_seo_fixer_options', $opts);
+        }
+
+        // The sitemap singleton already registered its rewrite rules on `init`
+        // (which runs before this admin_init migration), so flushing here
+        // persists them — /sitemap.xml resolves without a manual Permalinks save.
+        flush_rewrite_rules(false);
     }
 
     /**
