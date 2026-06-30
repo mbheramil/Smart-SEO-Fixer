@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.58
+Stable tag: 2.0.59
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.59 =
+* CRITICAL FIX: The Search Console "AI Generate" / "AI Generate All Missing" buttons showed "Fixing X/Y…" but left every row marked "Missing" with no explanation. Two causes, both fixed: (1) the bulk loop silently swallowed every failure, so a run where all AI calls failed looked identical to a successful one; (2) even successful fixes never updated the row text. Each row now shows ✓ Fixed (with the new title/description) or ✗ with the actual error, and the run ends with a clear "X fixed, Y failed" summary plus the real failure reason.
+* Fix: Automatic AI model fallback. If Claude Haiku 4.5 isn't enabled for your AWS Bedrock account/region, the plugin now automatically falls back to Claude 3.5 Haiku so AI generation keeps working instead of failing silently — and logs a one-line notice in the Debug Log telling you to enable the newer model under AWS Console → Bedrock → Model access.
+
 = 2.0.58 =
 * Fix: Reduced AI hallucination in generated titles, meta descriptions, and focus keywords. Every generation prompt now carries an explicit grounding rule — the model may only use facts present in the post content and is forbidden from inventing statistics, prices, locations, dates, awards, ratings, or unfounded superlatives ("best", "#1", "top-rated", "leading"). Applies to the per-post buttons, Bulk AI Fix, and the background cron, across both AWS Bedrock and OpenAI.
 * Fix: Lowered the generation temperature to 0.3 for titles/descriptions/keywords (was 0.5–0.7), keeping output much closer to the actual content.

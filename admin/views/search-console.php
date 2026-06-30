@@ -562,9 +562,11 @@ jQuery(document).ready(function($) {
             post_id: postId
         }, function(response) {
             if (response.success && response.data.fixed && response.data.fixed.length > 0) {
-                $btn.closest('.ssf-audit-item').addClass('ssf-audit-fixed');
+                var $item = $btn.closest('.ssf-audit-item');
+                $item.addClass('ssf-audit-fixed');
                 var msg = response.data.message || '<?php echo esc_js(__('Fixed!', 'smart-seo-fixer')); ?>';
-                $btn.html('<span class="dashicons dashicons-yes-alt"></span> ' + escHtml(msg)).addClass('ssf-btn-fixed');
+                $item.find('.ssf-audit-detail').html('<span style="color:#16a34a;">✓ ' + escHtml(msg) + '</span>');
+                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Fixed', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
             } else {
                 $btn.prop('disabled', false).html(originalHtml);
                 var errMsg = (response.data && response.data.message) ? response.data.message : '<?php echo esc_js(__('No changes made. Try again.', 'smart-seo-fixer')); ?>';
@@ -579,44 +581,83 @@ jQuery(document).ready(function($) {
     // Bulk fix button handler
     $(document).on('click', '.ssf-bulk-fix-btn', function() {
         var $btn = $(this);
+        var $group = $btn.closest('.ssf-audit-group');
         var fixType = $btn.data('fix');
         var items = $btn.data('items') || [];
-        var originalHtml = $btn.html();
         var index = 0;
-        
+        var okCount = 0;
+        var failCount = 0;
+        var firstError = '';
+
+        if (!items.length) { return; }
         if (!confirm('<?php echo esc_js(__('This will AI-generate missing SEO data for all listed pages. Continue?', 'smart-seo-fixer')); ?>')) {
             return;
         }
-        
+
         $btn.prop('disabled', true);
-        
+
+        // Update a single row to reflect success/failure so the user sees
+        // exactly what happened instead of the text staying "Missing...".
+        function markRow(postId, ok, msg) {
+            var $item = $group.find('.ssf-fix-btn[data-post-id="' + postId + '"]').closest('.ssf-audit-item');
+            if (!$item.length) { return; }
+            var $detail = $item.find('.ssf-audit-detail');
+            var $rowBtn = $item.find('.ssf-fix-btn');
+            if (ok) {
+                $item.addClass('ssf-audit-fixed');
+                $detail.html('<span style="color:#16a34a;">✓ ' + escHtml(msg || '<?php echo esc_js(__('Fixed', 'smart-seo-fixer')); ?>') + '</span>');
+                $rowBtn.prop('disabled', true).addClass('ssf-btn-fixed')
+                       .html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('Fixed', 'smart-seo-fixer')); ?>');
+            } else {
+                $detail.html('<span style="color:#dc2626;">✗ ' + escHtml(msg || '<?php echo esc_js(__('Could not fix', 'smart-seo-fixer')); ?>') + '</span>');
+                $rowBtn.prop('disabled', false);
+            }
+        }
+
         function fixNext() {
             if (index >= items.length) {
-                $btn.html('<span class="dashicons dashicons-yes-alt"></span> <?php echo esc_js(__('All Done!', 'smart-seo-fixer')); ?>').addClass('ssf-btn-fixed');
+                var summary = okCount + ' <?php echo esc_js(__('fixed', 'smart-seo-fixer')); ?>, ' +
+                              failCount + ' <?php echo esc_js(__('failed', 'smart-seo-fixer')); ?>';
+                $btn.prop('disabled', false)
+                    .html('<span class="dashicons dashicons-yes-alt"></span> ' + summary)
+                    .toggleClass('ssf-btn-fixed', failCount === 0);
+                // Surface WHY it failed — most often this is "AI not configured"
+                // or the Bedrock model isn't enabled for the account.
+                if (failCount > 0 && firstError) {
+                    alert('<?php echo esc_js(__('Some pages could not be fixed:', 'smart-seo-fixer')); ?>\n\n' + firstError);
+                }
                 loadGSCSummary();
                 return;
             }
-            
+
             $btn.html('<span class="dashicons dashicons-update ssf-spin"></span> <?php echo esc_js(__('Fixing', 'smart-seo-fixer')); ?> ' + (index + 1) + '/' + items.length + '...');
-            
+
             $.post(ssfAdmin.ajax_url, {
                 action: 'ssf_fix_indexability_issue',
                 nonce: ssfAdmin.nonce,
                 fix_type: fixType,
                 post_id: items[index]
             }, function(response) {
-                if (response.success) {
-                    var $item = $btn.closest('.ssf-audit-group').find('.ssf-fix-btn[data-post-id="' + items[index] + '"]').closest('.ssf-audit-item');
-                    $item.addClass('ssf-audit-fixed');
+                if (response.success && response.data && response.data.fixed && response.data.fixed.length > 0) {
+                    okCount++;
+                    markRow(items[index], true, response.data.message);
+                } else {
+                    failCount++;
+                    var em = (response.data && response.data.message) ? response.data.message : '<?php echo esc_js(__('No changes made.', 'smart-seo-fixer')); ?>';
+                    if (!firstError) { firstError = em; }
+                    markRow(items[index], false, em);
                 }
                 index++;
                 fixNext();
             }).fail(function() {
+                failCount++;
+                if (!firstError) { firstError = '<?php echo esc_js(__('Request failed — check your connection.', 'smart-seo-fixer')); ?>'; }
+                markRow(items[index], false, '<?php echo esc_js(__('Request failed', 'smart-seo-fixer')); ?>');
                 index++;
                 fixNext();
             });
         }
-        
+
         fixNext();
     });
     

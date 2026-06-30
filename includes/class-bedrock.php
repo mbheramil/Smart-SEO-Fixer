@@ -44,13 +44,72 @@ class SSF_Bedrock {
     }
 
     /**
-     * Bedrock model ID — hardcoded to Claude Haiku 4.5 cross-region inference profile.
+     * Default Bedrock model — Claude Haiku 4.5 cross-region inference profile.
      * Claude 4.x-tier models on Bedrock are only invokable on-demand through a
-     * cross-region inference profile, so the ID carries the `us.` prefix (the same
-     * requirement that applied to Claude 3.5 Haiku — see v2.0.49).
+     * cross-region inference profile, so the ID carries the `us.` prefix.
+     */
+    const DEFAULT_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+
+    /**
+     * Fallback model, used automatically when the default model is not enabled
+     * for this AWS account/region — so AI features keep working instead of
+     * failing silently. This is the model the plugin shipped with previously.
+     */
+    const FALLBACK_MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
+
+    /** Per-request model override, set during an automatic fallback retry. */
+    private $model_override = null;
+
+    /** Process-wide flag: the default model has been confirmed unavailable. */
+    private static $primary_unavailable = false;
+
+    /**
+     * Bedrock model ID for the current request.
      */
     private function get_model() {
-        return 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
+        if ( $this->model_override ) {
+            return $this->model_override;
+        }
+        // Once we learn the default isn't enabled, go straight to the fallback
+        // for the rest of this PHP process (avoids a failed primary call on
+        // every item of a bulk run).
+        if ( self::$primary_unavailable ) {
+            return self::FALLBACK_MODEL;
+        }
+        return self::DEFAULT_MODEL;
+    }
+
+    /**
+     * Detect the AWS error meaning "this model isn't available to you" — not
+     * enabled in Bedrock model access, wrong region, or an unrecognized ID.
+     */
+    private function is_model_unavailable_error( $message ) {
+        $message = strtolower( (string) $message );
+        $needles = [
+            'accessdenied', "don't have access", 'do not have access', 'not authorized',
+            'invalid model', 'model identifier', 'could not be found', 'validationexception',
+            "isn't supported", 'not supported', 'on-demand throughput', 'inference profile',
+        ];
+        foreach ( $needles as $needle ) {
+            if ( strpos( $message, $needle ) !== false ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * One-line, actionable notice logged when the fallback kicks in.
+     */
+    private function log_fallback_notice() {
+        if ( class_exists( 'SSF_Logger' ) ) {
+            SSF_Logger::warning(
+                'AWS Bedrock model "' . self::DEFAULT_MODEL . '" is not available to this account/region. '
+                . 'Falling back to "' . self::FALLBACK_MODEL . '". To use the newer model, open AWS Console → '
+                . 'Bedrock → Model access and enable Claude Haiku 4.5 in your region.',
+                'ai'
+            );
+        }
     }
 
     /**
@@ -214,6 +273,30 @@ class SSF_Bedrock {
      * @return string|WP_Error
      */
     public function request( $messages, $max_tokens = 500, $temperature = 0.7 ) {
+        $result = $this->request_with_model( $messages, $max_tokens, $temperature );
+
+        // If the configured model isn't enabled for this AWS account/region,
+        // transparently retry once with the previously-shipped model so AI keeps
+        // working. We then remember it for the rest of this process.
+        if ( is_wp_error( $result )
+            && $this->model_override === null
+            && ! self::$primary_unavailable
+            && self::DEFAULT_MODEL !== self::FALLBACK_MODEL
+            && $this->is_model_unavailable_error( $result->get_error_message() ) ) {
+            $this->log_fallback_notice();
+            self::$primary_unavailable = true;
+            $this->model_override = self::FALLBACK_MODEL;
+            $result = $this->request_with_model( $messages, $max_tokens, $temperature );
+            $this->model_override = null;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Make an AWS Bedrock API request for the currently-selected model.
+     */
+    private function request_with_model( $messages, $max_tokens = 500, $temperature = 0.7 ) {
         $access_key = $this->get_access_key();
         $secret_key = $this->get_secret_key();
 
@@ -339,6 +422,35 @@ class SSF_Bedrock {
      * @return array       [ key => string|WP_Error ]
      */
     public function request_multi( $jobs ) {
+        $results = $this->request_multi_with_model( $jobs );
+
+        // If the whole batch failed because the model isn't enabled for this
+        // account/region, retry the batch once with the fallback model.
+        if ( $this->model_override === null && ! self::$primary_unavailable
+            && self::DEFAULT_MODEL !== self::FALLBACK_MODEL ) {
+            $needs_fallback = false;
+            foreach ( $results as $r ) {
+                if ( is_wp_error( $r ) && $this->is_model_unavailable_error( $r->get_error_message() ) ) {
+                    $needs_fallback = true;
+                    break;
+                }
+            }
+            if ( $needs_fallback ) {
+                $this->log_fallback_notice();
+                self::$primary_unavailable = true;
+                $this->model_override = self::FALLBACK_MODEL;
+                $results = $this->request_multi_with_model( $jobs );
+                $this->model_override = null;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Parallel batch request for the currently-selected model.
+     */
+    private function request_multi_with_model( $jobs ) {
         $access_key = $this->get_access_key();
         $secret_key = $this->get_secret_key();
 
