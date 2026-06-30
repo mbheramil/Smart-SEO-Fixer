@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.59
+Stable tag: 2.0.60
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,13 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.60 =
+* New: IndexNow instant indexing. New and updated pages are pushed to Bing, Yandex, Seznam, Naver and other IndexNow engines the moment they publish — crawled in minutes instead of days. Enabled by default; a verification key file is served automatically. Replaces the old Google/Bing sitemap "ping" calls, which both engines retired in 2023.
+* New: Image sitemap. The XML sitemap now lists each page's images (featured + in-content) so they can be discovered and rank in Google Images.
+* New: Crawl & index hygiene. Internal search-results pages, 404s, and paginated archive subpages (page 2+) are now noindexed, so Google spends crawl budget on real pages and doesn't index thin/duplicate listings.
+* Fix: Open Graph image dimensions now reflect the actual image instead of a hardcoded 1200×630, so social/SERP previews render correctly.
+* Improved: The AI Content Suggestions analysis is now keyword-ranking-focused — it tells you the specific subtopics, searcher questions (People Also Ask style), related terms, internal links, and depth changes to add so a page can rank for its target keyword, grounded in the actual content (no invented facts).
+
 = 2.0.59 =
 * CRITICAL FIX: The Search Console "AI Generate" / "AI Generate All Missing" buttons showed "Fixing X/Y…" but left every row marked "Missing" with no explanation. Two causes, both fixed: (1) the bulk loop silently swallowed every failure, so a run where all AI calls failed looked identical to a successful one; (2) even successful fixes never updated the row text. Each row now shows ✓ Fixed (with the new title/description) or ✗ with the actual error, and the run ends with a clear "X fixed, Y failed" summary plus the real failure reason.
 * Fix: Automatic AI model fallback. If Claude Haiku 4.5 isn't enabled for your AWS Bedrock account/region, the plugin now automatically falls back to Claude 3.5 Haiku so AI generation keeps working instead of failing silently — and logs a one-line notice in the Debug Log telling you to enable the newer model under AWS Console → Bedrock → Model access.

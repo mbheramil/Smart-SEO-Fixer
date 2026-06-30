@@ -466,30 +466,38 @@ class SSF_Meta_Manager {
         $description = get_post_meta($post_id, '_ssf_meta_description', true) ?: $this->get_meta_description();
         $url = $this->normalize_url_slashes(get_permalink($post_id));
         
-        // Get image — featured image → first content image → site logo fallback
+        // Get image — featured image → first content image → site logo fallback.
+        // Track real width/height when we know them (from the attachment) so the
+        // og:image:width/height tags are accurate instead of a hardcoded guess.
         $image = '';
+        $image_w = 0;
+        $image_h = 0;
         $image_id = get_post_thumbnail_id($post_id);
         if ($image_id) {
             $image_data = wp_get_attachment_image_src($image_id, 'large');
             if ($image_data) {
-                $image = $image_data[0];
+                $image   = $image_data[0];
+                $image_w = isset($image_data[1]) ? (int) $image_data[1] : 0;
+                $image_h = isset($image_data[2]) ? (int) $image_data[2] : 0;
             }
         }
-        
-        // Fallback: first image in content
+
+        // Fallback: first image in content (dimensions unknown).
         if (empty($image) && !empty($post->post_content)) {
             if (preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $post->post_content, $img_match)) {
                 $image = $img_match[1];
             }
         }
-        
-        // Fallback: site logo (from Customizer)
+
+        // Fallback: site logo (from Customizer).
         if (empty($image)) {
             $custom_logo_id = get_theme_mod('custom_logo');
             if ($custom_logo_id) {
                 $logo_data = wp_get_attachment_image_src($custom_logo_id, 'full');
                 if ($logo_data) {
-                    $image = $logo_data[0];
+                    $image   = $logo_data[0];
+                    $image_w = isset($logo_data[1]) ? (int) $logo_data[1] : 0;
+                    $image_h = isset($logo_data[2]) ? (int) $logo_data[2] : 0;
                 }
             }
         }
@@ -504,8 +512,11 @@ class SSF_Meta_Manager {
         
         if (!empty($image)) {
             echo '<meta property="og:image" content="' . esc_url($image) . '" />' . "\n";
-            echo '<meta property="og:image:width" content="1200" />' . "\n";
-            echo '<meta property="og:image:height" content="630" />' . "\n";
+            // Only emit dimensions we actually know (from the attachment).
+            if ($image_w > 0 && $image_h > 0) {
+                echo '<meta property="og:image:width" content="' . esc_attr($image_w) . '" />' . "\n";
+                echo '<meta property="og:image:height" content="' . esc_attr($image_h) . '" />' . "\n";
+            }
         }
         
         // Allow extensions (e.g., WooCommerce) to add OG tags
@@ -531,30 +542,28 @@ class SSF_Meta_Manager {
      * Output robots meta tag
      */
     public function output_robots_meta() {
-        if (!is_singular()) {
-            return;
+        $robots = null; // [index/noindex, follow/nofollow]
+
+        if (is_singular()) {
+            $post_id  = get_the_ID();
+            $noindex  = get_post_meta($post_id, '_ssf_noindex', true) ? 'noindex' : 'index';
+            $nofollow = get_post_meta($post_id, '_ssf_nofollow', true) ? 'nofollow' : 'follow';
+            $robots   = [$noindex, $nofollow];
+        } elseif (is_search()) {
+            // Internal search results should never be indexed (Google guideline).
+            $robots = ['noindex', 'follow'];
+        } elseif (is_404()) {
+            $robots = ['noindex', 'follow'];
+        } elseif (is_paged() && (is_archive() || is_home())) {
+            // Page 2+ of an archive: keep crawlable for discovery but out of the
+            // index, so only the first page competes (avoids thin paginated dupes).
+            $robots = ['noindex', 'follow'];
         }
-        
-        $post_id = get_the_ID();
-        $robots = [];
-        
-        // Check noindex
-        $noindex = get_post_meta($post_id, '_ssf_noindex', true);
-        if ($noindex) {
-            $robots[] = 'noindex';
-        } else {
-            $robots[] = 'index';
-        }
-        
-        // Check nofollow
-        $nofollow = get_post_meta($post_id, '_ssf_nofollow', true);
-        if ($nofollow) {
-            $robots[] = 'nofollow';
-        } else {
-            $robots[] = 'follow';
-        }
-        
-        if (!empty($robots)) {
+
+        // Let integrations override (e.g. force-index a specific archive).
+        $robots = apply_filters('ssf_robots_meta', $robots);
+
+        if (is_array($robots) && !empty($robots)) {
             echo '<meta name="robots" content="' . esc_attr(implode(', ', $robots)) . '" />' . "\n";
         }
     }

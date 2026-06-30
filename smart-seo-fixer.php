@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Smart SEO Fixer
- * Version: 2.0.59
+ * Version: 2.0.60
  * Author: mbheramil
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('SSF_VERSION', '2.0.59');
+define('SSF_VERSION', '2.0.60');
 define('SSF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('SSF_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SSF_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -103,6 +103,7 @@ final class Smart_SEO_Fixer {
             'includes/class-broken-links.php',
             'includes/class-404-monitor.php',
             'includes/class-robots-editor.php',
+            'includes/class-indexnow.php',
             'includes/class-readability.php',
             'includes/class-social-preview.php',
             'includes/class-keyword-tracker.php',
@@ -179,6 +180,11 @@ final class Smart_SEO_Fixer {
         // robots.txt editor (frontend hook)
         if (class_exists('SSF_Robots_Editor')) {
             SSF_Robots_Editor::init();
+        }
+
+        // IndexNow — instant indexing on publish/update (frontend + admin)
+        if (class_exists('SSF_IndexNow')) {
+            SSF_IndexNow::init();
         }
         
         // Image SEO (frontend content filter for lazy load, dimensions, etc.)
@@ -304,6 +310,7 @@ final class Smart_SEO_Fixer {
             'enable_image_seo' => true, // Lazy load, width/height, decoding=async
             'enable_cwv_tracking' => false, // Core Web Vitals RUM (opt-in)
             'enable_email_digest' => false, // Weekly SEO score digest (opt-in)
+            'enable_indexnow' => true, // Instant indexing (Bing/Yandex/etc.) on publish
         ];
         
         foreach ($defaults as $key => $value) {

@@ -287,25 +287,34 @@ class SSF_Content_Suggestions {
      * AI-powered suggestions (requires OpenAI)
      */
     private static function ai_suggestions($post, $text) {
-        $excerpt = mb_substr($text, 0, 2000);
+        $excerpt       = mb_substr($text, 0, 2500);
+        $word_count    = str_word_count($text);
         $focus_keyword = get_post_meta($post->ID, '_ssf_focus_keyword', true);
-        
-        $prompt = "Analyze this blog post content and provide 2-3 specific, actionable content improvement suggestions. Focus on:\n";
-        $prompt .= "- Content gaps (what's missing that the reader would expect)\n";
-        $prompt .= "- Engagement improvements (hooks, CTAs, questions)\n";
-        $prompt .= "- Topical depth (subtopics to cover)\n\n";
-        $prompt .= "Title: " . $post->post_title . "\n";
-        if (!empty($focus_keyword)) {
-            $prompt .= "Focus keyword: " . $focus_keyword . "\n";
-        }
-        $prompt .= "Content excerpt: " . $excerpt . "\n\n";
-        $prompt .= "Return JSON array with objects having: category (content/engagement/topical), priority (high/medium/low), title (short label), description (1-2 sentence actionable tip). Only return the JSON array, no other text.";
-        
+
+        // Keyword-ranking-focused analysis: tell the user exactly what to ADD or
+        // change so this page can rank for its target keyword.
+        $prompt  = "You are an SEO content strategist. Analyze whether this page can rank for its target keyword, ";
+        $prompt .= "and list the SPECIFIC things to ADD or CHANGE so it ranks higher.\n\n";
+        $prompt .= 'Target keyword: ' . (!empty($focus_keyword) ? $focus_keyword : '(none set)') . "\n";
+        $prompt .= 'Current title: ' . $post->post_title . "\n";
+        $prompt .= 'Current length: ' . $word_count . " words\n\n";
+        $prompt .= "Content:\n" . $excerpt . "\n\n";
+        $prompt .= "Provide 4-7 concrete, actionable items covering, where relevant:\n";
+        $prompt .= "- topical: subtopics/sections a top-ranking page for this keyword would cover that are missing here\n";
+        $prompt .= "- keyword: how/where to use the target keyword and closely related terms that fit the content\n";
+        $prompt .= "- engagement: real questions searchers ask (People Also Ask style) this page should answer\n";
+        $prompt .= "- links: internal-link opportunities (what kinds of related pages to link to/from)\n";
+        $prompt .= "- content: depth, length, or structure gaps vs a competitive page\n\n";
+        $prompt .= "RULES: Base every suggestion strictly on the actual content and target keyword above. ";
+        $prompt .= "Do NOT invent facts, statistics, prices, or claims about the business. ";
+        $prompt .= "If no target keyword is set, recommend one specific keyword phrase that already appears in the content.\n\n";
+        $prompt .= "Return ONLY a JSON array; each item: {category: topical|keyword|engagement|links|content, priority: high|medium|low, title: short label, description: 1-2 sentence concrete instruction}.";
+
         $openai = SSF_AI::get();
         $response = $openai->request([
-            ['role' => 'system', 'content' => 'You are an expert SEO content strategist. Return valid JSON only.'],
+            ['role' => 'system', 'content' => 'You are an expert SEO content strategist. You ground every recommendation in the supplied content and never invent facts. Return valid JSON only.'],
             ['role' => 'user', 'content' => $prompt],
-        ], 500, 0.4);
+        ], 800, 0.4);
         
         if (is_wp_error($response)) {
             if (class_exists('SSF_Logger')) {
@@ -333,7 +342,7 @@ class SSF_Content_Suggestions {
             if (empty($item['title']) || empty($item['description'])) continue;
             
             $clean[] = [
-                'category'    => in_array($item['category'] ?? '', ['content', 'engagement', 'topical', 'seo']) ? $item['category'] : 'content',
+                'category'    => in_array($item['category'] ?? '', ['content', 'engagement', 'topical', 'seo', 'keyword', 'links']) ? $item['category'] : 'content',
                 'priority'    => in_array($item['priority'] ?? '', ['high', 'medium', 'low']) ? $item['priority'] : 'medium',
                 'title'       => sanitize_text_field(mb_substr($item['title'], 0, 200)),
                 'description' => sanitize_text_field(mb_substr($item['description'], 0, 500)),

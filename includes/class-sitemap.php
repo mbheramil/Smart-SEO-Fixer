@@ -30,10 +30,10 @@ class SSF_Sitemap {
             // Intercept sitemap + XSL requests early, before other plugins can serve theirs
             add_action('parse_request', [$this, 'intercept_sitemap_request'], 1);
             
-            // Ping search engines on post publish
-            add_action('publish_post', [$this, 'ping_search_engines']);
-            add_action('publish_page', [$this, 'ping_search_engines']);
-            
+            // Instant indexing on publish is handled by SSF_IndexNow
+            // (transition_post_status). The old Google/Bing sitemap "ping"
+            // endpoints were removed by both engines in 2023, so they're gone.
+
             // Disable conflicting sitemaps from other plugins
             add_action('init', [$this, 'disable_conflicting_sitemaps'], 99);
             
@@ -474,12 +474,13 @@ class SSF_Sitemap {
             
             $priority = $is_page ? '0.6' : '0.8';
             $freq = $is_page ? 'monthly' : 'weekly';
-            
+
             $output .= $this->url_entry(
                 get_permalink($post->ID),
                 get_post_modified_time('c', true, $post),
                 $freq,
-                $priority
+                $priority,
+                $this->get_post_images($post)
             );
         }
         
@@ -758,7 +759,50 @@ class SSF_Sitemap {
         $xsl_url = esc_url(home_url('/?ssf_sitemap=xsl'));
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<?xml-stylesheet type="text/xsl" href="' . $xsl_url . '"?>' . "\n"
-            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+            . ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
+    }
+
+    /**
+     * Collect indexable image URLs for a post (featured image + in-content
+     * images), so they can be listed in the sitemap for Google Images.
+     * Capped to keep sitemap entries small.
+     *
+     * @param WP_Post $post
+     * @return string[] Absolute image URLs (deduped, max 10).
+     */
+    private function get_post_images($post) {
+        $images = [];
+
+        $thumb_id = get_post_thumbnail_id($post->ID);
+        if ($thumb_id) {
+            $src = wp_get_attachment_image_url($thumb_id, 'full');
+            if ($src) {
+                $images[] = $src;
+            }
+        }
+
+        if (!empty($post->post_content)) {
+            $content = do_shortcode($post->post_content);
+            if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\']/i', $content, $m)) {
+                foreach ($m[1] as $src) {
+                    // Skip data URIs and tracking pixels.
+                    if (stripos($src, 'data:') === 0) {
+                        continue;
+                    }
+                    // Resolve protocol-relative / relative URLs to absolute.
+                    if (strpos($src, '//') === 0) {
+                        $src = (is_ssl() ? 'https:' : 'http:') . $src;
+                    } elseif (strpos($src, 'http') !== 0) {
+                        $src = home_url(ltrim($src, '/'));
+                    }
+                    $images[] = $src;
+                }
+            }
+        }
+
+        $images = array_values(array_unique(array_filter($images)));
+        return array_slice($images, 0, 10);
     }
     
     /**
@@ -780,42 +824,54 @@ class SSF_Sitemap {
     /**
      * URL entry
      */
-    private function url_entry($loc, $lastmod = '', $changefreq = 'weekly', $priority = '0.5') {
+    private function url_entry($loc, $lastmod = '', $changefreq = 'weekly', $priority = '0.5', $images = []) {
         // Normalize URL for consistency (trailing slashes, etc.)
         $loc = apply_filters('ssf_sitemap_url', $loc);
-        
+
         // Enforce trailing slash consistency to match WordPress permalink structure
         $loc = $this->normalize_url_slash($loc);
-        
+
         $output = "  <url>\n";
         $output .= "    <loc>" . esc_url($loc) . "</loc>\n";
-        
+
         if (!empty($lastmod)) {
             $output .= "    <lastmod>{$lastmod}</lastmod>\n";
         }
-        
+
         $output .= "    <changefreq>{$changefreq}</changefreq>\n";
         $output .= "    <priority>{$priority}</priority>\n";
+
+        // Image entries (Google Images discovery).
+        if (!empty($images) && is_array($images)) {
+            foreach ($images as $img) {
+                if (empty($img)) {
+                    continue;
+                }
+                $output .= "    <image:image>\n";
+                $output .= "      <image:loc>" . esc_url($img) . "</image:loc>\n";
+                $output .= "    </image:image>\n";
+            }
+        }
+
         $output .= "  </url>\n";
-        
+
         return $output;
     }
     
     /**
-     * Ping search engines
+     * Deprecated: the Google and Bing sitemap "ping" endpoints were both
+     * retired in 2023. Instant indexing now goes through IndexNow. Kept as a
+     * thin delegate in case anything still calls it.
+     *
+     * @param int $post_id
      */
-    public function ping_search_engines() {
-        $sitemap_url = home_url('/sitemap.xml');
-        
-        // Ping Google
-        wp_remote_get('https://www.google.com/ping?sitemap=' . urlencode($sitemap_url), [
-            'blocking' => false,
-        ]);
-        
-        // Ping Bing
-        wp_remote_get('https://www.bing.com/ping?sitemap=' . urlencode($sitemap_url), [
-            'blocking' => false,
-        ]);
+    public function ping_search_engines($post_id = 0) {
+        if ($post_id && class_exists('SSF_IndexNow')) {
+            $url = get_permalink($post_id);
+            if ($url) {
+                SSF_IndexNow::submit_url($url);
+            }
+        }
     }
     
     /**
