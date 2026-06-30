@@ -130,14 +130,15 @@ class SSF_OpenAI {
         
         $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
         $prompt .= "Content:\n" . $clean_content . "\n\n";
+        if (class_exists('SSF_Bedrock')) { $prompt .= SSF_Bedrock::grounding_rules(); }
         $prompt .= "Respond with ONLY the optimized title, nothing else.";
-        
+
         $messages = [
-            ['role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles.'],
+            ['role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles grounded only in the supplied content. You never invent facts.'],
             ['role' => 'user', 'content' => $prompt],
         ];
-        
-        $result = $this->request($messages, 100, 0.7);
+
+        $result = $this->request($messages, 100, 0.3);
         
         if (is_wp_error($result)) {
             return $result;
@@ -172,14 +173,15 @@ class SSF_OpenAI {
         
         $clean_content = wp_trim_words(wp_strip_all_tags(strip_shortcodes($content)), 500);
         $prompt .= "Content:\n" . $clean_content . "\n\n";
+        if (class_exists('SSF_Bedrock')) { $prompt .= SSF_Bedrock::grounding_rules(); }
         $prompt .= "Respond with ONLY the meta description, nothing else.";
-        
+
         $messages = [
-            ['role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions.'],
+            ['role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions grounded only in the supplied content. You never invent facts.'],
             ['role' => 'user', 'content' => $prompt],
         ];
-        
-        $result = $this->request($messages, 200, 0.7);
+
+        $result = $this->request($messages, 200, 0.3);
         
         if (is_wp_error($result)) {
             return $result;
@@ -367,11 +369,11 @@ class SSF_OpenAI {
         $prompt .= '{"primary": "keyword", "secondary": ["kw1", "kw2"], "long_tail": ["phrase1", "phrase2"]}';
         
         $messages = [
-            ['role' => 'system', 'content' => 'You are an SEO keyword expert. Respond only with valid JSON.'],
+            ['role' => 'system', 'content' => 'You are an SEO keyword expert. Respond only with valid JSON. Every keyword must be a verbatim phrase from the supplied content — you never invent phrases.'],
             ['role' => 'user', 'content' => $prompt],
         ];
-        
-        $response = $this->request($messages, 500, 0.6);
+
+        $response = $this->request($messages, 500, 0.3);
         
         if (is_wp_error($response)) {
             return $response;

@@ -447,16 +447,33 @@ class SSF_Bedrock {
         $prompt  = "You are an SEO expert. Produce a complete SEO bundle for this post in ONE response.\n\n";
         if ( ! empty( $current_title ) ) $prompt .= "Post Title: {$current_title}\n\n";
         $prompt .= "Content:\n{$clean}\n\n";
+        $prompt .= self::grounding_rules();
         $prompt .= "Return a JSON object with exactly these keys:\n";
         $prompt .= "  \"keyword\": a focus keyword (2-4 words). CRITICAL: it MUST appear as a verbatim, case-insensitive substring somewhere in the title or content above. Do NOT invent phrases.\n";
-        $prompt .= "  \"title\": an SEO title, max 60 characters, including the keyword naturally. Compelling but accurate. No surrounding quotes.\n";
-        $prompt .= "  \"description\": a meta description, 150-160 characters, including the keyword naturally, with a subtle call-to-action. No surrounding quotes.\n\n";
+        $prompt .= "  \"title\": an SEO title, max 60 characters, including the keyword naturally. Compelling but accurate, and grounded only in the content above. No surrounding quotes.\n";
+        $prompt .= "  \"description\": a meta description, 150-160 characters, including the keyword naturally, with a subtle call-to-action, grounded only in the content above. No surrounding quotes.\n\n";
         $prompt .= 'Respond with ONLY a valid JSON object like: {"keyword":"...","title":"...","description":"..."}';
 
         return [
-            [ 'role' => 'system', 'content' => 'You are an SEO expert. Respond only with valid JSON matching the requested schema.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO expert. Respond only with valid JSON matching the requested schema. You never invent facts that are not present in the supplied content.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
+    }
+
+    /**
+     * Shared anti-hallucination instruction block injected into every SEO
+     * title / description / bundle prompt. This is the primary defense against
+     * the model inventing facts (prices, locations, dates, awards, ratings) or
+     * unfounded superlatives ("best", "#1", "leading") that aren't in the post.
+     */
+    public static function grounding_rules() {
+        return "GROUNDING (critical): Use ONLY information that actually appears in the content above. "
+             . "Do NOT invent or imply facts that aren't present — no statistics, prices, phone numbers, "
+             . "addresses, dates, years, awards, certifications, ratings, guarantees, or quantities. "
+             . "Do NOT add superlative or ranking claims (\"best\", \"#1\", \"top-rated\", \"leading\", "
+             . "\"award-winning\") unless those exact words appear in the content. If the content is thin, "
+             . "write a simpler accurate result rather than embellishing. Never mention a location, brand, "
+             . "or service the content does not mention.\n\n";
     }
 
     /**
@@ -490,7 +507,8 @@ class SSF_Bedrock {
      */
     public function generate_seo_bundle( $content, $current_title = '' ) {
         $messages = $this->build_seo_bundle_messages( $content, $current_title );
-        $result   = $this->request( $messages, 400, 0.5 );
+        // Low temperature keeps the model close to the source content (less invention).
+        $result   = $this->request( $messages, 400, 0.3 );
         return $this->parse_seo_bundle( $result );
     }
 
@@ -614,9 +632,9 @@ class SSF_Bedrock {
         if ( ! empty( $focus_keyword ) ) $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
         if ( ! empty( $current_title ) ) $prompt .= "Current Title: {$current_title}\n\n";
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
-        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the optimized title, nothing else.";
+        $prompt .= "Content:\n{$clean}\n\n" . self::grounding_rules() . "Respond with ONLY the optimized title, nothing else.";
         return [
-            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles grounded only in the supplied content. You never invent facts.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
     }
@@ -635,9 +653,9 @@ class SSF_Bedrock {
         if ( ! empty( $focus_keyword ) )       $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
         if ( ! empty( $current_description ) ) $prompt .= "Current Description: {$current_description}\n\n";
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
-        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the meta description, nothing else.";
+        $prompt .= "Content:\n{$clean}\n\n" . self::grounding_rules() . "Respond with ONLY the meta description, nothing else.";
         return [
-            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions grounded only in the supplied content. You never invent facts.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
     }
@@ -673,13 +691,13 @@ class SSF_Bedrock {
         if ( ! empty( $focus_keyword ) ) $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
         if ( ! empty( $current_title ) ) $prompt .= "Current Title: {$current_title}\n\n";
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
-        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the optimized title, nothing else.";
+        $prompt .= "Content:\n{$clean}\n\n" . self::grounding_rules() . "Respond with ONLY the optimized title, nothing else.";
 
         $messages = [
-            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, optimized titles grounded only in the supplied content. You never invent facts.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
-        $result = $this->request( $messages, 100, 0.7 );
+        $result = $this->request( $messages, 100, 0.3 );
         if ( is_wp_error( $result ) ) return $result;
         return trim( $result, " \t\n\r\0\x0B\"'" );
     }
@@ -698,13 +716,13 @@ class SSF_Bedrock {
         if ( ! empty( $focus_keyword ) )       $prompt .= "Focus Keyword: {$focus_keyword}\n\n";
         if ( ! empty( $current_description ) ) $prompt .= "Current Description: {$current_description}\n\n";
         $clean = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $content ) ), 500 );
-        $prompt .= "Content:\n{$clean}\n\nRespond with ONLY the meta description, nothing else.";
+        $prompt .= "Content:\n{$clean}\n\n" . self::grounding_rules() . "Respond with ONLY the meta description, nothing else.";
 
         $messages = [
-            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO expert that generates concise, compelling meta descriptions grounded only in the supplied content. You never invent facts.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
-        $result = $this->request( $messages, 200, 0.7 );
+        $result = $this->request( $messages, 200, 0.3 );
         if ( is_wp_error( $result ) ) return $result;
         return trim( $result, " \t\n\r\0\x0B\"'" );
     }
@@ -833,10 +851,10 @@ class SSF_Bedrock {
         $prompt .= 'Format as JSON: {"primary":"keyword","secondary":["kw1","kw2"],"long_tail":["phrase1","phrase2"]}';
 
         $messages = [
-            [ 'role' => 'system', 'content' => 'You are an SEO keyword expert. Respond only with valid JSON.' ],
+            [ 'role' => 'system', 'content' => 'You are an SEO keyword expert. Respond only with valid JSON. Every keyword must be a verbatim phrase from the supplied content — you never invent phrases.' ],
             [ 'role' => 'user',   'content' => $prompt ],
         ];
-        $response = $this->request( $messages, 500, 0.6 );
+        $response = $this->request( $messages, 500, 0.3 );
         if ( is_wp_error( $response ) ) return $response;
         $response = preg_replace( '/```json\s*/', '', $response );
         $response = preg_replace( '/```\s*/',     '', $response );

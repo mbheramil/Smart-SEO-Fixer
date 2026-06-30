@@ -591,7 +591,7 @@ class SSF_Job_Queue {
             $jobs_to_run[$post_id] = [
                 'messages'         => $messages,
                 'max_tokens'       => 400,
-                'temperature'      => 0.5,
+                'temperature'      => 0.3,
                 'post'             => $post,
                 'enriched_content' => $enriched_content,
                 'needs_kw'         => $needs_kw,

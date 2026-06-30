@@ -1016,14 +1016,14 @@ class SSF_Ajax {
                     $jobs["t_{$post_id}"] = [
                         'messages'    => $openai->build_title_messages($enriched, $post->post_title, $focus_keyword),
                         'max_tokens'  => 100,
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                     ];
                 }
                 if ($needs_desc) {
                     $jobs["d_{$post_id}"] = [
                         'messages'    => $openai->build_desc_messages($enriched, '', $focus_keyword),
                         'max_tokens'  => 200,
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                     ];
                 }
             }
@@ -1550,7 +1550,7 @@ class SSF_Ajax {
                 $jobs["img_{$i}"] = [
                     'messages'    => $openai->build_alt_messages($img['src'], $page_context, $focus_keyword),
                     'max_tokens'  => 100,
-                    'temperature' => 0.7,
+                    'temperature' => 0.4,
                 ];
             }
             $responses = $openai->request_multi($jobs);
@@ -1954,14 +1954,14 @@ class SSF_Ajax {
                     $jobs["t_{$post_id}"] = [
                         'messages'    => $openai->build_title_messages($enriched, $post->post_title, $focus_keyword),
                         'max_tokens'  => 100,
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                     ];
                 }
                 if ($needs_desc) {
                     $jobs["d_{$post_id}"] = [
                         'messages'    => $openai->build_desc_messages($enriched, '', $focus_keyword),
                         'max_tokens'  => 200,
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                     ];
                 }
             }

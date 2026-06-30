@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.57
+Stable tag: 2.0.58
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.58 =
+* Fix: Reduced AI hallucination in generated titles, meta descriptions, and focus keywords. Every generation prompt now carries an explicit grounding rule — the model may only use facts present in the post content and is forbidden from inventing statistics, prices, locations, dates, awards, ratings, or unfounded superlatives ("best", "#1", "top-rated", "leading"). Applies to the per-post buttons, Bulk AI Fix, and the background cron, across both AWS Bedrock and OpenAI.
+* Fix: Lowered the generation temperature to 0.3 for titles/descriptions/keywords (was 0.5–0.7), keeping output much closer to the actual content.
+
 = 2.0.57 =
 * CRITICAL FIX: The XML sitemap was being served with an HTTP 404 status on many sites — valid XML, but Google rejects any sitemap that doesn't return HTTP 200, so nothing got indexed from it. The sitemap now always responds 200 OK.
 * Fix: Sitemap stylesheet declared XSLT 2.0, which no browser can render — viewing /sitemap.xml showed a blank or raw page. Corrected to XSLT 1.0.
