@@ -222,51 +222,48 @@ class SSF_Broken_Links {
             ];
         }
         
-        $response = wp_remote_head($url, [
-            'timeout'     => 10,
-            'redirection' => 3,
+        // Use a browser-like user agent — many hosts serve 403 to obvious bots.
+        $args = [
+            'timeout'     => 8,
+            'redirection' => 5,
             'sslverify'   => false,
-            'user-agent'  => 'Smart-SEO-Fixer-Link-Checker/1.0',
-        ]);
-        
-        if (is_wp_error($response)) {
-            $error_msg = $response->get_error_message();
-            return [
-                'is_broken'    => true,
-                'status_code'  => 0,
-                'error'        => mb_substr($error_msg, 0, 500),
-            ];
-        }
-        
-        $code = wp_remote_retrieve_response_code($response);
-        
-        // Some servers block HEAD requests, try GET if we get 405
-        if ($code === 405) {
-            $response = wp_remote_get($url, [
-                'timeout'     => 10,
-                'redirection' => 3,
-                'sslverify'   => false,
-                'user-agent'  => 'Smart-SEO-Fixer-Link-Checker/1.0',
-            ]);
-            
+            'user-agent'  => 'Mozilla/5.0 (compatible; Smart-SEO-Fixer-LinkChecker/1.0; +' . home_url('/') . ')',
+            'headers'     => ['Accept' => '*/*'],
+        ];
+
+        $response = wp_remote_head($url, $args);
+
+        $code = is_wp_error($response) ? 0 : wp_remote_retrieve_response_code($response);
+
+        // Many servers reject or mishandle HEAD (405/403/400/501) — retry with a
+        // ranged GET, which is widely accepted and cheap (we only need the status).
+        if (is_wp_error($response) || in_array($code, [0, 400, 403, 405, 501], true)) {
+            $get_args = $args;
+            $get_args['headers']['Range'] = 'bytes=0-0';
+            $response = wp_remote_get($url, $get_args);
+
             if (is_wp_error($response)) {
                 return [
-                    'is_broken'    => true,
-                    'status_code'  => 0,
-                    'error'        => $response->get_error_message(),
+                    'is_broken'   => true,
+                    'status_code' => 0,
+                    'error'       => mb_substr($response->get_error_message(), 0, 500),
                 ];
             }
-            
             $code = wp_remote_retrieve_response_code($response);
         }
-        
-        // 2xx and 3xx are OK
-        $is_broken = $code >= 400 || $code === 0;
-        
+
+        // Codes that do NOT mean the link is dead — they mean the server is
+        // blocking automated checks, requires auth, or is rate-limiting. Flagging
+        // these produces false positives (LinkedIn returns 999, many CDNs 403).
+        $soft_ok = in_array($code, [401, 403, 429, 999], true);
+
+        // 2xx and 3xx are OK; treat soft-block codes as OK too.
+        $is_broken = ($code === 0) || ($code >= 400 && !$soft_ok);
+
         return [
-            'is_broken'    => $is_broken,
-            'status_code'  => $code,
-            'error'        => $is_broken ? "HTTP $code" : '',
+            'is_broken'   => $is_broken,
+            'status_code' => $code,
+            'error'       => $is_broken ? "HTTP $code" : '',
         ];
     }
     

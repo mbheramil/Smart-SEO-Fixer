@@ -15,23 +15,23 @@ $stats = class_exists('SSF_Broken_Links') ? SSF_Broken_Links::get_stats() : ['to
     <!-- Stats Cards -->
     <div class="ssf-stats-row">
         <div class="ssf-mini-stat">
-            <span class="ssf-mini-val" style="color: #ef4444;"><?php echo esc_html($stats['total']); ?></span>
+            <span class="ssf-mini-val" id="ssf-bl-stat-total" style="color: #ef4444;"><?php echo esc_html($stats['total']); ?></span>
             <span class="ssf-mini-label"><?php esc_html_e('Broken Links', 'smart-seo-fixer'); ?></span>
         </div>
         <div class="ssf-mini-stat">
-            <span class="ssf-mini-val" style="color: #f59e0b;"><?php echo esc_html($stats['internal']); ?></span>
+            <span class="ssf-mini-val" id="ssf-bl-stat-internal" style="color: #f59e0b;"><?php echo esc_html($stats['internal']); ?></span>
             <span class="ssf-mini-label"><?php esc_html_e('Internal', 'smart-seo-fixer'); ?></span>
         </div>
         <div class="ssf-mini-stat">
-            <span class="ssf-mini-val" style="color: #3b82f6;"><?php echo esc_html($stats['external']); ?></span>
+            <span class="ssf-mini-val" id="ssf-bl-stat-external" style="color: #3b82f6;"><?php echo esc_html($stats['external']); ?></span>
             <span class="ssf-mini-label"><?php esc_html_e('External', 'smart-seo-fixer'); ?></span>
         </div>
         <div class="ssf-mini-stat">
-            <span class="ssf-mini-val" style="color: #6b7280;"><?php echo esc_html($stats['posts_affected']); ?></span>
+            <span class="ssf-mini-val" id="ssf-bl-stat-posts" style="color: #6b7280;"><?php echo esc_html($stats['posts_affected']); ?></span>
             <span class="ssf-mini-label"><?php esc_html_e('Posts Affected', 'smart-seo-fixer'); ?></span>
         </div>
         <div class="ssf-mini-stat">
-            <span class="ssf-mini-val" style="color: #94a3b8;"><?php echo esc_html($stats['dismissed']); ?></span>
+            <span class="ssf-mini-val" id="ssf-bl-stat-dismissed" style="color: #94a3b8;"><?php echo esc_html($stats['dismissed']); ?></span>
             <span class="ssf-mini-label"><?php esc_html_e('Dismissed', 'smart-seo-fixer'); ?></span>
         </div>
     </div>
@@ -56,6 +56,19 @@ $stats = class_exists('SSF_Broken_Links') ? SSF_Broken_Links::get_stats() : ['to
                 <span class="dashicons dashicons-update" style="margin-top: 3px;"></span>
                 <?php esc_html_e('Scan Now', 'smart-seo-fixer'); ?>
             </button>
+        </div>
+    </div>
+
+    <!-- Scan progress -->
+    <div id="ssf-bl-scan-status" class="ssf-scan-status">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;">
+                <div id="ssf-bl-scan-text" style="margin-bottom:6px;font-weight:500;"></div>
+                <div style="background:#dbeafe;border-radius:9999px;height:10px;overflow:hidden;">
+                    <div id="ssf-bl-scan-bar" style="background:#2563eb;height:100%;width:0%;transition:width 0.3s ease;border-radius:9999px;"></div>
+                </div>
+            </div>
+            <span id="ssf-bl-scan-pct" style="font-weight:700;min-width:48px;text-align:right;">0%</span>
         </div>
     </div>
 
@@ -152,14 +165,24 @@ jQuery(document).ready(function($) {
             search: $('#ssf-bl-search').val()
         };
         
-        $('#ssf-bl-body').html('<tr><td colspan="7" class="ssf-loading">Loading...</td></tr>');
-        
+        $('#ssf-bl-body').html('<tr><td colspan="8" class="ssf-loading">Loading...</td></tr>');
+
         $.post(ssfAdmin.ajax_url, data, function(response) {
             if (!response.success) {
-                $('#ssf-bl-body').html('<tr><td colspan="7" class="ssf-loading">' + (response.data?.message || 'Error') + '</td></tr>');
+                $('#ssf-bl-body').html('<tr><td colspan="8" class="ssf-loading">' + (response.data?.message || 'Error') + '</td></tr>');
                 return;
             }
-            
+
+            // Refresh the stat cards from the fresh counts.
+            if (response.data.stats) {
+                var s = response.data.stats;
+                $('#ssf-bl-stat-total').text(s.total);
+                $('#ssf-bl-stat-internal').text(s.internal);
+                $('#ssf-bl-stat-external').text(s.external);
+                $('#ssf-bl-stat-posts').text(s.posts_affected);
+                $('#ssf-bl-stat-dismissed').text(s.dismissed);
+            }
+
             var items = response.data.items;
             var html = '';
             
@@ -321,17 +344,75 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // Scan Now
+    // Scan Now — runs in small batches with a progress bar so large sites
+    // never time out. Each batch scans a few posts and reports progress.
+    var scanning = false;
+    var resumeOffset = 0; // where to resume if a batch times out
     $('#ssf-bl-scan-now').on('click', function() {
-        var $btn = $(this);
-        $btn.prop('disabled', true).find('.dashicons').addClass('spin');
-        $.post(ssfAdmin.ajax_url, { action: 'ssf_scan_broken_links', nonce: ssfAdmin.nonce }, function(response) {
+        if (scanning) return;
+        scanning = true;
+
+        var $btn = $(this).prop('disabled', true);
+        $btn.find('.dashicons').addClass('spin');
+
+        var totalChecked = 0, totalBroken = 0;
+        var $status = $('#ssf-bl-scan-status').show();
+        $('#ssf-bl-scan-bar').css({'width':'0%','background':'#2563eb'});
+        $('#ssf-bl-scan-pct').text('0%');
+        $('#ssf-bl-scan-text').text('<?php echo esc_js(__('Starting scan…', 'smart-seo-fixer')); ?>');
+
+        function finish(msg, ok) {
+            scanning = false;
             $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
+            $('#ssf-bl-scan-bar').css('background', ok ? '#059669' : '#dc2626');
+            $('#ssf-bl-scan-text').text(msg);
             loadLinks();
-            if (response.success) {
-                alert('Scan complete: ' + response.data.checked + ' links checked, ' + response.data.broken + ' broken found.');
-            }
-        });
+        }
+
+        function scanBatch(offset) {
+            $.post(ssfAdmin.ajax_url, {
+                action: 'ssf_scan_broken_links',
+                nonce:  ssfAdmin.nonce,
+                offset: offset
+            }, function(response) {
+                if (!response.success) {
+                    finish('<?php echo esc_js(__('Scan failed:', 'smart-seo-fixer')); ?> ' + (response.data && response.data.message ? response.data.message : '<?php echo esc_js(__('unknown error', 'smart-seo-fixer')); ?>'), false);
+                    return;
+                }
+                var d = response.data;
+                totalChecked += d.checked;
+                totalBroken  += d.broken;
+
+                $('#ssf-bl-scan-bar').css('width', d.percent + '%');
+                $('#ssf-bl-scan-pct').text(d.percent + '%');
+                $('#ssf-bl-scan-text').text(
+                    '<?php echo esc_js(__('Scanning…', 'smart-seo-fixer')); ?> ' +
+                    d.processed + ' / ' + d.total + ' <?php echo esc_js(__('posts', 'smart-seo-fixer')); ?> · ' +
+                    totalChecked + ' <?php echo esc_js(__('links checked', 'smart-seo-fixer')); ?> · ' +
+                    totalBroken + ' <?php echo esc_js(__('broken', 'smart-seo-fixer')); ?>'
+                );
+
+                if (d.done) {
+                    resumeOffset = 0;
+                    finish(
+                        '✓ <?php echo esc_js(__('Scan complete:', 'smart-seo-fixer')); ?> ' +
+                        totalChecked + ' <?php echo esc_js(__('links checked across', 'smart-seo-fixer')); ?> ' +
+                        d.total + ' <?php echo esc_js(__('posts,', 'smart-seo-fixer')); ?> ' +
+                        totalBroken + ' <?php echo esc_js(__('broken found.', 'smart-seo-fixer')); ?>',
+                        true
+                    );
+                } else {
+                    resumeOffset = d.next_offset;
+                    scanBatch(d.next_offset);
+                }
+            }).fail(function() {
+                // A batch timed out — results so far are saved. Resume from here.
+                resumeOffset = offset;
+                finish('<?php echo esc_js(__('A batch took too long and stopped. Partial results were saved — click Scan Now again to continue.', 'smart-seo-fixer')); ?>', false);
+            });
+        }
+
+        scanBatch(resumeOffset);
     });
     
     loadLinks();

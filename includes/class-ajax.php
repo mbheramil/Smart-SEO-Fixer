@@ -3340,9 +3340,18 @@ class SSF_Ajax {
             'search'    => sanitize_text_field($_POST['search'] ?? ''),
         ]);
 
+        // Include fresh stats so the UI cards update without a page reload.
+        $result['stats'] = SSF_Broken_Links::get_stats();
+
         wp_send_json_success($result);
     }
 
+    /**
+     * Scan for broken links in small batches. The frontend calls this
+     * repeatedly with an increasing offset and shows a progress bar, so a
+     * large site never blows the PHP time limit in a single request (which
+     * is what made "Scan Now" appear to do nothing).
+     */
     public function scan_broken_links() {
         $this->verify_nonce();
 
@@ -3354,21 +3363,58 @@ class SSF_Ajax {
             wp_send_json_error(['message' => __('Broken Links module not available.', 'smart-seo-fixer')]);
         }
 
-        $post_types = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
-        $posts = get_posts(['post_type' => $post_types, 'post_status' => 'publish', 'posts_per_page' => 50, 'fields' => 'ids']);
+        @set_time_limit(120);
 
-        $total_checked = 0;
-        $total_broken  = 0;
+        // Ensure the table exists (self-heal if the plugin was updated without reactivation).
+        SSF_Broken_Links::create_table();
 
-        foreach ($posts as $post_id) {
-            $r = SSF_Broken_Links::scan_post($post_id);
-            $total_checked += $r['checked'];
-            $total_broken  += $r['broken'];
+        global $wpdb;
+        $offset     = max(0, intval($_POST['offset'] ?? 0));
+        $batch_size = 3; // posts per request — small so each batch stays well under the time limit
+
+        $post_types   = Smart_SEO_Fixer::get_option('post_types', ['post', 'page']);
+        if (empty($post_types)) { $post_types = ['post', 'page']; }
+        $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+
+        $total = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ($placeholders)",
+            ...$post_types
+        ));
+
+        if ($total === 0) {
+            wp_send_json_success([
+                'done' => true, 'total' => 0, 'processed' => 0,
+                'checked' => 0, 'broken' => 0, 'percent' => 100, 'next_offset' => 0,
+            ]);
         }
 
+        $post_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+             WHERE post_status = 'publish' AND post_type IN ($placeholders)
+             ORDER BY ID ASC
+             LIMIT %d OFFSET %d",
+            ...array_merge($post_types, [$batch_size, $offset])
+        ));
+
+        $checked = 0;
+        $broken  = 0;
+        foreach ($post_ids as $pid) {
+            $r = SSF_Broken_Links::scan_post((int) $pid);
+            $checked += $r['checked'];
+            $broken  += $r['broken'];
+        }
+
+        $processed = $offset + count($post_ids);
+        $done = ($processed >= $total) || empty($post_ids);
+
         wp_send_json_success([
-            'checked' => $total_checked,
-            'broken'  => $total_broken,
+            'done'        => $done,
+            'total'       => $total,
+            'processed'   => $processed,
+            'checked'     => $checked,
+            'broken'      => $broken,
+            'percent'     => $total > 0 ? min(100, (int) round(($processed / $total) * 100)) : 100,
+            'next_offset' => $processed,
         ]);
     }
 

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.63
+Stable tag: 2.0.64
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,11 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.64 =
+* CRITICAL FIX: Broken Link Checker "Scan Now" did nothing on real sites. It tried to scan up to 50 posts (each link waiting up to 10s) in a single request, which always exceeded the PHP time limit — the request died with no feedback and the button spun forever. The scan now runs in small batches with a live progress bar, resumes if a batch times out, and updates the stat cards when done.
+* Enhanced: Far fewer false positives. Link checks now use a browser-like user agent, retry with a ranged GET when a server rejects HEAD (403/405/400/501), and treat auth/bot-block/rate-limit responses (401, 403, 429, LinkedIn's 999) as working links rather than "broken."
+* Enhanced: Broken-link stat cards refresh instantly after a scan or filter without a page reload.
+
 = 2.0.63 =
 * New: Refresh button on the 404 Error Log (Redirect Manager) to re-check entries on demand.
 * New: The 404 log now shows a green "Redirected" badge on any entry that's already covered by an active redirect rule (exact or path-preserving wildcard), so you can instantly see which 404s are resolved vs. still need attention.
