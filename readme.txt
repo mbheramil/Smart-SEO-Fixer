@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.60
+Stable tag: 2.0.61
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.61 =
+* Fix: A bogus "Some pages could not be fixed: Unknown fix type" popup appeared when running the orphaned-pages "Fix All with AI" bulk action. The orphan fix was actually working — a second (generic) click handler was double-firing on the same button and sending an unknown fix type. The generic handler now correctly ignores the orphaned-pages button, which has its own handler.
+
 = 2.0.60 =
 * New: IndexNow instant indexing. New and updated pages are pushed to Bing, Yandex, Seznam, Naver and other IndexNow engines the moment they publish — crawled in minutes instead of days. Enabled by default; a verification key file is served automatically. Replaces the old Google/Bing sitemap "ping" calls, which both engines retired in 2023.
 * New: Image sitemap. The XML sitemap now lists each page's images (featured + in-content) so they can be discovered and rank in Google Images.

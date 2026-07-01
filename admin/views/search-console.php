@@ -583,6 +583,13 @@ jQuery(document).ready(function($) {
         var $btn = $(this);
         var $group = $btn.closest('.ssf-audit-group');
         var fixType = $btn.data('fix');
+
+        // 'orphaned_pages' has its own dedicated handler (below) that runs the
+        // orphan link fix. This generic handler is registered first, so without
+        // this guard it also fires and sends an unknown fix_type to the server,
+        // producing a bogus "Unknown fix type" error while the real fix works.
+        if (fixType === 'orphaned_pages') { return; }
+
         var items = $btn.data('items') || [];
         var index = 0;
         var okCount = 0;
