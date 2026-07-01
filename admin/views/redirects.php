@@ -81,6 +81,9 @@ if (!defined('ABSPATH')) exit;
                 <button type="button" class="button button-primary" id="ssf-bulk-redirect-404" style="display:none;margin-right:6px;">
                     <span class="dashicons dashicons-randomize" style="line-height:1.5;"></span> <?php esc_html_e('Bulk Redirect Selected', 'smart-seo-fixer'); ?>
                 </button>
+                <button type="button" class="button" id="ssf-refresh-404" style="margin-right:6px;">
+                    <span class="dashicons dashicons-update" style="line-height:1.5;"></span> <?php esc_html_e('Refresh', 'smart-seo-fixer'); ?>
+                </button>
                 <button type="button" class="button" id="ssf-clear-404" style="color:#dc2626;border-color:#dc2626;"><?php esc_html_e('Clear Log', 'smart-seo-fixer'); ?></button>
             </div>
         </div>
@@ -177,7 +180,11 @@ jQuery(document).ready(function($) {
                 html += '<td><code>'+escH(entry.url)+'</code></td>';
                 html += '<td><strong>'+entry.hits+'</strong></td>';
                 html += '<td style="font-size:12px;">'+escH(entry.last_hit||'')+'</td>';
-                html += '<td><button type="button" class="button ssf-404-to-redir" data-url="'+escA(entry.url)+'" style="font-size:12px;padding:0 8px;min-height:26px;">→ Redirect</button></td>';
+                if (entry.redirected) {
+                    html += '<td><span style="display:inline-flex;align-items:center;gap:4px;color:#059669;font-weight:600;font-size:12px;"><span class="dashicons dashicons-yes-alt" style="font-size:16px;width:16px;height:16px;"></span><?php echo esc_js(__('Redirected', 'smart-seo-fixer')); ?></span></td>';
+                } else {
+                    html += '<td><button type="button" class="button ssf-404-to-redir" data-url="'+escA(entry.url)+'" style="font-size:12px;padding:0 8px;min-height:26px;">→ Redirect</button></td>';
+                }
                 html += '</tr>';
             });
             $('#ssf-404-tbody').html(html);
@@ -189,7 +196,18 @@ jQuery(document).ready(function($) {
     load404Log();
     
     $('#ssf-refresh-redirects').on('click', loadRedirects);
-    
+
+    // Refresh the 404 log (re-checks which entries are now covered by a redirect).
+    $('#ssf-refresh-404').on('click', function() {
+        var $btn = $(this).prop('disabled', true);
+        $btn.find('.dashicons').addClass('ssf-spin');
+        load404Log();
+        // Re-enable shortly after (load404Log has no completion callback exposed here).
+        setTimeout(function() {
+            $btn.prop('disabled', false).find('.dashicons').removeClass('ssf-spin');
+        }, 800);
+    });
+
     // Add redirect
     $('#ssf-add-redirect').on('click', function() {
         var $btn = $(this);

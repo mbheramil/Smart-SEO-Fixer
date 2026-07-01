@@ -349,7 +349,63 @@ class SSF_Redirects {
     public function ajax_get_404_log() {
         $this->verify();
         $log = self::get_404_entries(200);
+
+        // Flag each entry that's now covered by an active redirect, so the UI
+        // can show which 404s have already been resolved.
+        foreach ($log as &$entry) {
+            $entry['redirected'] = $this->url_has_active_redirect($entry['url'] ?? '');
+        }
+        unset($entry);
+
         wp_send_json_success(['log' => $log, 'total' => count($log)]);
+    }
+
+    /**
+     * Whether a given request path/URL is already covered by an active
+     * redirect rule. Mirrors the matching logic in maybe_redirect() (exact +
+     * path-preserving wildcard, with full-URL "From" normalization) so the
+     * 404 log can accurately show "Redirected" after the user adds a rule.
+     *
+     * @param string $url  A logged 404 URL or path.
+     * @return bool
+     */
+    public function url_has_active_redirect($url) {
+        if (empty($url)) {
+            return false;
+        }
+
+        $request_path = trim((string) wp_parse_url($url, PHP_URL_PATH), '/');
+        if ($request_path === '') {
+            return false;
+        }
+
+        foreach ($this->get_redirects() as $redirect) {
+            if (empty($redirect['enabled'])) {
+                continue;
+            }
+
+            $from = (string) ($redirect['from'] ?? '');
+            if (strpos($from, '://') !== false) {
+                $from = (string) wp_parse_url($from, PHP_URL_PATH);
+            }
+            $from = trim($from, '/');
+            if ($from === '') {
+                continue;
+            }
+
+            if ($from === $request_path) {
+                return true;
+            }
+
+            if (substr($from, -1) === '*') {
+                $prefix = rtrim($from, '*');
+                if ($prefix === '' || strpos($request_path, $prefix) === 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public function ajax_clear_404_log() {
