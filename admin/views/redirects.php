@@ -40,7 +40,7 @@ if (!defined('ABSPATH')) exit;
                 </button>
             </div>
             <p class="description" style="margin-top:8px;">
-                <?php esc_html_e('Use relative paths for "From" (e.g., /old-page/). Use full URLs for "To" (e.g., https://site.com/new-page/). Add * at end for wildcard matching.', 'smart-seo-fixer'); ?>
+                <?php esc_html_e('Use relative paths for "From" (e.g., /old-page/). Use full URLs for "To" (e.g., https://site.com/new-page/). Add * at the end of "From" for wildcard matching — and if "To" ends with a slash, the rest of the path is carried across. Example: /wp-content/uploads/* → https://cdn.example.net/wp-content/uploads/ forwards every file to the same path on your CDN.', 'smart-seo-fixer'); ?>
             </p>
         </div>
     </div>

@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.61
+Stable tag: 2.0.62
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,10 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.62 =
+* New: Path-preserving wildcard redirects. When the "From" ends with * and the "To" ends with a slash (or *), the rest of the request path is carried across — so a single rule like /wp-content/uploads/* → https://cdn.example/wp-content/uploads/ forwards every file to the same path on a CDN, keeping the filename. Previously wildcard redirects sent everything to one fixed URL. Ideal for moving a folder or catching offloaded-media 404s (e.g. WP Offload Media / CloudFront) that a media player references by hardcoded URL.
+* Fix: The redirect "From" field now also accepts a full URL (its path is used), so a pasted absolute URL matches correctly instead of silently never firing.
+
 = 2.0.61 =
 * Fix: A bogus "Some pages could not be fixed: Unknown fix type" popup appeared when running the orphaned-pages "Fix All with AI" bulk action. The orphan fix was actually working — a second (generic) click handler was double-firing on the same button and sending an unknown fix type. The generic handler now correctly ignores the orphaned-pages button, which has its own handler.
 

@@ -47,28 +47,47 @@ class SSF_Redirects {
      */
     public function maybe_redirect() {
         if (is_admin()) return;
-        
-        $request_path = trim(wp_parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+
+        $request_path = trim((string) wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
         $redirects = $this->get_redirects();
-        
+
         foreach ($redirects as $redirect) {
             if (empty($redirect['enabled'])) continue;
-            
-            $from = trim($redirect['from'], '/');
-            
+
+            // Normalize "From": accept either a relative path (/old/) or a full
+            // URL (https://site.com/old/) — use the path part either way.
+            $from = (string) ($redirect['from'] ?? '');
+            if (strpos($from, '://') !== false) {
+                $from = (string) wp_parse_url($from, PHP_URL_PATH);
+            }
+            $from = trim($from, '/');
+            if ($from === '') continue;
+
+            $to   = (string) ($redirect['to'] ?? '');
+            $code = intval($redirect['type'] ?? 301);
+
             // Exact match
             if ($from === $request_path) {
-                $code = intval($redirect['type'] ?? 301);
-                wp_redirect($redirect['to'], $code);
+                wp_redirect($to, $code);
                 exit;
             }
-            
+
             // Wildcard match (e.g., /old-path/* → /new-path/)
             if (substr($from, -1) === '*') {
                 $prefix = rtrim($from, '*');
-                if (strpos($request_path, $prefix) === 0) {
-                    $code = intval($redirect['type'] ?? 301);
-                    wp_redirect($redirect['to'], $code);
+                if ($prefix === '' || strpos($request_path, $prefix) === 0) {
+                    // Path-preserving: when the destination ends with '/' or '*',
+                    // append the part of the request matched by the wildcard so the
+                    // rest of the path (e.g. a filename) carries across. This is
+                    // what makes "move a whole folder / offloaded uploads to a CDN"
+                    // work with a single rule, e.g.
+                    //   /wp-content/uploads/*  →  https://cdn.example/wp-content/uploads/
+                    // Otherwise, redirect to the fixed destination URL.
+                    if ($to !== '' && (substr($to, -1) === '/' || substr($to, -1) === '*')) {
+                        $suffix = ltrim(substr($request_path, strlen(rtrim($prefix, '/'))), '/');
+                        $to = rtrim(rtrim($to, '*'), '/') . '/' . $suffix;
+                    }
+                    wp_redirect($to, $code);
                     exit;
                 }
             }
