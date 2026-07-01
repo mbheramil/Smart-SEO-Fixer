@@ -17,7 +17,7 @@ class SSF_DB_Migrator {
     /**
      * Current target DB version (increment when adding new migrations)
      */
-    const CURRENT_VERSION = 9;
+    const CURRENT_VERSION = 10;
     
     /**
      * Run any pending migrations
@@ -83,6 +83,9 @@ class SSF_DB_Migrator {
             // v9: Upgrade Bedrock model to Claude Haiku 4.5 and re-flush sitemap
             // rewrite rules so /sitemap.xml resolves after the auto-update (v2.0.57)
             9 => [__CLASS__, 'migrate_v9_haiku_45_and_sitemap'],
+            // v10: Purge broken-link false positives (403/401/429/999 bot-block,
+            // auth, and rate-limit codes) recorded by older versions (v2.0.65)
+            10 => [__CLASS__, 'migrate_v10_purge_softok_broken_links'],
         ];
     }
     
@@ -233,6 +236,18 @@ class SSF_DB_Migrator {
         // (which runs before this admin_init migration), so flushing here
         // persists them — /sitemap.xml resolves without a manual Permalinks save.
         flush_rewrite_rules(false);
+    }
+
+    /**
+     * Migration v10: Remove historical broken-link false positives — records
+     * whose status code is now treated as "not broken" (403 bot-block, 401 auth,
+     * 429 rate-limit, 999 LinkedIn). These were flagged by older versions before
+     * the checker learned to ignore bot-blocking responses.
+     */
+    public static function migrate_v10_purge_softok_broken_links() {
+        if (class_exists('SSF_Broken_Links')) {
+            SSF_Broken_Links::purge_soft_ok();
+        }
     }
 
     /**

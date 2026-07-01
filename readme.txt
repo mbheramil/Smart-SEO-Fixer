@@ -3,7 +3,7 @@ Contributors: mbheramil
 Tags: seo, ai, openai, meta description, schema, sitemap, search engine optimization, breadcrumbs, redirects, local seo
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.64
+Stable tag: 2.0.65
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -93,6 +93,9 @@ Yes. The plugin forces title-tag support for themes that don't declare it, and i
 6. Settings page with API configuration
 
 == Changelog ==
+= 2.0.65 =
+* Fix: Existing broken-link false positives are now cleared automatically. Links that older versions flagged as broken but are really just bot-blocked, auth-protected, or rate-limited (403, 401, 429, and LinkedIn's 999 — e.g. YellowPages, LinkedIn, many directories) are removed from the list on update. New scans already ignore these (v2.0.64); this cleans up the ones already recorded.
+
 = 2.0.64 =
 * CRITICAL FIX: Broken Link Checker "Scan Now" did nothing on real sites. It tried to scan up to 50 posts (each link waiting up to 10s) in a single request, which always exceeded the PHP time limit — the request died with no feedback and the button spun forever. The scan now runs in small batches with a live progress bar, resumes if a batch times out, and updates the stat cards when done.
 * Enhanced: Far fewer false positives. Link checks now use a browser-like user agent, retry with a ranged GET when a server rejects HEAD (403/405/400/501), and treat auth/bot-block/rate-limit responses (401, 403, 429, LinkedIn's 999) as working links rather than "broken."

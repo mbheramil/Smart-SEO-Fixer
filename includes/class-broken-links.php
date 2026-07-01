@@ -255,7 +255,7 @@ class SSF_Broken_Links {
         // Codes that do NOT mean the link is dead — they mean the server is
         // blocking automated checks, requires auth, or is rate-limiting. Flagging
         // these produces false positives (LinkedIn returns 999, many CDNs 403).
-        $soft_ok = in_array($code, [401, 403, 429, 999], true);
+        $soft_ok = in_array($code, self::SOFT_OK_CODES, true);
 
         // 2xx and 3xx are OK; treat soft-block codes as OK too.
         $is_broken = ($code === 0) || ($code >= 400 && !$soft_ok);
@@ -483,6 +483,30 @@ class SSF_Broken_Links {
         ];
     }
     
+    /**
+     * HTTP status codes that are NOT real broken links — the server is blocking
+     * automated checks, requires auth, or is rate-limiting. Kept in sync with
+     * the classification in check_url().
+     */
+    const SOFT_OK_CODES = [401, 403, 429, 999];
+
+    /**
+     * Remove existing records whose status code is now treated as "not broken"
+     * (auth / bot-block / rate-limit). Clears out historical false positives
+     * like YellowPages (403) or LinkedIn (999) recorded by older versions.
+     *
+     * @return int Rows removed.
+     */
+    public static function purge_soft_ok() {
+        global $wpdb;
+        $table = self::table();
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
+            return 0;
+        }
+        $codes = implode(',', array_map('intval', self::SOFT_OK_CODES));
+        return (int) $wpdb->query("DELETE FROM $table WHERE status_code IN ($codes)");
+    }
+
     /**
      * Clean up old dismissed records (older than 90 days)
      */
